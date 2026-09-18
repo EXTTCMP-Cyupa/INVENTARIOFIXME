@@ -1,5 +1,7 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
 import { PublicCatalog, PublicDeliveryTracking, CatalogShareModal } from './publicModules';
+import { SriRideModal } from './sriRideModal';
+import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
 type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'SUCURSAL ACTUAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':'Principal'}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':undefined} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
@@ -577,16 +579,106 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
   const [cashTendered, setCashTendered] = React.useState('');
   const [splitAmounts, setSplitAmounts] = React.useState({ CASH: '', CARD: '', TRANSFER: '' });
 
+  // Dual Invoice & Offline POS states
+  const [invoiceType, setInvoiceType] = React.useState<'INTERNAL_TICKET' | 'SRI_INVOICE'>('INTERNAL_TICKET');
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+  const [pendingOffline, setPendingOffline] = React.useState<OfflineSale[]>([]);
+  const [syncingOffline, setSyncingOffline] = React.useState(false);
+  const [showRideModalId, setShowRideModalId] = React.useState<string | null>(null);
+
   const [busy, setBusy] = React.useState(false);
   const [receiptModal, setReceiptModal] = React.useState<Any|null>(null);
 
   const load = React.useCallback(() => {
-    api(`/api/products?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setProducts);
-    api('/api/customers').then(r => r.ok ? r.json() : []).then(setCustomers);
-    api('/api/categories').then(r => r.ok ? r.json() : []).then(setCats);
+    if (navigator.onLine) {
+      api(`/api/products?branchId=${branchId}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(data => {
+          setProducts(data);
+          saveCatalogLocally(data).catch(() => {});
+        })
+        .catch(() => {
+          getCatalogLocally().then(setProducts).catch(() => {});
+        });
+      api('/api/customers')
+        .then(r => r.ok ? r.json() : [])
+        .then(data => {
+          setCustomers(data);
+          saveCustomersLocally(data).catch(() => {});
+        })
+        .catch(() => {
+          getCustomersLocally().then(setCustomers).catch(() => {});
+        });
+      api('/api/categories').then(r => r.ok ? r.json() : []).then(setCats).catch(() => {});
+    } else {
+      getCatalogLocally().then(setProducts).catch(() => {});
+      getCustomersLocally().then(setCustomers).catch(() => {});
+    }
+    getPendingSales().then(setPendingOffline).catch(() => {});
   }, [api]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  // Online / Offline network listeners
+  React.useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      notify('Conexión reestablecida. Sincronizando ventas...');
+    };
+    const onOffline = () => {
+      setIsOnline(false);
+      notify('Sin conexión a internet. Modo offline activado.');
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    getPendingSales().then(setPendingOffline).catch(() => {});
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [notify]);
+
+  const syncOfflineSales = React.useCallback(async () => {
+    if (syncingOffline) return;
+    const pending = await getPendingSales();
+    if (!pending.length) return;
+    setSyncingOffline(true);
+    try {
+      const payload = pending.map(p => ({
+        branchId,
+        customerId: p.customerId || null,
+        warrantyDays: p.warrantyDays || 0,
+        channel: p.channel || 'STORE',
+        fulfillmentType: p.fulfillmentType || 'PICKUP',
+        shippingCost: p.shippingCost || 0,
+        delivery: p.delivery,
+        items: p.items.map(it => ({ productId: it.productId, quantity: it.quantity })),
+        payments: p.payments,
+        invoiceType: p.invoiceType || 'INTERNAL_TICKET',
+        offlineFolio: p.offlineFolio
+      }));
+      const r = await api('/api/sales/sync-offline', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (r.ok) {
+        await clearPendingSales();
+        setPendingOffline([]);
+        notify(`¡${pending.length} venta(s) offline sincronizada(s) con éxito!`);
+        load();
+      }
+    } catch {
+      // Retain offline sales
+    } finally {
+      setSyncingOffline(false);
+    }
+  }, [api, syncingOffline, notify, load]);
+
+  React.useEffect(() => {
+    if (isOnline && pendingOffline.length > 0) {
+      syncOfflineSales();
+    }
+  }, [isOnline, pendingOffline.length, syncOfflineSales]);
 
   const add = (p: Any) => setCart(c => {
     const x = c.find(i => i.id === p.id);
@@ -649,6 +741,59 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       paymentsPayload = [{ method: payMethod, amount: grandTotal }];
     }
 
+    // 1. Check if Offline Mode
+    if (!navigator.onLine) {
+      const offlineFolio = 'OFF-' + Math.floor(100000 + Math.random() * 900000);
+      const selCustomer = customers.find(c => c.id === customerId);
+
+      const offlineSaleRecord: OfflineSale = {
+        offlineFolio,
+        createdAt: new Date().toISOString(),
+        branchId,
+        customerId: customerId || null,
+        customerName: selCustomer ? selCustomer.name : 'Consumidor Final',
+        customerIdentification: selCustomer ? (selCustomer.identification_number || selCustomer.cedula) : '9999999999999',
+        warrantyDays: Number(warrantyDays || 0),
+        channel,
+        fulfillmentType: fulfillment,
+        shippingCost: shippingFee,
+        invoiceType,
+        items: cart.map(i => ({ productId: i.id, quantity: i.quantity, name: i.name, price: Number(i.price) })),
+        payments: paymentsPayload,
+        delivery: fulfillment === 'DELIVERY' ? { ...delivery } : null,
+        grandTotal,
+        synced: false
+      };
+
+      await queueOfflineSale(offlineSaleRecord);
+      const updated = await getPendingSales();
+      setPendingOffline(updated);
+
+      notify(`⚠️ Venta guardada en MODO OFFLINE (${offlineFolio}). Se sincronizará automáticamente.`);
+      setReceiptModal({
+        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal },
+        items: [...cart],
+        subtotal,
+        shippingFee,
+        grandTotal,
+        channel,
+        fulfillment,
+        delivery: { ...delivery },
+        customer: selCustomer,
+        payMethod,
+        cashTendered: payMethod === 'CASH' ? tenderedVal : null,
+        change: payMethod === 'CASH' ? changeVal : null,
+        payments: paymentsPayload,
+        isOfflineSale: true,
+        invoiceType
+      });
+      setCart([]);
+      setCashTendered('');
+      setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+      return;
+    }
+
+    // 2. Normal Online Sale
     setBusy(true);
     const body = {
       branchId,
@@ -666,21 +811,77 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         shippingCost: shippingFee
       } : null,
       items: cart.map(i => ({ productId: i.id, quantity: i.quantity })),
-      payments: paymentsPayload
+      payments: paymentsPayload,
+      invoiceType,
+      offlineFolio: null
     };
 
-    const r = await api('/api/sales', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
-    setBusy(false);
+    try {
+      const r = await api('/api/sales', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      setBusy(false);
 
-    if (r.ok) {
-      const createdSale = await r.json();
-      notify('¡Venta registrada con éxito!');
+      if (r.ok) {
+        const createdSale = await r.json();
+        notify(invoiceType === 'SRI_INVOICE'
+          ? '¡Venta y Factura Electrónica SRI generada con éxito!'
+          : '¡Venta registrada con éxito!');
+        const selCustomer = customers.find(c => c.id === customerId);
+        setReceiptModal({
+          sale: createdSale,
+          items: [...cart],
+          subtotal,
+          shippingFee,
+          grandTotal,
+          channel,
+          fulfillment,
+          delivery: { ...delivery },
+          customer: selCustomer,
+          payMethod,
+          cashTendered: payMethod === 'CASH' ? tenderedVal : null,
+          change: payMethod === 'CASH' ? changeVal : null,
+          payments: paymentsPayload,
+          invoiceType
+        });
+        setCart([]);
+        setCashTendered('');
+        setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+        load();
+      } else {
+        notify(await r.text() || 'No se pudo registrar la venta');
+      }
+    } catch {
+      // Network failed during checkout -> fallback to offline queue
+      setBusy(false);
+      setIsOnline(false);
+      const offlineFolio = 'OFF-' + Math.floor(100000 + Math.random() * 900000);
       const selCustomer = customers.find(c => c.id === customerId);
+      const offlineSaleRecord: OfflineSale = {
+        offlineFolio,
+        createdAt: new Date().toISOString(),
+        branchId,
+        customerId: customerId || null,
+        customerName: selCustomer ? selCustomer.name : 'Consumidor Final',
+        customerIdentification: selCustomer ? (selCustomer.identification_number || selCustomer.cedula) : '9999999999999',
+        warrantyDays: Number(warrantyDays || 0),
+        channel,
+        fulfillmentType: fulfillment,
+        shippingCost: shippingFee,
+        invoiceType,
+        items: cart.map(i => ({ productId: i.id, quantity: i.quantity, name: i.name, price: Number(i.price) })),
+        payments: paymentsPayload,
+        delivery: fulfillment === 'DELIVERY' ? { ...delivery } : null,
+        grandTotal,
+        synced: false
+      };
+      await queueOfflineSale(offlineSaleRecord);
+      const updated = await getPendingSales();
+      setPendingOffline(updated);
+      notify(`⚠️ Conexión perdida. Venta guardada en MODO OFFLINE (${offlineFolio}).`);
       setReceiptModal({
-        sale: createdSale,
+        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal },
         items: [...cart],
         subtotal,
         shippingFee,
@@ -692,14 +893,11 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         payMethod,
         cashTendered: payMethod === 'CASH' ? tenderedVal : null,
         change: payMethod === 'CASH' ? changeVal : null,
-        payments: paymentsPayload
+        payments: paymentsPayload,
+        isOfflineSale: true,
+        invoiceType
       });
       setCart([]);
-      setCashTendered('');
-      setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
-      load();
-    } else {
-      notify(await r.text() || 'No se pudo registrar la venta');
     }
   }
 
@@ -791,6 +989,61 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 
         {/* CART & CHECKOUT PANEL */}
         <div className="cart">
+          {/* OFFLINE STATUS / SYNC BANNER */}
+          {(!isOnline || pendingOffline.length > 0) && (
+            <div className="offline-status-banner">
+              <div>
+                <span className={`connection-dot ${isOnline ? 'online' : 'offline'}`} />
+                <span>{!isOnline ? 'Modo Offline (Sin Internet)' : 'Conectado a la red'}</span>
+                {pendingOffline.length > 0 && (
+                  <span style={{ display: 'block', fontSize: '10.5px', marginTop: '2px', color: '#92400e' }}>
+                    {pendingOffline.length} venta(s) local(es) pendiente(s) de sincronizar
+                  </span>
+                )}
+              </div>
+              {isOnline && pendingOffline.length > 0 && (
+                <button
+                  type="button"
+                  className="offline-sync-btn"
+                  onClick={syncOfflineSales}
+                  disabled={syncingOffline}
+                >
+                  {syncingOffline ? 'Sincronizando...' : `🔄 Sincronizar (${pendingOffline.length})`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* DUAL INVOICE EMISSION SELECTOR (TICKET INTERNO vs FACTURA SRI) */}
+          <div>
+            <label style={{ marginBottom: '6px', display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569' }}>
+              Tipo de Comprobante
+            </label>
+            <div className="invoice-mode-selector">
+              <button
+                type="button"
+                className={`invoice-mode-pill ${invoiceType === 'INTERNAL_TICKET' ? 'active ticket' : ''}`}
+                onClick={() => setInvoiceType('INTERNAL_TICKET')}
+                title="Comprobante interno de tienda (No fiscal / Sin declarar IVA)"
+              >
+                <i>🧾</i> Ticket Interno
+              </button>
+              <button
+                type="button"
+                className={`invoice-mode-pill ${invoiceType === 'SRI_INVOICE' ? 'active sri' : ''}`}
+                onClick={() => setInvoiceType('SRI_INVOICE')}
+                title="Factura electrónica autorizada por el SRI (Con 15% IVA y Clave de Acceso)"
+              >
+                <i>🏛️</i> Factura SRI
+              </button>
+            </div>
+            {invoiceType === 'SRI_INVOICE' && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '6px 8px', fontSize: '10.5px', color: '#1e3a8a', marginBottom: '8px' }}>
+                🏛️ <b>Facturación SRI Activa:</b> Se generará Clave de Acceso de 49 dígitos, XML firmado y RIDE oficial.
+              </div>
+            )}
+          </div>
+
           {/* CHANNEL SELECTOR */}
           <div>
             <label style={{ marginBottom: '6px', display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569' }}>Canal de Venta</label>

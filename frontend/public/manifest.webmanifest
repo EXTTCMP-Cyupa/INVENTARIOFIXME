@@ -1,1 +1,16 @@
-{"name":"FixmeTiendas","short_name":"Fixme","start_url":"/","display":"standalone","theme_color":"#3157d5","background_color":"#f5f7fb","icons":[]}
+{
+  "name": "FixmeTiendas - POS, Inventario y Facturación Electrónica",
+  "short_name": "FixmeTiendas",
+  "description": "Sistema de gestión integral para tiendas, punto de venta offline, facturación electrónica SRI y logística.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3157d5",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

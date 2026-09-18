@@ -14,10 +14,12 @@ import org.springframework.web.bind.annotation.*;
 public class SaleController {
   private final SaleService service;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+  private final SriInvoiceController sriInvoiceController;
 
-  public SaleController(SaleService s, org.springframework.jdbc.core.JdbcTemplate j) {
+  public SaleController(SaleService s, org.springframework.jdbc.core.JdbcTemplate j, SriInvoiceController sri) {
     this.service = s;
     this.jdbc = j;
+    this.sriInvoiceController = sri;
   }
 
   public record Item(UUID productId, int quantity) {}
@@ -40,7 +42,9 @@ public class SaleController {
       BigDecimal shippingCost,
       DeliveryInput delivery,
       List<Item> items,
-      List<Payment> payments
+      List<Payment> payments,
+      String invoiceType, // "INTERNAL_TICKET" or "SRI_INVOICE"
+      String offlineFolio
   ) {}
 
   @PostMapping
@@ -72,6 +76,12 @@ public class SaleController {
         deliveryInfo
     );
 
+    String invType = (in.invoiceType() != null && "SRI_INVOICE".equalsIgnoreCase(in.invoiceType()))
+        ? "SRI_INVOICE" : "INTERNAL_TICKET";
+
+    jdbc.update("UPDATE sales SET invoice_type = ?, offline_folio = ? WHERE id = ? AND tenant_id = ?",
+        invType, in.offlineFolio(), sale.id(), t);
+
     Map<String, Object> resp = new LinkedHashMap<>();
     resp.put("id", sale.id());
     resp.put("tenantId", sale.tenantId());
@@ -81,6 +91,8 @@ public class SaleController {
     resp.put("tax", sale.tax());
     resp.put("total", sale.total());
     resp.put("status", sale.status());
+    resp.put("invoiceType", invType);
+    resp.put("offlineFolio", in.offlineFolio());
     resp.put("createdAt", sale.createdAt());
 
     try {
@@ -93,7 +105,51 @@ public class SaleController {
       }
     } catch (Exception ignored) {}
 
+    // Auto-issue SRI electronic invoice if requested
+    if ("SRI_INVOICE".equals(invType)) {
+      try {
+        var sriInv = sriInvoiceController.issueInvoiceFromSale(jwt, sale.id(), null);
+        resp.put("electronicInvoice", sriInv);
+        resp.put("invoiceNumber", sriInv.get("numero_completo"));
+        resp.put("accessKey", sriInv.get("clave_acceso"));
+        resp.put("sriStatus", sriInv.get("estado_sri"));
+      } catch (Exception e) {
+        resp.put("sriError", e.getMessage());
+      }
+    }
+
     return resp;
+  }
+
+  @PostMapping("/sync-offline")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER')")
+  public Map<String, Object> syncOffline(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestBody List<Input> offlineSales
+  ) {
+    UUID t = tenant(jwt);
+    List<Map<String, Object>> synced = new ArrayList<>();
+    List<Map<String, Object>> failed = new ArrayList<>();
+
+    if (offlineSales != null) {
+      for (Input in : offlineSales) {
+        try {
+          if (in.offlineFolio() != null && !in.offlineFolio().isBlank()) {
+            var exists = jdbc.queryForList("SELECT id, total, invoice_type FROM sales WHERE tenant_id = ? AND offline_folio = ?", t, in.offlineFolio());
+            if (!exists.isEmpty()) {
+              synced.add(Map.of("offlineFolio", in.offlineFolio(), "id", exists.get(0).get("id"), "alreadySynced", true));
+              continue;
+            }
+          }
+          var created = create(jwt, in);
+          synced.add(Map.of("offlineFolio", in.offlineFolio() != null ? in.offlineFolio() : "", "id", created.get("id"), "status", "SYNCED"));
+        } catch (Exception e) {
+          failed.add(Map.of("offlineFolio", in.offlineFolio() != null ? in.offlineFolio() : "", "error", e.getMessage()));
+        }
+      }
+    }
+
+    return Map.of("success", true, "syncedCount", synced.size(), "failedCount", failed.size(), "synced", synced, "failed", failed);
   }
 
   @GetMapping("/stats")
@@ -136,6 +192,9 @@ public class SaleController {
     String sql = """
         SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
+               s.invoice_type, s.offline_folio, s.electronic_invoice_id,
+               ei.numero_completo AS invoice_number, ei.clave_acceso AS invoice_access_key,
+               ei.estado_sri AS invoice_sri_status, ei.fecha_autorizacion AS invoice_auth_date,
                b.name AS branch_name,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller_name,
@@ -157,6 +216,7 @@ public class SaleController {
         LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
+        LEFT JOIN electronic_invoices ei ON ei.id = s.electronic_invoice_id
         WHERE s.tenant_id = ?
         """;
 
@@ -176,6 +236,9 @@ public class SaleController {
     String sql = """
         SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
+               s.invoice_type, s.offline_folio, s.electronic_invoice_id,
+               ei.numero_completo AS invoice_number, ei.clave_acceso AS invoice_access_key,
+               ei.estado_sri AS invoice_sri_status, ei.fecha_autorizacion AS invoice_auth_date,
                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
                (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit,
                b.name AS branch_name,
@@ -195,6 +258,7 @@ public class SaleController {
         LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
+        LEFT JOIN electronic_invoices ei ON ei.id = s.electronic_invoice_id
         WHERE s.tenant_id = ? AND s.id = ?
         """;
 

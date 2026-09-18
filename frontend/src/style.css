@@ -2333,4 +2333,369 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   color: #ffffff;
 }
 
+/* --- SRI RIDE & FACTURACION ELECTRONICA STYLES --- */
+.ride-document {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 18px;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.ride-header-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .ride-header-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ride-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.ride-emitter-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ride-logo-mock {
+  margin-bottom: 8px;
+}
+
+.ride-logo-mock b {
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  color: #1e3a8a;
+  display: block;
+}
+
+.ride-logo-mock small {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.ride-legal-name {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0 0 2px;
+  color: #0f172a;
+}
+
+.ride-trade-name {
+  font-size: 11px;
+  color: #475569;
+  font-style: italic;
+  margin-bottom: 6px;
+}
+
+.ride-info-line {
+  font-size: 10.5px;
+  margin: 2px 0;
+  display: flex;
+  gap: 4px;
+}
+
+.ride-regime-badge {
+  display: inline-block;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: #334155;
+}
+
+.ride-sri-box {
+  background: #fafafa;
+}
+
+.ride-doc-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ride-doc-type {
+  font-size: 15px;
+  font-weight: 900;
+  color: #1e3a8a;
+  letter-spacing: 1px;
+  margin: 2px 0;
+}
+
+.ride-doc-number {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #334155;
+}
+
+.ride-mono-num {
+  font-family: monospace;
+  font-size: 10px;
+  color: #0f172a;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.ride-access-key-box {
+  margin-top: 8px;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.ride-access-key-box small {
+  display: block;
+  font-weight: 700;
+  font-size: 9.5px;
+  color: #475569;
+  margin-bottom: 2px;
+}
+
+.ride-access-key-text {
+  font-family: monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  word-break: break-all;
+  color: #0f172a;
+}
+
+.ride-barcode-lines {
+  height: 28px;
+  background: repeating-linear-gradient(
+    90deg,
+    #000 0px,
+    #000 2px,
+    #fff 2px,
+    #fff 4px,
+    #000 4px,
+    #000 5px,
+    #fff 5px,
+    #fff 8px
+  );
+  margin: 6px 0;
+  border-radius: 2px;
+}
+
+.ride-btn-copy {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #2563eb;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.ride-status-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+.ride-status-pill.approved {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.ride-status-pill.pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.ride-buyer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+
+.ride-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.ride-table th {
+  background: #f1f5f9;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 800;
+  color: #334155;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.ride-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ride-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .ride-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ride-totals-box {
+  background: #fafafa;
+}
+
+.ride-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2.5px 0;
+  font-size: 10.5px;
+  border-bottom: 1px dotted #e2e8f0;
+}
+
+.ride-total-row.grand {
+  border-top: 1px solid #0f172a;
+  border-bottom: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+/* DUAL INVOICE SELECTOR IN POS */
+.invoice-mode-selector {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.invoice-mode-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.invoice-mode-pill.active.ticket {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.invoice-mode-pill.active.sri {
+  background: #1e3a8a;
+  color: #ffffff;
+  border-color: #1e3a8a;
+  box-shadow: 0 2px 8px rgba(30,58,138,0.25);
+}
+
+/* OFFLINE MODE INDICATOR & SYNC BUTTON */
+.offline-status-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.offline-sync-btn {
+  background: #d97706;
+  color: #ffffff;
+  border: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.offline-sync-btn:hover {
+  background: #b45309;
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.connection-dot.online {
+  background: #10b981;
+}
+
+.connection-dot.offline {
+  background: #f59e0b;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-ride, #printable-ride * {
+    visibility: visible;
+  }
+  #printable-ride {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
 
