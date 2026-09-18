@@ -1,7 +1,8 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
+import { PublicCatalog, PublicDeliveryTracking, CatalogShareModal } from './publicModules';
 type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';let userPerms:string[]=[];try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'SUCURSAL ACTUAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':'Principal'}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'SUCURSAL ACTUAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':'Principal'}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':undefined} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
 function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok){onLogin((await r.json()).accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
@@ -1073,6 +1074,14 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                 <>
                   <div className="ticket-divider"></div>
                   <div><strong>🛵 DESPACHO A DOMICILIO</strong></div>
+                  {receiptModal.sale?.trackingNumber && (
+                    <div style={{ background: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', border: '1px solid #bbf7d0', color: '#166534', fontWeight: 700, fontSize: '11.5px' }}>
+                      📍 CÓDIGO DE SEGUIMIENTO: {receiptModal.sale.trackingNumber}
+                      <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#15803d', marginTop: '2px' }}>
+                        El cliente puede ver el estado y motorizado en vivo
+                      </div>
+                    </div>
+                  )}
                   <div>Dirección: {receiptModal.delivery.address}</div>
                   {receiptModal.delivery.recipientName && <div>Recibe: {receiptModal.delivery.recipientName}</div>}
                   {receiptModal.delivery.recipientPhone && <div>Contacto: {receiptModal.delivery.recipientPhone}</div>}
@@ -1111,19 +1120,30 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-              <button className="secondary-action" style={{ flex: 1 }} onClick={() => setReceiptModal(null)}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+              <button className="secondary-action" style={{ flex: 1, minWidth: '90px' }} onClick={() => setReceiptModal(null)}>
                 Cerrar
               </button>
-              <button className="primary-action" style={{ flex: 1 }} onClick={() => window.print()}>
-                🖨️ Imprimir Ticket
+              <button className="primary-action" style={{ flex: 1, minWidth: '120px' }} onClick={() => window.print()}>
+                🖨️ Imprimir
               </button>
+              {receiptModal.fulfillment === 'DELIVERY' && receiptModal.sale?.trackingNumber && (
+                <a
+                  className="secondary-action"
+                  style={{ flex: 1, minWidth: '130px', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 700 }}
+                  href={`#tracking/${receiptModal.sale.trackingNumber}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  📍 Ver Tracking
+                </a>
+              )}
               {receiptModal.customer?.phone && (
                 <a
                   className="whatsapp-btn"
-                  style={{ flex: 1, textDecoration: 'none', justifyContent: 'center' }}
+                  style={{ flex: 1, minWidth: '120px', textDecoration: 'none', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '4px' }}
                   href={`https://wa.me/${receiptModal.customer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                    `Hola ${receiptModal.customer.name}, gracias por tu compra en FixmeTiendas.\nTotal: $${receiptModal.grandTotal.toFixed(2)}\nModalidad: ${receiptModal.fulfillment === 'DELIVERY' ? 'Envío a domicilio' : 'Retiro en tienda'}\nComprobante #${receiptModal.sale?.id?.slice(0, 8)}`
+                    `Hola ${receiptModal.customer.name}, gracias por tu compra en FixmeTiendas.\nTotal: $${receiptModal.grandTotal.toFixed(2)}\nModalidad: ${receiptModal.fulfillment === 'DELIVERY' ? 'Envío a domicilio' : 'Retiro en tienda'}\nComprobante #${receiptModal.sale?.id?.slice(0, 8)}${receiptModal.sale?.trackingNumber ? `\n\n🛵 Sigue el estado y motorizado de tu entrega en tiempo real aquí:\n${window.location.origin}${window.location.pathname}#tracking/${receiptModal.sale.trackingNumber}` : ''}`
                   )}`}
                   target="_blank"
                   rel="noreferrer"
@@ -1318,8 +1338,9 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       .map((p: Any) => `${p.payment_method}: $${Number(p.amount).toFixed(2)}`)
       .join(', ') || 'Contado';
 
+    const trkUrl = sale.tracking_number ? `${window.location.origin}${window.location.pathname}#tracking/${sale.tracking_number}` : (sale.tracking_url || '');
     const deliveryBlock = sale.fulfillment_type === 'DELIVERY'
-      ? `\n🛵 *DESPACHO A DOMICILIO:*\n  • Courier: ${sale.courier || 'Motorizado Express'}\n  • N° Guía: ${sale.tracking_number || 'S/N'}${sale.tracking_url ? `\n  • Rastreo: ${sale.tracking_url}` : ''}\n  • Destino: ${sale.delivery_address || 'Registrada'}`
+      ? `\n🛵 *DESPACHO A DOMICILIO:*\n  • Courier: ${sale.courier || 'Motorizado Express'}\n  • N° Guía / Tracking: ${sale.tracking_number || 'S/N'}${trkUrl ? `\n  • Rastreo en vivo: ${trkUrl}` : ''}\n  • Destino: ${sale.delivery_address || 'Registrada'}`
       : '';
 
     const warrantyBlock = Number(sale.warranty_days || 0) > 0
@@ -1595,8 +1616,27 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                             🛵 {r.courier || 'Domicilio'}
                           </span>
                           {r.tracking_number && (
-                            <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px' }}>
-                              Guía: <b>{r.tracking_number}</b>
+                            <div style={{ fontSize: '10.5px', marginTop: '3px' }}>
+                              <a
+                                href={`#tracking/${r.tracking_number}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  background: '#eff6ff',
+                                  color: '#2563eb',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  textDecoration: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '10px'
+                                }}
+                                title="Abrir rastreo público del cliente"
+                              >
+                                📍 {r.tracking_number}
+                              </a>
                             </div>
                           )}
                           {r.delivery_status && (
@@ -1794,16 +1834,35 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                     <strong>{detailModal.courier || 'Motorizado Express'}</strong>
                   </div>
                   {detailModal.tracking_number && (
-                    <div className="receipt-meta-row">
-                      <span>N° DE GUÍA:</span>
-                      <strong>{detailModal.tracking_number}</strong>
+                    <div className="receipt-meta-row" style={{ alignItems: 'center' }}>
+                      <span>N° DE GUÍA / TRACKING:</span>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <strong style={{ color: '#2563eb' }}>{detailModal.tracking_number}</strong>
+                        <a
+                          href={`#tracking/${detailModal.tracking_number}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: '10px',
+                            background: '#2563eb',
+                            color: '#fff',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textDecoration: 'none',
+                            fontWeight: 700
+                          }}
+                          title="Abrir página pública de rastreo"
+                        >
+                          📍 Ver Rastreo
+                        </a>
+                      </div>
                     </div>
                   )}
                   {detailModal.tracking_url && (
                     <div className="receipt-meta-row">
-                      <span>ENLACE RASTREO:</span>
+                      <span>ENLACE GPS EN VIVO:</span>
                       <a href={detailModal.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '10.5px' }}>
-                        Ver seguimiento
+                        Ver ruta en vivo
                       </a>
                     </div>
                   )}
@@ -1990,6 +2049,17 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
+                {detailModal.fulfillment_type === 'DELIVERY' && detailModal.tracking_number && (
+                  <a
+                    className="secondary-action"
+                    style={{ flex: 1, padding: '8px', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontWeight: 700 }}
+                    href={`#tracking/${detailModal.tracking_number}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    📍 Ver Rastreo en Vivo
+                  </a>
+                )}
                 <button
                   type="button"
                   className="secondary-action"
@@ -6542,15 +6612,18 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
             const cleanPhone = (d.recipient_phone || d.customer_phone || '').replace(/[^0-9]/g, '');
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.address || '')}`;
             
+            const publicTrackUrl = d.tracking_number ? `${window.location.origin}${window.location.pathname}#tracking/${d.tracking_number}` : '';
             let waMsg = `Hola ${d.recipient_name || d.customer_name || 'estimado/a cliente'}, te informamos sobre tu entrega en FixmeTiendas.\nEstado: ${d.status === 'IN_TRANSIT' ? '🚀 EN CAMINO hacia tu dirección' : d.status === 'DELIVERED' ? '✅ ENTREGADO' : '🛵 PREPARANDO DESPACHO'}.\nDirección: ${d.address}`;
             if (d.driver_name || d.courier) {
               waMsg += `\nRepartidor: ${d.driver_name || d.courier}`;
             }
-            if (d.tracking_url) {
+            if (publicTrackUrl) {
+              waMsg += `\n📍 Sigue tu entrega en vivo aquí: ${publicTrackUrl}`;
+            } else if (d.tracking_url) {
               waMsg += `\nSigue la entrega en vivo aquí: ${d.tracking_url}`;
             }
             if (d.tracking_number) {
-              waMsg += `\nN° de Guía: ${d.tracking_number}`;
+              waMsg += `\nN° de Guía / Tracking: ${d.tracking_number}`;
             }
             const waText = encodeURIComponent(waMsg);
 
@@ -6572,7 +6645,7 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                 <div className="deliv-body">
                   <div>
                     <strong style={{ fontSize: '15px' }}>{d.recipient_name || d.customer_name || 'Consumidor Final'}</strong>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
                       {cleanPhone ? (
                         <>
                           <a href={`tel:${cleanPhone}`} style={{ fontSize: '12px', color: '#3157d5', textDecoration: 'none' }}>
@@ -6589,6 +6662,17 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                         </>
                       ) : (
                         <small style={{ color: '#94a3b8' }}>Sin teléfono registrado</small>
+                      )}
+                      {d.tracking_number && (
+                        <a
+                          href={`#tracking/${d.tracking_number}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: '11px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '12px', textDecoration: 'none', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          title="Abrir seguimiento público para el cliente"
+                        >
+                          📍 Tracking
+                        </a>
                       )}
                     </div>
                   </div>
@@ -6637,22 +6721,42 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
 
                   {/* TRACKING URL OR GUIDE NUMBER BADGES */}
                   {(d.tracking_url || d.tracking_number) && (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {d.tracking_number && (
+                        <a
+                          href={`#tracking/${d.tracking_number}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="guide-pill"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            textDecoration: 'none',
+                            fontWeight: 700,
+                            fontSize: '11px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                          title="Abrir página pública de rastreo"
+                        >
+                          📍 Tracking: <b>{d.tracking_number}</b>
+                        </a>
+                      )}
                       {d.tracking_url && (
                         <a
                           href={d.tracking_url}
                           target="_blank"
                           rel="noreferrer"
                           className="btn-indrive"
-                          title="Abrir seguimiento en vivo"
+                          title="Abrir seguimiento en vivo del conductor"
                         >
-                          🚗 En vivo InDrive / GPS
+                          🚗 GPS Conductor
                         </a>
-                      )}
-                      {d.tracking_number && (
-                        <span className="guide-pill">
-                          📦 Guía: {d.tracking_number}
-                        </span>
                       )}
                     </div>
                   )}

@@ -360,10 +360,13 @@ public class BusinessModulesController {
     required(b, "address");
     ctx(t);
     UUID x = UUID.randomUUID();
+    String trk = (b.get("trackingNumber") != null && !b.get("trackingNumber").toString().isBlank())
+        ? b.get("trackingNumber").toString().trim()
+        : "TRK-" + (100000 + new java.util.Random().nextInt(900000));
     db.update("insert into deliveries(id,tenant_id,sale_id,customer_id,branch_id,address,courier,latitude,longitude,evidence_url,evidence_metadata,tracking_number,tracking_url,driver_id) values(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?)",
         x, t, uuidOrNull(b.get("saleId")), uuidOrNull(b.get("customerId")), uuidOrNull(b.get("branchId")),
         b.get("address"), b.get("courier"), b.get("latitude"), b.get("longitude"), b.get("evidenceUrl"),
-        b.getOrDefault("evidenceMetadata", "{}"), b.get("trackingNumber"), b.get("trackingUrl"), uuidOrNull(b.get("driverId")));
+        b.getOrDefault("evidenceMetadata", "{}"), trk, b.get("trackingUrl"), uuidOrNull(b.get("driverId")));
     return ResponseEntity.status(201).body(db.queryForMap("select * from deliveries where id=?", x));
   }
 

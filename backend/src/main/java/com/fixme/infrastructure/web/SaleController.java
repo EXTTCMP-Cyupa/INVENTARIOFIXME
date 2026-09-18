@@ -45,7 +45,7 @@ public class SaleController {
 
   @PostMapping
   @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER')")
-  public Sale create(@AuthenticationPrincipal Jwt jwt, @RequestBody Input in) {
+  public Map<String, Object> create(@AuthenticationPrincipal Jwt jwt, @RequestBody Input in) {
     UUID t = tenant(jwt);
     UUID u = user(t, jwt.getSubject());
 
@@ -58,7 +58,7 @@ public class SaleController {
         in.delivery().shippingCost()
     );
 
-    return service.create(
+    Sale sale = service.create(
         t,
         in.branchId(),
         u,
@@ -71,6 +71,29 @@ public class SaleController {
         in.shippingCost(),
         deliveryInfo
     );
+
+    Map<String, Object> resp = new LinkedHashMap<>();
+    resp.put("id", sale.id());
+    resp.put("tenantId", sale.tenantId());
+    resp.put("branchId", sale.branchId());
+    resp.put("userId", sale.userId());
+    resp.put("subtotal", sale.subtotal());
+    resp.put("tax", sale.tax());
+    resp.put("total", sale.total());
+    resp.put("status", sale.status());
+    resp.put("createdAt", sale.createdAt());
+
+    try {
+      var dList = jdbc.queryForList("select id, tracking_number, status, courier, address, recipient_name, recipient_phone from deliveries where sale_id = ? and tenant_id = ?", sale.id(), t);
+      if (!dList.isEmpty()) {
+        resp.put("deliveryId", dList.get(0).get("id"));
+        resp.put("trackingNumber", dList.get(0).get("tracking_number"));
+        resp.put("deliveryStatus", dList.get(0).get("status"));
+        resp.put("courier", dList.get(0).get("courier"));
+      }
+    } catch (Exception ignored) {}
+
+    return resp;
   }
 
   @GetMapping("/stats")

@@ -130,11 +130,12 @@ public class JdbcSaleAdapter implements SalePort {
 
     if ("DELIVERY".equals(finalFulfillment) && delivery != null) {
       UUID deliveryId = UUID.randomUUID();
+      String trackingNumber = "TRK-" + (int) (100000 + (Math.random() * 900000));
       jdbc.update(
-          "insert into deliveries(id, tenant_id, sale_id, customer_id, branch_id, status, courier, address, recipient_name, recipient_phone, delivery_notes, shipping_cost) " +
-          "values(?,?,?,?,?,'PENDING',?,?,?,?,?,?)",
+          "insert into deliveries(id, tenant_id, sale_id, customer_id, branch_id, status, courier, address, recipient_name, recipient_phone, delivery_notes, shipping_cost, tracking_number) " +
+          "values(?,?,?,?,?,'PENDING',?,?,?,?,?,?,?)",
           deliveryId, t, id, customerId, b,
-          delivery.courier(), delivery.address(), delivery.recipientName(), delivery.recipientPhone(), delivery.notes(), finalShipping
+          delivery.courier(), delivery.address(), delivery.recipientName(), delivery.recipientPhone(), delivery.notes(), finalShipping, trackingNumber
       );
     }
 
