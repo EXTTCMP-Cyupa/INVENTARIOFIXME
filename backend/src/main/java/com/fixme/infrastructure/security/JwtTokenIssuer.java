@@ -28,8 +28,13 @@ public class JwtTokenIssuer implements TokenIssuer {
     Set<String> scopes = new LinkedHashSet<>();
     scopes.add(user.role());
 
-    if ("SUPER_ADMIN".equals(user.role()) || "TENANT_ADMIN".equals(user.role()) || "MANAGER".equals(user.role())) {
-      scopes.addAll(List.of("SUPER_ADMIN", "TENANT_ADMIN", "MANAGER", "SELLER", "TECHNICIAN", "DELIVERY", "ACCOUNTANT"));
+    if ("SUPER_ADMIN".equals(user.role()) || "TENANT_ADMIN".equals(user.role())) {
+      scopes.add("TENANT_ADMIN");
+      if ("SUPER_ADMIN".equals(user.role())) {
+        scopes.add("SUPER_ADMIN");
+      }
+    } else if ("MANAGER".equals(user.role())) {
+      scopes.addAll(List.of("MANAGER", "SELLER", "TECHNICIAN", "DELIVERY", "ACCOUNTANT"));
     } else {
       if (permissions.contains("pos") || permissions.contains("sales") || permissions.contains("products")) {
         scopes.add("SELLER");
@@ -111,7 +116,9 @@ public class JwtTokenIssuer implements TokenIssuer {
 
   private List<String> defaultPermissions(String role) {
     return switch (role) {
-      case "SUPER_ADMIN", "TENANT_ADMIN", "MANAGER" ->
+      case "SUPER_ADMIN", "TENANT_ADMIN" ->
+          List.of("platform-overview", "platform-companies", "platform-rates", "platform-payments");
+      case "MANAGER" ->
           List.of("home", "cash", "pos", "sales", "administration", "products", "customers", "deliveries", "work-orders", "my-work", "warranties", "reports");
       case "SELLER" ->
           List.of("home", "cash", "pos", "sales", "products", "customers", "work-orders", "warranties");

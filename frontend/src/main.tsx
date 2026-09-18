@@ -1,8 +1,8 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
 type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';let userPerms:string[]=[];try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=userPerms.length>0?userPerms:(allowed[role]||['home']);const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api} notify={setToast}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
-function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok)onLogin((await r.json()).accessToken);else setError('No pudimos validar tus credenciales.')}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';let userPerms:string[]=[];try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'SUCURSAL ACTUAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':'Principal'}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
+function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok){onLogin((await r.json()).accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
   const [history, setHistory] = React.useState<Any[]>([]);
@@ -2013,7 +2013,1448 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
       )}
     </>
   );
-}function PlatformAdministration({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){const[tenants,setTenants]=React.useState<Any[]>([]),[selected,setSelected]=React.useState<Any|null>(null),[overview,setOverview]=React.useState<Any>({}),[users,setUsers]=React.useState<Any[]>([]),[inventory,setInventory]=React.useState<Any>({}),[name,setName]=React.useState(''),[ownerEmail,setOwnerEmail]=React.useState(''),[ownerPassword,setOwnerPassword]=React.useState('password'),[msg,setMsg]=React.useState('');const load=React.useCallback(()=>api('/api/platform/tenants').then(r=>r.ok?r.json():[]).then(setTenants),[api]);React.useEffect(()=>{load()},[load]);async function select(t:Any){setSelected(t);const [o,u,i]=await Promise.all([api(`/api/platform/tenants/${t.id}/overview`),api(`/api/platform/tenants/${t.id}/users`),api(`/api/platform/tenants/${t.id}/inventory`)]);setOverview(o.ok?await o.json():{});setUsers(u.ok?await u.json():[]);setInventory(i.ok?await i.json():{})}async function create(e:React.FormEvent){e.preventDefault();const r=await api('/api/platform/tenants',{method:'POST',body:JSON.stringify({name,ownerEmail,ownerPassword,plan:'STARTER',subscriptionStatus:'ACTIVE'})});if(r.ok){setName('');setOwnerEmail('');setOwnerPassword('password');setMsg('Empresa creada');load()}else setMsg('No se pudo crear la empresa')}async function changeStatus(status:string){if(!selected)return;const r=await api(`/api/platform/tenants/${selected.id}`,{method:'PATCH',body:JSON.stringify({subscriptionStatus:status})});if(r.ok){setSelected({...selected,subscription_status:status});setTenants(tenants.map(t=>t.id===selected.id?{...t,subscription_status:status}:t));setMsg('Estado actualizado')}}return <><section className="inventory-hero"><div><span className="eyebrow">ADMINISTRACIÓN GLOBAL</span><h2>Empresas y tiendas</h2><p>Supervisa suscripciones, usuarios e inventario sin mezclar datos.</p></div></section><div className="platform-layout"><section className="panel tenant-list"><div className="panel-head"><div><h3>Empresas registradas</h3><p className="catalog-toolbar-p">{tenants.length} empresas</p></div></div>{tenants.map(t=><button className={selected?.id===t.id?'tenant-row selected':'tenant-row'} onClick={()=>select(t)} key={t.id}><span className="tenant-avatar">{(t.name||'E')[0]}</span><span><b>{t.name}</b><small>{t.plan||'STARTER'} · {t.subscription_status||'ACTIVE'}</small></span><i>â€º</i></button>)}<form className="tenant-create" onSubmit={create}><input placeholder="Nombre de nueva empresa" value={name} onChange={e=>setName(e.target.value)} required/><input type="email" placeholder="Correo del manager" value={ownerEmail} onChange={e=>setOwnerEmail(e.target.value)} required/><input type="password" placeholder="Contraseña inicial (8+)" value={ownerPassword} onChange={e=>setOwnerPassword(e.target.value)} minLength={8} required/><button>ï¼‹ Crear empresa</button>{msg&&<small>{msg}</small>}</form></section>{selected?<section className="platform-detail"><div className="panel detail-heading"><span className="eyebrow">EMPRESA SELECCIONADA</span><h2>{selected.name}</h2><div className="detail-meta"><span>Plan: <b>{selected.plan}</b></span><span>Estado: <b className={selected.subscription_status==='ACTIVE'?'status-active':'status-paused'}>{selected.subscription_status}</b></span><select value={selected.subscription_status} onChange={e=>changeStatus(e.target.value)}><option value="ACTIVE">ACTIVA</option><option value="PAST_DUE">PAGO PENDIENTE</option><option value="SUSPENDED">SUSPENDIDA</option></select></div></div><div className="inventory-stats"><div><span>Usuarios</span><strong>{overview.users||0}</strong><small>en la empresa</small></div><div><span>Productos</span><strong>{overview.products||0}</strong><small>en inventario</small></div><div><span>Clientes</span><strong>{overview.customers||0}</strong><small>registrados</small></div><div><span>Órdenes</span><strong>{overview.orders||0}</strong><small>de servicio</small></div></div><section className="panel"><h3>Inventario de {selected.name}</h3><div className="table-wrap"><table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Valor</th></tr></thead><tbody>{(inventory.items||[]).map((p:Any)=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.stock}</td><td>${(Number(p.stock||0)*Number(p.price||0)).toFixed(2)}</td></tr>)}</tbody></table></div></section><Table title={`Usuarios de ${selected.name}`} columns={['full_name','identification','email','phone','role']} rows={users} empty="Esta empresa aún no tiene usuarios." /></section>:<section className="panel empty platform-empty"><b>âŒ‚</b><p>Selecciona una empresa</p><small>Consulta su estado, inventario y usuarios sin cambiar de contexto.</small></section>}</div></>}
+}function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, activeTab?:string, setTab?:(t:string)=>void}){
+  const [tenants, setTenants] = React.useState<Any[]>([]);
+  const [stats, setStats] = React.useState<Any>({
+    totalTenants: 0, activeTenants: 0, pastDueTenants: 0, suspendedTenants: 0,
+    mrr: 0, collectedThisMonth: 0, totalUsers: 0, totalProducts: 0, totalOrders: 0
+  });
+  const [payments, setPayments] = React.useState<Any[]>([]);
+  const [filter, setFilter] = React.useState('ALL');
+  const [search, setSearch] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+
+  const currentTab = activeTab && ['platform-overview', 'platform-companies', 'platform-rates', 'platform-payments'].includes(activeTab)
+    ? activeTab : 'platform-companies';
+
+  function switchTab(t: string) {
+    if (setTab) setTab(t);
+  }
+
+  // Detail modal
+  const [selectedTenant, setSelectedTenant] = React.useState<Any|null>(null);
+  const [tenantPayments, setTenantPayments] = React.useState<Any[]>([]);
+  const [overview, setOverview] = React.useState<Any>({});
+  const [users, setUsers] = React.useState<Any[]>([]);
+  const [detailTab, setDetailTab] = React.useState<'payments'|'users'|'overview'>('payments');
+
+  // Create company modal
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
+  const [createForm, setCreateForm] = React.useState({
+    name: '', plan: 'STARTER', monthlyFee: '49.00', businessType: 'RETAIL',
+    billingCycle: 'MONTHLY', discountPercent: '0',
+    ownerName: '', ownerEmail: '', ownerPassword: 'password123', phone: '',
+    billingContactName: '', billingContactPhone: '', billingContactEmail: '', adminNotes: ''
+  });
+  const [createMsg, setCreateMsg] = React.useState('');
+  const [creating, setCreating] = React.useState(false);
+
+  // Edit Rate modal
+  const [editRateModal, setEditRateModal] = React.useState<Any|null>(null);
+  const [rateForm, setRateForm] = React.useState({
+    monthlyFee: '49.00', plan: 'STARTER', billingCycle: 'MONTHLY', discountPercent: '0',
+    nextBillingDate: '', billingContactName: '', billingContactPhone: '', billingContactEmail: '', adminNotes: ''
+  });
+  const [savingRate, setSavingRate] = React.useState(false);
+
+  // Record payment modal
+  const [payModal, setPayModal] = React.useState<Any|null>(null);
+  const [payForm, setPayForm] = React.useState({
+    amount: '49.00', periodCovered: '', paymentMethod: 'TRANSFER', reference: '', notes: ''
+  });
+  const [paying, setPaying] = React.useState(false);
+
+  // Official SaaS Receipt modal
+  const [receiptModal, setReceiptModal] = React.useState<Any|null>(null);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      api('/api/platform/tenants').then(r => r.ok ? r.json() : []),
+      api('/api/platform/stats').then(r => r.ok ? r.json() : {}),
+      api('/api/platform/payments').then(r => r.ok ? r.json() : [])
+    ]).then(([tenantsData, statsData, paymentsData]) => {
+      setTenants(tenantsData);
+      setStats(statsData);
+      setPayments(paymentsData);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [api]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  async function openDetail(t: Any) {
+    setSelectedTenant(t);
+    setDetailTab('payments');
+    const [paymentsRes, overviewRes, usersRes] = await Promise.all([
+      api(`/api/platform/tenants/${t.id}/payments`).then(r => r.ok ? r.json() : []),
+      api(`/api/platform/tenants/${t.id}/overview`).then(r => r.ok ? r.json() : {}),
+      api(`/api/platform/tenants/${t.id}/users`).then(r => r.ok ? r.json() : [])
+    ]);
+    setTenantPayments(paymentsRes);
+    setOverview(overviewRes);
+    setUsers(usersRes);
+  }
+
+  function openEditRate(t: Any) {
+    setEditRateModal(t);
+    setRateForm({
+      monthlyFee: String(t.monthly_fee || 49),
+      plan: t.plan || 'STARTER',
+      billingCycle: t.billing_cycle || 'MONTHLY',
+      discountPercent: String(t.discount_percent || 0),
+      nextBillingDate: t.next_billing_date ? String(t.next_billing_date).slice(0, 10) : '',
+      billingContactName: t.billing_contact_name || t.owner_name || '',
+      billingContactPhone: t.billing_contact_phone || t.owner_phone || t.store_phone || '',
+      billingContactEmail: t.billing_contact_email || t.owner_email || '',
+      adminNotes: t.admin_notes || ''
+    });
+  }
+
+  async function submitRate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editRateModal) return;
+    setSavingRate(true);
+    const r = await api(`/api/platform/tenants/${editRateModal.id}/rate`, {
+      method: 'PATCH',
+      body: JSON.stringify(rateForm)
+    });
+    setSavingRate(false);
+    if (r.ok) {
+      notify?.(`✓ Tarifa de "${editRateModal.name}" actualizada a $${Number(rateForm.monthlyFee).toFixed(2)}/mes.`);
+      setEditRateModal(null);
+      load();
+    } else {
+      notify?.('Error al actualizar la tarifa.');
+    }
+  }
+
+  async function handleSuspend(t: Any) {
+    if (!window.confirm(`¿Confirmas suspender la tienda "${t.name}"? Los empleados y el gerente no podrán operar hasta que se reactive.`)) return;
+    const r = await api(`/api/platform/tenants/${t.id}/suspend`, { method: 'PATCH' });
+    if (r.ok) {
+      notify?.(`Tienda "${t.name}" suspendida por falta de pago.`);
+      load();
+      if (selectedTenant?.id === t.id) {
+        setSelectedTenant({ ...selectedTenant, subscription_status: 'SUSPENDED', payment_status: 'OVERDUE' });
+      }
+    } else {
+      notify?.('No se pudo suspender la tienda');
+    }
+  }
+
+  async function handleReactivate(t: Any) {
+    const r = await api(`/api/platform/tenants/${t.id}/reactivate`, { method: 'PATCH' });
+    if (r.ok) {
+      notify?.(`✓ Tienda "${t.name}" reactivada exitosamente. Acceso restaurado.`);
+      load();
+      if (selectedTenant?.id === t.id) {
+        setSelectedTenant({ ...selectedTenant, subscription_status: 'ACTIVE', payment_status: 'PAID' });
+      }
+    } else {
+      notify?.('No se pudo reactivar la tienda');
+    }
+  }
+
+  function openRecordPayment(t: Any) {
+    const today = new Date();
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const currentPeriod = `${monthNames[today.getMonth()]} ${today.getFullYear()}`;
+    const fee = Number(t.monthly_fee || 49);
+    const disc = Number(t.discount_percent || 0);
+    const net = fee * (1 - disc / 100);
+    setPayModal(t);
+    setPayForm({
+      amount: String(net > 0 ? net.toFixed(2) : fee.toFixed(2)),
+      periodCovered: currentPeriod,
+      paymentMethod: 'TRANSFER',
+      reference: '',
+      notes: `Pago mensual de suscripción - Plan ${t.plan || 'STARTER'}`
+    });
+  }
+
+  async function submitPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!payModal) return;
+    setPaying(true);
+    const r = await api(`/api/platform/tenants/${payModal.id}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(payForm)
+    });
+    setPaying(false);
+    if (r.ok) {
+      const createdPayment = await r.json();
+      notify?.(`✓ Mensualidad registrada exitosamente para "${payModal.name}". Tienda al día.`);
+      setPayModal(null);
+      load();
+      if (selectedTenant?.id === payModal.id) {
+        openDetail(payModal);
+      }
+      setReceiptModal({ ...createdPayment, tenant_name: payModal.name, plan: payModal.plan });
+    } else {
+      notify?.('Error al registrar pago de mensualidad.');
+    }
+  }
+
+  async function handleCreateTenant(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setCreateMsg('');
+    const r = await api('/api/platform/tenants', {
+      method: 'POST',
+      body: JSON.stringify(createForm)
+    });
+    setCreating(false);
+    if (r.ok) {
+      notify?.(`✓ Empresa "${createForm.name}" registrada exitosamente con tarifa de $${createForm.monthlyFee}/mes.`);
+      setCreateForm({
+        name: '', plan: 'STARTER', monthlyFee: '49.00', businessType: 'RETAIL',
+        billingCycle: 'MONTHLY', discountPercent: '0',
+        ownerName: '', ownerEmail: '', ownerPassword: 'password123', phone: '',
+        billingContactName: '', billingContactPhone: '', billingContactEmail: '', adminNotes: ''
+      });
+      setShowCreateModal(false);
+      load();
+    } else {
+      setCreateMsg('No se pudo crear la empresa. Verifica que el correo del manager no esté registrado en el sistema.');
+    }
+  }
+
+  function getBillingBadge(t: Any) {
+    if (t.subscription_status === 'SUSPENDED') {
+      return <span className="billing-badge billing-badge-suspended">🚫 Suspendida</span>;
+    }
+    const days = Number(t.days_until_due ?? 30);
+    if (days < 0) {
+      return <span className="billing-badge billing-badge-overdue">🚨 Vencida hace {Math.abs(days)}d</span>;
+    }
+    if (days <= 5) {
+      return <span className="billing-badge billing-badge-warn">⚠️ Vence en {days}d</span>;
+    }
+    return <span className="billing-badge billing-badge-ok">🟢 Al día ({days}d)</span>;
+  }
+
+  function getCycleLabel(c: string) {
+    switch ((c || '').toUpperCase()) {
+      case 'ANNUAL': return 'Anual (12m)';
+      case 'SEMIANNUAL': return 'Semestral (6m)';
+      case 'QUARTERLY': return 'Trimestral (3m)';
+      default: return 'Mensual (1m)';
+    }
+  }
+
+  function calculateNetCycle(feeStr: string, discStr: string, cycleStr: string) {
+    const fee = Number(feeStr || 0);
+    const disc = Number(discStr || 0);
+    const months = cycleStr === 'ANNUAL' ? 12 : cycleStr === 'SEMIANNUAL' ? 6 : cycleStr === 'QUARTERLY' ? 3 : 1;
+    const netMonthly = fee * (1 - disc / 100);
+    return (netMonthly * months).toFixed(2);
+  }
+
+  const filteredTenants = tenants.filter(t => {
+    if (filter !== 'ALL') {
+      if (filter === 'ACTIVE' && t.subscription_status !== 'ACTIVE') return false;
+      if (filter === 'PAST_DUE' && (t.subscription_status !== 'PAST_DUE' && Number(t.days_until_due) > 0)) return false;
+      if (filter === 'SUSPENDED' && t.subscription_status !== 'SUSPENDED') return false;
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const match = (t.name || '').toLowerCase().includes(q) ||
+                    (t.owner_email || '').toLowerCase().includes(q) ||
+                    (t.owner_name || '').toLowerCase().includes(q) ||
+                    (t.billing_contact_name || '').toLowerCase().includes(q) ||
+                    (t.store_phone || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const dueSoonTenants = tenants.filter(t => t.subscription_status === 'ACTIVE' && Number(t.days_until_due) <= 7);
+
+  return (
+    <>
+      {/* Subnavigation Bar */}
+      <div className="saas-nav-tabs">
+        <button
+          type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-overview' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-overview')}
+        >
+          📊 Panel SaaS
+        </button>
+        <button
+          type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-companies' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-companies')}
+        >
+          🏢 Empresas ({tenants.length})
+        </button>
+        <button
+          type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-rates' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-rates')}
+        >
+          🏷️ Tarifas por Empresa
+        </button>
+        <button
+          type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-payments' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-payments')}
+        >
+          🧾 Cobranzas y Recibos ({payments.length})
+        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button className="secondary-action" onClick={load} style={{ padding: '6px 12px', fontSize: '12px' }}>
+            🔄 Actualizar
+          </button>
+          <button className="primary-action" onClick={() => setShowCreateModal(true)} style={{ padding: '6px 14px', fontSize: '12px' }}>
+            ＋ Nueva Empresa
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          TAB 1: OVERVIEW / DASHBOARD SAAS
+          ========================================================================= */}
+      {currentTab === 'platform-overview' && (
+        <div>
+          {dueSoonTenants.length > 0 && (
+            <div className="saas-alert-banner">
+              <div>
+                <strong style={{ color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ⚠️ {dueSoonTenants.length} {dueSoonTenants.length === 1 ? 'empresa tiene' : 'empresas tienen'} vencimiento de mensualidad en los próximos 7 días:
+                </strong>
+                <div style={{ fontSize: '12.5px', color: '#b45309', marginTop: 4 }}>
+                  {dueSoonTenants.map(t => `${t.name} ($${Number(t.monthly_fee || 49).toFixed(2)} - vence en ${t.days_until_due}d)`).join(' · ')}
+                </div>
+              </div>
+              <button
+                className="btn-action-pay"
+                onClick={() => switchTab('platform-companies')}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                Ver Empresas por Cobrar →
+              </button>
+            </div>
+          )}
+
+          {/* SaaS Owner KPI Cards */}
+          <div className="platform-kpi-grid">
+            <div className="platform-kpi-card" onClick={() => { setFilter('ALL'); switchTab('platform-companies'); }} style={{ cursor: 'pointer' }}>
+              <small>Empresas Registradas</small>
+              <strong>{stats.totalTenants || tenants.length}</strong>
+              <span>En la plataforma</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => { setFilter('ACTIVE'); switchTab('platform-companies'); }} style={{ cursor: 'pointer' }}>
+              <small>Empresas Al Día</small>
+              <strong style={{ color: '#059669' }}>{stats.activeTenants || 0}</strong>
+              <span>Con servicio habilitado</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => { setFilter('PAST_DUE'); switchTab('platform-companies'); }} style={{ cursor: 'pointer' }}>
+              <small>Cobros Próximos / Vencidos</small>
+              <strong style={{ color: '#d97706' }}>{stats.pastDueTenants || 0}</strong>
+              <span>Avisar o registrar cobro</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => { setFilter('SUSPENDED'); switchTab('platform-companies'); }} style={{ cursor: 'pointer' }}>
+              <small>Empresas Suspendidas</small>
+              <strong style={{ color: '#dc2626' }}>{stats.suspendedTenants || 0}</strong>
+              <span>Acceso bloqueado por mora</span>
+            </div>
+            <div className="platform-kpi-card" style={{ background: '#f8faff', borderColor: '#bfdbfe' }}>
+              <small style={{ color: '#1d4ed8' }}>MRR Recurrente Estimado</small>
+              <strong style={{ color: '#1d4ed8' }}>${Number(stats.mrr || 0).toFixed(2)}</strong>
+              <span>Ingreso mensual de empresas activas</span>
+            </div>
+            <div className="platform-kpi-card" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+              <small style={{ color: '#166534' }}>Recaudado este Mes</small>
+              <strong style={{ color: '#166534' }}>${Number(stats.collectedThisMonth || 0).toFixed(2)}</strong>
+              <span>Pagos registrados en el mes</span>
+            </div>
+          </div>
+
+          {/* Quick Action Matrix for upcoming billings */}
+          <div className="panel table-panel" style={{ marginTop: 20 }}>
+            <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3>🚨 Calendario de Próximos Cobros</h3>
+                <p className="catalog-toolbar-p">Empresas ordenadas por fecha de vencimiento más cercana para gestión de cobranza</p>
+              </div>
+              <button className="btn-action-pay" onClick={() => switchTab('platform-rates')}>
+                Ir a Matriz de Tarifas →
+              </button>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Plan</th>
+                    <th>Tarifa Mensual</th>
+                    <th>Ciclo</th>
+                    <th>Próximo Cobro</th>
+                    <th>Estado</th>
+                    <th>Gerente / Contacto</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenants.slice(0, 8).map(t => {
+                    const cleanPhone = (t.billing_contact_phone || t.owner_phone || t.store_phone || '').replace(/[^0-9]/g, '');
+                    const waMsg = encodeURIComponent(`Hola ${t.billing_contact_name || t.owner_name || 'estimado cliente'}, te saludamos de la administración de FixmeTiendas para coordinar el pago de tu plan ${t.plan || 'STARTER'} ($${Number(t.monthly_fee || 49).toFixed(2)}).`);
+                    const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
+                    return (
+                      <tr key={t.id}>
+                        <td>
+                          <strong>{t.name}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{t.business_type || 'RETAIL'}</div>
+                        </td>
+                        <td>
+                          <span className={`plan-chip plan-chip-${(t.plan || 'starter').toLowerCase()}`}>
+                            {t.plan || 'STARTER'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>${Number(t.monthly_fee || 49).toFixed(2)}</strong>
+                          {Number(t.discount_percent || 0) > 0 && (
+                            <span className="discount-tag" style={{ marginLeft: 6 }}>-{t.discount_percent}%</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className="cycle-badge">{getCycleLabel(t.billing_cycle)}</span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, color: Number(t.days_until_due) <= 5 ? '#d97706' : '#1e293b' }}>
+                            {t.next_billing_date ? String(t.next_billing_date).slice(0, 10) : 'Pendiente'}
+                          </div>
+                          <small style={{ color: '#64748b' }}>en {t.days_until_due} días</small>
+                        </td>
+                        <td>{getBillingBadge(t)}</td>
+                        <td>
+                          <div>{t.billing_contact_name || t.owner_name || 'Sin asignar'}</div>
+                          <small style={{ color: '#64748b' }}>{t.billing_contact_phone || t.owner_phone || 'Sin teléfono'}</small>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn-action-pay" onClick={() => openRecordPayment(t)} style={{ padding: '4px 8px', fontSize: '11px' }}>
+                              💵 Cobrar
+                            </button>
+                            <button className="secondary-action" onClick={() => openEditRate(t)} style={{ padding: '4px 8px', fontSize: '11px' }}>
+                              ✏️ Tarifa
+                            </button>
+                            {waUrl && (
+                              <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', background: '#25d366', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                                💬 WA
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 2: COMPANIES / TIENDAS
+          ========================================================================= */}
+      {currentTab === 'platform-companies' && (
+        <div>
+          {/* Toolbar */}
+          <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+              {[
+                ['ALL', `Todas (${tenants.length})`],
+                ['ACTIVE', `Al Día (${stats.activeTenants || 0})`],
+                ['PAST_DUE', `Por Vencer / Mora (${stats.pastDueTenants || 0})`],
+                ['SUSPENDED', `Suspendidas (${stats.suspendedTenants || 0})`]
+              ].map(([k, label]) => (
+                <button
+                  key={k}
+                  className={filter === k ? 'btn-filter active' : 'btn-filter'}
+                  onClick={() => setFilter(k)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    border: filter === k ? '1px solid #3157d5' : '1px solid #cbd5e1',
+                    background: filter === k ? '#eff6ff' : '#ffffff',
+                    color: filter === k ? '#1d4ed8' : '#475569',
+                    fontWeight: filter === k ? 700 : 500,
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ minWidth: '240px', flex: '1 1 240px', maxWidth: '380px' }}>
+              <input
+                type="text"
+                placeholder="🔍 Buscar por empresa, manager, teléfono o correo..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%', padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+              />
+            </div>
+          </div>
+
+          {/* Stores Grid */}
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Cargando empresas...</div>
+          ) : filteredTenants.length === 0 ? (
+            <div className="panel empty" style={{ textAlign: 'center', padding: '40px 20px', background: '#ffffff', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+              <h3>No se encontraron empresas</h3>
+              <p style={{ color: '#64748b', fontSize: '13px' }}>Prueba con otro filtro o término de búsqueda.</p>
+            </div>
+          ) : (
+            <div className="store-card-grid">
+              {filteredTenants.map(t => {
+                const isSuspended = t.subscription_status === 'SUSPENDED';
+                const cleanPhone = (t.billing_contact_phone || t.owner_phone || t.store_phone || '').replace(/[^0-9]/g, '');
+                const waMsg = encodeURIComponent(`Hola ${t.billing_contact_name || t.owner_name || 'estimado cliente'}, te saludamos de la administración de FixmeTiendas para coordinar el cobro de tu mensualidad en "${t.name}" (Plan ${t.plan || 'STARTER'} - $${Number(t.monthly_fee || 49).toFixed(2)}).`);
+                const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
+
+                return (
+                  <div key={t.id} className={isSuspended ? 'store-card suspended' : 'store-card'}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div>
+                          <strong style={{ fontSize: '16px', color: '#0f172a' }}>{t.name}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>
+                            {t.business_type || 'RETAIL'} · Plan <strong style={{ color: '#2563eb' }}>{t.plan || 'STARTER'}</strong>
+                          </div>
+                        </div>
+                        {getBillingBadge(t)}
+                      </div>
+
+                      {/* Financial Details Box */}
+                      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px', marginBottom: 12, border: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontSize: '11.5px', color: '#64748b' }}>Tarifa Asignada:</span>
+                          <div>
+                            <strong style={{ fontSize: '15px', color: '#0f172a' }}>
+                              ${Number(t.monthly_fee || 49).toFixed(2)}
+                            </strong>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}> / {getCycleLabel(t.billing_cycle)}</span>
+                            {Number(t.discount_percent || 0) > 0 && (
+                              <span className="discount-tag" style={{ marginLeft: 4 }}>-{t.discount_percent}%</span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, fontSize: '11.5px' }}>
+                          <span style={{ color: '#64748b' }}>Próximo Cobro:</span>
+                          <strong style={{ color: Number(t.days_until_due) < 0 ? '#dc2626' : '#1e293b' }}>
+                            {t.next_billing_date ? String(t.next_billing_date).slice(0, 10) : 'Pendiente'}
+                          </strong>
+                        </div>
+                        {t.last_payment_date && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8' }}>
+                            <span>Último Pago:</span>
+                            <span>{String(t.last_payment_date).slice(0, 10)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Contact details */}
+                      <div style={{ padding: '6px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', marginBottom: 12, fontSize: '12px' }}>
+                        <div style={{ fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>
+                          👤 {t.billing_contact_name || t.owner_name || 'Manager no asignado'}
+                        </div>
+                        <div style={{ color: '#64748b', fontSize: '11.5px', marginBottom: 4 }}>
+                          ✉️ {t.billing_contact_email || t.owner_email || 'Sin correo'}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#64748b', fontSize: '11px' }}>📞 {t.billing_contact_phone || t.owner_phone || t.store_phone || 'Sin teléfono'}</span>
+                          {waUrl && (
+                            <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#25d366', color: '#ffffff', padding: '3px 7px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                              💬 WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick metrics summary */}
+                      <div style={{ display: 'flex', gap: 8, fontSize: '11px', color: '#64748b', marginBottom: 14 }}>
+                        <span>👥 {t.user_count || 0} usuarios</span>
+                        <span>•</span>
+                        <span>📦 {t.product_count || 0} productos</span>
+                        <span>•</span>
+                        <span>🛠️ {t.order_count || 0} órdenes</span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
+                      <button className="btn-action-pay" onClick={() => openRecordPayment(t)}>
+                        💵 Cobrar
+                      </button>
+                      <button className="secondary-action" onClick={() => openEditRate(t)} style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700 }}>
+                        🏷️ Tarifa
+                      </button>
+                      {isSuspended ? (
+                        <button className="btn-action-reactivate" onClick={() => handleReactivate(t)}>
+                          🟢 Reactivar
+                        </button>
+                      ) : (
+                        <button className="btn-action-suspend" onClick={() => handleSuspend(t)}>
+                          🚫 Suspender
+                        </button>
+                      )}
+                      <button className="tech-action-btn tech-action-diag" onClick={() => openDetail(t)}>
+                        📋 Ficha
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 3: TARIFAS Y FACTURACIÓN POR EMPRESA
+          ========================================================================= */}
+      {currentTab === 'platform-rates' && (
+        <div>
+          <div className="panel" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>🏷️ Matriz de Tarifas y Facturación por Empresa</h3>
+                <p className="catalog-toolbar-p" style={{ margin: '4px 0 0 0' }}>
+                  Define valores mensuales personalizados, periodicidad de cobro y descuentos especiales por cada cliente SaaS
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 14 }}>
+                <div style={{ background: '#eff6ff', padding: '8px 14px', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+                  <small style={{ color: '#1e40af', fontSize: '11px', display: 'block' }}>MRR Proyectado</small>
+                  <strong style={{ color: '#1e3a8a', fontSize: '18px' }}>${Number(stats.mrr || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ background: '#f0fdf4', padding: '8px 14px', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                  <small style={{ color: '#166534', fontSize: '11px', display: 'block' }}>Tarifa Promedio</small>
+                  <strong style={{ color: '#14532d', fontSize: '18px' }}>
+                    ${tenants.length > 0 ? (Number(stats.mrr || 0) / tenants.length).toFixed(2) : '0.00'}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel table-panel">
+            <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="🔍 Filtrar por empresa o plan..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '280px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+              />
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                Mostrando {filteredTenants.length} de {tenants.length} empresas
+              </span>
+            </div>
+
+            <div className="table-wrap">
+              <table className="saas-rates-table">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Plan</th>
+                    <th>Tarifa Base</th>
+                    <th>Ciclo Facturación</th>
+                    <th>Descuento</th>
+                    <th>Monto Neto / Ciclo</th>
+                    <th>Próximo Cobro</th>
+                    <th>Estado</th>
+                    <th>Contacto Cobranza</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTenants.map(t => {
+                    const netCycle = calculateNetCycle(t.monthly_fee, t.discount_percent, t.billing_cycle);
+                    return (
+                      <tr key={t.id}>
+                        <td>
+                          <strong>{t.name}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{t.business_type || 'RETAIL'}</div>
+                        </td>
+                        <td>
+                          <span className={`plan-chip plan-chip-${(t.plan || 'starter').toLowerCase()}`}>
+                            {t.plan || 'STARTER'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                            ${Number(t.monthly_fee || 49).toFixed(2)}
+                          </strong>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}> / mes</span>
+                        </td>
+                        <td>
+                          <span className="cycle-badge">{getCycleLabel(t.billing_cycle)}</span>
+                        </td>
+                        <td>
+                          {Number(t.discount_percent || 0) > 0 ? (
+                            <span className="discount-tag">-{t.discount_percent}% OFF</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>Normal (0%)</span>
+                          )}
+                        </td>
+                        <td>
+                          <strong style={{ color: '#059669', fontSize: '14px' }}>${netCycle}</strong>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>
+                            {t.next_billing_date ? String(t.next_billing_date).slice(0, 10) : 'Pendiente'}
+                          </div>
+                          <small style={{ color: Number(t.days_until_due) <= 5 ? '#d97706' : '#64748b' }}>
+                            {t.days_until_due} días restantes
+                          </small>
+                        </td>
+                        <td>{getBillingBadge(t)}</td>
+                        <td>
+                          <div style={{ fontSize: '12px' }}>{t.billing_contact_name || t.owner_name || 'Sin asignar'}</div>
+                          <small style={{ color: '#64748b' }}>{t.billing_contact_phone || t.owner_phone || '-'}</small>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="primary-action"
+                            onClick={() => openEditRate(t)}
+                            style={{ padding: '5px 10px', fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                          >
+                            ✏️ Modificar Tarifa
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 4: COBRANZAS Y RECIBOS SAAS
+          ========================================================================= */}
+      {currentTab === 'platform-payments' && (
+        <div>
+          <div className="panel" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>🧾 Registro y Comprobantes de Recaudación SaaS</h3>
+                <p className="catalog-toolbar-p" style={{ margin: '4px 0 0 0' }}>
+                  Historial completo de pagos de mensualidad cobrados a todas las tiendas de la plataforma
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 14 }}>
+                <div style={{ background: '#f0fdf4', padding: '8px 14px', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                  <small style={{ color: '#166534', fontSize: '11px', display: 'block' }}>Recaudado este Mes</small>
+                  <strong style={{ color: '#14532d', fontSize: '18px' }}>${Number(stats.collectedThisMonth || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <small style={{ color: '#475569', fontSize: '11px', display: 'block' }}>Total Recibos Emitidos</small>
+                  <strong style={{ color: '#0f172a', fontSize: '18px' }}>{payments.length}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel table-panel">
+            <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="🔍 Buscar por empresa, referencia bancaria o período..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '320px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+              />
+              <button
+                className="primary-action"
+                onClick={() => {
+                  if (tenants.length > 0) openRecordPayment(tenants[0]);
+                }}
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                ＋ Registrar Cobro de Mensualidad
+              </button>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha Cobro</th>
+                    <th>Empresa</th>
+                    <th>Plan</th>
+                    <th>Período Cubierto</th>
+                    <th>Método</th>
+                    <th>Comprobante / Ref</th>
+                    <th>Monto Recaudado</th>
+                    <th>Registrado Por</th>
+                    <th style={{ textAlign: 'center' }}>Recibo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.filter(p => {
+                    if (!search.trim()) return true;
+                    const q = search.toLowerCase();
+                    return (p.tenant_name || '').toLowerCase().includes(q) ||
+                           (p.reference || '').toLowerCase().includes(q) ||
+                           (p.period_covered || '').toLowerCase().includes(q);
+                  }).map(p => (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>{String(p.payment_date).slice(0, 10)}</strong>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{String(p.created_at || '').slice(11, 16)}</div>
+                      </td>
+                      <td>
+                        <strong style={{ color: '#0f172a' }}>{p.tenant_name}</strong>
+                      </td>
+                      <td>
+                        <span className={`plan-chip plan-chip-${(p.plan || 'starter').toLowerCase()}`}>
+                          {p.plan || 'STARTER'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{p.period_covered}</span>
+                      </td>
+                      <td>
+                        <span className="cycle-badge">{p.payment_method}</span>
+                      </td>
+                      <td>
+                        <code style={{ fontSize: '11.5px', background: '#f1f5f9', padding: '2px 5px', borderRadius: 4 }}>
+                          {p.reference || 'Sin ref'}
+                        </code>
+                      </td>
+                      <td>
+                        <strong style={{ color: '#059669', fontSize: '14px' }}>
+                          ${Number(p.amount).toFixed(2)}
+                        </strong>
+                      </td>
+                      <td>
+                        <small style={{ color: '#64748b' }}>{p.recorded_by || 'SaaS Owner'}</small>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          className="secondary-action"
+                          onClick={() => setReceiptModal(p)}
+                          style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700 }}
+                        >
+                          🧾 Ver Recibo
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: EDIT RATE / TARIFA POR EMPRESA
+          ========================================================================= */}
+      {editRateModal && (
+        <div className="modal-backdrop" onClick={() => setEditRateModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>🏷️ Configurar Tarifa y Facturación</h3>
+                <small style={{ color: '#64748b' }}>Empresa: <strong>{editRateModal.name}</strong></small>
+              </div>
+              <button className="close-btn" onClick={() => setEditRateModal(null)}>✕</button>
+            </div>
+            <form onSubmit={submitRate}>
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 14, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#475569' }}>Cobro neto proyectado:</span>
+                  <strong style={{ fontSize: '16px', color: '#059669' }}>
+                    ${calculateNetCycle(rateForm.monthlyFee, rateForm.discountPercent, rateForm.billingCycle)} por ciclo
+                  </strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Tarifa Mensual ($ USD) *</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={rateForm.monthlyFee}
+                    onChange={e => setRateForm({ ...rateForm, monthlyFee: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Plan Asignado</span>
+                  <select
+                    value={rateForm.plan}
+                    onChange={e => setRateForm({ ...rateForm, plan: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="STARTER">Starter</option>
+                    <option value="PRO">Profesional</option>
+                    <option value="ENTERPRISE">Enterprise</option>
+                    <option value="CUSTOM">Personalizado</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Ciclo de Facturación</span>
+                  <select
+                    value={rateForm.billingCycle}
+                    onChange={e => setRateForm({ ...rateForm, billingCycle: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="MONTHLY">Mensual (1 mes)</option>
+                    <option value="QUARTERLY">Trimestral (3 meses)</option>
+                    <option value="SEMIANNUAL">Semestral (6 meses)</option>
+                    <option value="ANNUAL">Anual (12 meses)</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Descuento Acordado (%)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={rateForm.discountPercent}
+                    onChange={e => setRateForm({ ...rateForm, discountPercent: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Próxima Fecha de Cobro</span>
+                  <input
+                    type="date"
+                    value={rateForm.nextBillingDate}
+                    onChange={e => setRateForm({ ...rateForm, nextBillingDate: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 10, marginBottom: 10 }}>
+                <small style={{ fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Contacto de Pagos / Cobranza</small>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Nombre Contacto Cobranzas</span>
+                  <input
+                    placeholder="Ej: Ing. Marco Pazmiño"
+                    value={rateForm.billingContactName}
+                    onChange={e => setRateForm({ ...rateForm, billingContactName: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Teléfono Cobranzas</span>
+                  <input
+                    placeholder="0991234567"
+                    value={rateForm.billingContactPhone}
+                    onChange={e => setRateForm({ ...rateForm, billingContactPhone: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Email Cobranzas</span>
+                  <input
+                    type="email"
+                    placeholder="contabilidad@tienda.com"
+                    value={rateForm.billingContactEmail}
+                    onChange={e => setRateForm({ ...rateForm, billingContactEmail: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+              </div>
+
+              <label style={{ display: 'block', marginBottom: 14 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Notas Administrativas / Condiciones del Acuerdo</span>
+                <input
+                  placeholder="Ej: Precio especial pactado por pago semestral anticipado..."
+                  value={rateForm.adminNotes}
+                  onChange={e => setRateForm({ ...rateForm, adminNotes: e.target.value })}
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setEditRateModal(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={savingRate}>
+                  {savingRate ? 'Guardando...' : 'Guardar Tarifa'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: RECORD MONTHLY PAYMENT
+          ========================================================================= */}
+      {payModal && (
+        <div className="modal-backdrop" onClick={() => setPayModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h3>💵 Registrar Cobro de Mensualidad</h3>
+              <button className="close-btn" onClick={() => setPayModal(null)}>✕</button>
+            </div>
+            <form onSubmit={submitPayment}>
+              <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginBottom: 14 }}>
+                <strong>Tienda: {payModal.name}</strong>
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  Plan {payModal.plan} · Tarifa mensual: ${Number(payModal.monthly_fee || 49).toFixed(2)}
+                  {Number(payModal.discount_percent || 0) > 0 && ` (-${payModal.discount_percent}%)`}
+                </div>
+              </div>
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Monto Cobrado ($ USD) *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={payForm.amount}
+                  onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Período que Cancela *</span>
+                <input
+                  type="text"
+                  placeholder="Ej: Septiembre 2026"
+                  value={payForm.periodCovered}
+                  onChange={e => setPayForm({ ...payForm, periodCovered: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Método de Pago *</span>
+                <select
+                  value={payForm.paymentMethod}
+                  onChange={e => setPayForm({ ...payForm, paymentMethod: e.target.value })}
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                >
+                  <option value="TRANSFER">Transferencia Banco Pichincha / Guayaquil</option>
+                  <option value="DEUNA">Deuna / PayPhone</option>
+                  <option value="CASH">Efectivo</option>
+                  <option value="CARD">Tarjeta de Crédito / Débito</option>
+                  <option value="DEPOSIT">Depósito en ventanilla</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Comprobante / Número de Referencia</span>
+                <input
+                  type="text"
+                  placeholder="Ej: TRANSF-839210"
+                  value={payForm.reference}
+                  onChange={e => setPayForm({ ...payForm, reference: e.target.value })}
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 14 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Notas Privadas del Cobro</span>
+                <input
+                  type="text"
+                  placeholder="Observaciones de pago..."
+                  value={payForm.notes}
+                  onChange={e => setPayForm({ ...payForm, notes: e.target.value })}
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <small style={{ display: 'block', color: '#059669', marginBottom: 14, fontSize: '11.5px' }}>
+                ✓ Al registrar el pago, la tienda se activa de inmediato y el próximo vencimiento se extiende según su ciclo de facturación.
+              </small>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setPayModal(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={paying}>
+                  {paying ? 'Guardando...' : 'Confirmar Cobro y Generar Recibo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: OFFICIAL SAAS RECEIPT
+          ========================================================================= */}
+      {receiptModal && (
+        <div className="modal-backdrop" onClick={() => setReceiptModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <h3>🧾 Comprobante Oficial de Suscripción SaaS</h3>
+              <button className="close-btn" onClick={() => setReceiptModal(null)}>✕</button>
+            </div>
+
+            <div className="saas-receipt-container">
+              <div className="saas-receipt-stamp">PAGADO</div>
+              <div className="saas-receipt-header">
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>
+                  FixmeTiendas SaaS Platform
+                </div>
+                <h2 className="saas-receipt-title">RECIBO DE MENSUALIDAD</h2>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Comprobante N°: <strong>{String(receiptModal.id).slice(0, 13).toUpperCase()}</strong>
+                </div>
+              </div>
+
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Empresa Cliente:</span>
+                <strong>{receiptModal.tenant_name || 'Tienda Afiliada'}</strong>
+              </div>
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Plan Contratado:</span>
+                <span>Plan {receiptModal.plan || 'STARTER'}</span>
+              </div>
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Período Cubierto:</span>
+                <strong>{receiptModal.period_covered}</strong>
+              </div>
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Fecha de Emisión:</span>
+                <span>{String(receiptModal.payment_date || new Date().toISOString()).slice(0, 10)}</span>
+              </div>
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Forma de Pago:</span>
+                <span>{receiptModal.payment_method}</span>
+              </div>
+              <div className="saas-receipt-row">
+                <span style={{ color: '#64748b' }}>Referencia / Banco:</span>
+                <code>{receiptModal.reference || 'N/A'}</code>
+              </div>
+
+              <div className="saas-receipt-total">
+                <span>TOTAL RECIBIDO:</span>
+                <span style={{ color: '#059669' }}>${Number(receiptModal.amount).toFixed(2)} USD</span>
+              </div>
+
+              <div className="saas-receipt-footer">
+                Este recibo confirma la recepción formal del pago por los servicios de la plataforma FixmeTiendas.
+                <br />Suscripción activa y acceso al sistema garantizado.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => window.print()}
+              >
+                🖨️ Imprimir / Guardar PDF
+              </button>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => setReceiptModal(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CREATE NEW COMPANY
+          ========================================================================= */}
+      {showCreateModal && (
+        <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <div className="modal-header">
+              <h3>＋ Crear Nueva Empresa / Tienda</h3>
+              <button className="close-btn" onClick={() => setShowCreateModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateTenant}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Nombre Comercial de la Empresa *</span>
+                  <input
+                    placeholder="Ej: Fixme Tech Samborondón"
+                    value={createForm.name}
+                    onChange={e => setCreateForm({ ...createForm, name: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Plan de Suscripción</span>
+                  <select
+                    value={createForm.plan}
+                    onChange={e => {
+                      const p = e.target.value;
+                      const fee = p === 'ENTERPRISE' ? '99.00' : p === 'PRO' ? '59.00' : '49.00';
+                      setCreateForm({ ...createForm, plan: p, monthlyFee: fee });
+                    }}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="STARTER">Starter ($49/mes)</option>
+                    <option value="PRO">Profesional ($59/mes)</option>
+                    <option value="ENTERPRISE">Enterprise ($99/mes)</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Tarifa Mensual ($ USD) *</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.monthlyFee}
+                    onChange={e => setCreateForm({ ...createForm, monthlyFee: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Ciclo de Facturación</span>
+                  <select
+                    value={createForm.billingCycle}
+                    onChange={e => setCreateForm({ ...createForm, billingCycle: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="MONTHLY">Mensual</option>
+                    <option value="QUARTERLY">Trimestral</option>
+                    <option value="SEMIANNUAL">Semestral</option>
+                    <option value="ANNUAL">Anual</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Descuento Inicial (%)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={createForm.discountPercent}
+                    onChange={e => setCreateForm({ ...createForm, discountPercent: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 10, marginBottom: 10 }}>
+                <small style={{ fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Datos del Gerente / Manager Inicial</small>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Nombres y Apellidos del Gerente *</span>
+                  <input
+                    placeholder="Ej: Roberto Mendoza"
+                    value={createForm.ownerName}
+                    onChange={e => setCreateForm({ ...createForm, ownerName: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Correo Electrónico (Login) *</span>
+                  <input
+                    type="email"
+                    placeholder="manager@tienda.com"
+                    value={createForm.ownerEmail}
+                    onChange={e => setCreateForm({ ...createForm, ownerEmail: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Teléfono / WhatsApp</span>
+                  <input
+                    placeholder="0991234567"
+                    value={createForm.phone}
+                    onChange={e => setCreateForm({ ...createForm, phone: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Contraseña Inicial (mínimo 8 caracteres) *</span>
+                  <input
+                    type="password"
+                    value={createForm.ownerPassword}
+                    onChange={e => setCreateForm({ ...createForm, ownerPassword: e.target.value })}
+                    minLength={8}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+              </div>
+
+              {createMsg && <div style={{ color: '#dc2626', fontSize: '12px', marginBottom: 10 }}>{createMsg}</div>}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setShowCreateModal(false)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={creating}>
+                  {creating ? 'Creando Empresa...' : '＋ Registrar Empresa'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: COMPANY AUDIT & DETAILS
+          ========================================================================= */}
+      {selectedTenant && (
+        <div className="modal-backdrop" onClick={() => setSelectedTenant(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 650 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>🏢 {selectedTenant.name}</h3>
+                <small style={{ color: '#64748b' }}>
+                  Plan {selectedTenant.plan} · Tarifa: ${Number(selectedTenant.monthly_fee || 49).toFixed(2)}/mes
+                </small>
+              </div>
+              <button className="close-btn" onClick={() => setSelectedTenant(null)}>✕</button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 8, marginBottom: 14 }}>
+              <button
+                className={detailTab === 'payments' ? 'btn-filter active' : 'btn-filter'}
+                onClick={() => setDetailTab('payments')}
+                style={{ padding: '4px 10px', fontSize: '12px', borderRadius: 6, cursor: 'pointer' }}
+              >
+                💵 Historial de Mensualidades ({tenantPayments.length})
+              </button>
+              <button
+                className={detailTab === 'users' ? 'btn-filter active' : 'btn-filter'}
+                onClick={() => setDetailTab('users')}
+                style={{ padding: '4px 10px', fontSize: '12px', borderRadius: 6, cursor: 'pointer' }}
+              >
+                👥 Usuarios ({users.length})
+              </button>
+              <button
+                className={detailTab === 'overview' ? 'btn-filter active' : 'btn-filter'}
+                onClick={() => setDetailTab('overview')}
+                style={{ padding: '4px 10px', fontSize: '12px', borderRadius: 6, cursor: 'pointer' }}
+              >
+                📊 Métricas Operativas
+              </button>
+            </div>
+
+            {/* TAB: Payments History */}
+            {detailTab === 'payments' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: '12.5px', color: '#475569' }}>Recibos registrados para esta tienda:</span>
+                  <button className="btn-action-pay" onClick={() => openRecordPayment(selectedTenant)} style={{ fontSize: '11px', padding: '4px 8px' }}>
+                    ＋ Registrar Cobro
+                  </button>
+                </div>
+                {tenantPayments.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 20, color: '#64748b', fontSize: '12px' }}>
+                    No hay pagos registrados para esta empresa.
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Fecha</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Período</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Método</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Comprobante</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tenantPayments.map(p => (
+                          <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '6px 8px' }}>{String(p.payment_date).slice(0, 10)}</td>
+                            <td style={{ padding: '6px 8px' }}><strong>{p.period_covered}</strong></td>
+                            <td style={{ padding: '6px 8px' }}>{p.payment_method}</td>
+                            <td style={{ padding: '6px 8px', color: '#64748b' }}>{p.reference || '-'}</td>
+                            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#059669' }}>
+                              ${Number(p.amount).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB: Users */}
+            {detailTab === 'users' && (
+              <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Nombre</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Correo</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left' }}>Rol</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '6px 8px' }}>{u.full_name || u.email}</td>
+                        <td style={{ padding: '6px 8px' }}>{u.email}</td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <span style={{ padding: '2px 6px', borderRadius: 4, background: '#eff6ff', color: '#1d4ed8', fontWeight: 600 }}>
+                            {u.role}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB: Overview */}
+            {detailTab === 'overview' && (
+              <div className="summary-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="summary-card">
+                  <small>Usuarios Registrados</small>
+                  <strong>{overview.users || 0}</strong>
+                </div>
+                <div className="summary-card">
+                  <small>Productos en Inventario</small>
+                  <strong>{overview.products || 0}</strong>
+                </div>
+                <div className="summary-card">
+                  <small>Clientes en Cartera</small>
+                  <strong>{overview.customers || 0}</strong>
+                </div>
+                <div className="summary-card">
+                  <small>Órdenes de Servicio</small>
+                  <strong>{overview.orders || 0}</strong>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="secondary-action" onClick={() => setSelectedTenant(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void}){
   const [tab, setTab] = React.useState<'matrix'|'users'|'profile'>('matrix');
@@ -2421,16 +3862,39 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
       {/* TAB 3: PROFILE */}
       {tab === 'profile' && (
         <section className="panel">
-          <h3>Perfil de la Empresa</h3>
+          <h3>Perfil de la Empresa y Estado de Suscripción</h3>
           <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, marginTop: 12 }}>
             <p style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
               <b>{profile.legal_name || profile.name || 'Fixme Store'}</b>
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: '13px', color: '#475569' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: '13px', color: '#475569', marginBottom: 14 }}>
               <div>Tipo de Negocio: <strong>{profile.business_type || 'RETAIL'}</strong></div>
-              <div>Plan Activo: <strong>{profile.plan || 'STARTER'}</strong></div>
+              <div>Plan Contratado: <strong>{profile.plan || 'STARTER'}</strong></div>
               <div>Teléfono: <strong>{profile.phone || 'No registrado'}</strong></div>
-              <div>Estado de suscripción: <strong style={{ color: '#059669' }}>{profile.subscription_status || 'ACTIVA'}</strong></div>
+              <div>Estado de tienda: <strong style={{ color: profile.subscription_status === 'SUSPENDED' ? '#dc2626' : '#059669' }}>{profile.subscription_status || 'ACTIVA'}</strong></div>
+            </div>
+
+            <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <small style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', fontWeight: 700 }}>Mensualidad del Sistema</small>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  ${Number(profile.monthly_fee || 49).toFixed(2)} <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b' }}>/ mes</span>
+                </div>
+              </div>
+              <div>
+                <small style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', fontWeight: 700 }}>Próximo Vencimiento</small>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
+                  {profile.next_billing_date ? String(profile.next_billing_date).slice(0, 10) : 'Al día'}
+                </div>
+              </div>
+              <div>
+                <small style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', fontWeight: 700 }}>Estado de Pago</small>
+                <div>
+                  <span className={profile.subscription_status === 'SUSPENDED' ? 'billing-badge billing-badge-suspended' : 'billing-badge billing-badge-ok'}>
+                    {profile.subscription_status === 'SUSPENDED' ? '🚫 Suspendida por mora' : '🟢 Al día'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
