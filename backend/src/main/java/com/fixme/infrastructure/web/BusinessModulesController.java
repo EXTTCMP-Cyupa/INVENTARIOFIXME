@@ -76,14 +76,151 @@ public class BusinessModulesController {
     return Collections.emptyList();
   }
 
-  // --- CUSTOMERS ---
-  @GetMapping("/api/customers")
+  // --- CUSTOMERS CRM 360 ---
+  @GetMapping("/api/customers/stats")
   @PreAuthorize("isAuthenticated()")
-  public List<Map<String, Object>> customers(@AuthenticationPrincipal Jwt j) {
+  public Map<String, Object> customerStats(@AuthenticationPrincipal Jwt j) {
     UUID t = tenant(j);
     modules.require(t, "CUSTOMERS");
     ctx(t);
-    return db.queryForList("select id,name,email,phone,address,city,created_at from customers where tenant_id=? order by name", t);
+    String sql = """
+        SELECT
+          COUNT(*) AS total_customers,
+          COUNT(*) FILTER (WHERE tag IN ('VIP', 'FREQUENT')) AS vip_customers,
+          COALESCE((SELECT SUM(total) FROM sales WHERE tenant_id = ? AND customer_id IS NOT NULL), 0) AS total_sales_volume,
+          COALESCE((SELECT COUNT(DISTINCT customer_id) FROM work_orders WHERE tenant_id = ? AND status NOT IN ('COMPLETED','CANCELLED','REJECTED')), 0) AS active_repair_customers
+        FROM customers
+        WHERE tenant_id = ?
+        """;
+    Map<String, Object> r = db.queryForMap(sql, t, t, t);
+    return Map.of(
+        "totalCustomers", r.getOrDefault("total_customers", 0),
+        "vipCustomers", r.getOrDefault("vip_customers", 0),
+        "totalSalesVolume", r.getOrDefault("total_sales_volume", BigDecimal.ZERO),
+        "activeRepairCustomers", r.getOrDefault("active_repair_customers", 0)
+    );
+  }
+
+  @GetMapping("/api/customers")
+  @PreAuthorize("isAuthenticated()")
+  public List<Map<String, Object>> customers(
+      @AuthenticationPrincipal Jwt j,
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String tag
+  ) {
+    UUID t = tenant(j);
+    modules.require(t, "CUSTOMERS");
+    ctx(t);
+
+    StringBuilder sql = new StringBuilder("""
+        SELECT
+          c.id, c.tenant_id, c.name, c.email, c.phone, c.address, c.city,
+          COALESCE(c.identification_type, 'CEDULA') AS identification_type,
+          c.identification_number,
+          c.notes,
+          COALESCE(c.tag, 'REGULAR') AS tag,
+          c.created_at,
+          COALESCE(COUNT(DISTINCT s.id), 0) AS total_sales_count,
+          COALESCE(SUM(s.total), 0) AS total_spent,
+          MAX(s.created_at) AS last_purchase_at,
+          COALESCE(COUNT(DISTINCT wo.id), 0) AS total_work_orders_count,
+          COALESCE(COUNT(DISTINCT wo.id) FILTER (WHERE wo.status NOT IN ('COMPLETED', 'CANCELLED', 'REJECTED')), 0) AS active_work_orders_count,
+          COALESCE(COUNT(DISTINCT w.id) FILTER (WHERE w.status = 'ACTIVE'), 0) AS active_warranties_count
+        FROM customers c
+        LEFT JOIN sales s ON s.customer_id = c.id AND s.tenant_id = c.tenant_id
+        LEFT JOIN work_orders wo ON wo.customer_id = c.id AND wo.tenant_id = c.tenant_id
+        LEFT JOIN warranties w ON w.customer_id = c.id AND w.tenant_id = c.tenant_id
+        WHERE c.tenant_id = ?
+        """);
+
+    List<Object> params = new ArrayList<>();
+    params.add(t);
+
+    if (search != null && !search.isBlank()) {
+      String p = "%" + search.trim().toLowerCase() + "%";
+      sql.append(" AND (LOWER(COALESCE(c.name, '')) LIKE ? OR LOWER(COALESCE(c.identification_number, '')) LIKE ? OR LOWER(COALESCE(c.phone, '')) LIKE ? OR LOWER(COALESCE(c.email, '')) LIKE ? OR LOWER(COALESCE(c.city, '')) LIKE ?)");
+      params.add(p);
+      params.add(p);
+      params.add(p);
+      params.add(p);
+      params.add(p);
+    }
+
+    if (tag != null && !tag.isBlank() && !"ALL".equalsIgnoreCase(tag)) {
+      if ("ACTIVE_WORK_ORDERS".equalsIgnoreCase(tag)) {
+        sql.append(" GROUP BY c.id HAVING COUNT(DISTINCT wo.id) FILTER (WHERE wo.status NOT IN ('COMPLETED', 'CANCELLED', 'REJECTED')) > 0");
+      } else if ("WITH_SALES".equalsIgnoreCase(tag)) {
+        sql.append(" GROUP BY c.id HAVING COUNT(DISTINCT s.id) > 0");
+      } else {
+        sql.append(" AND c.tag = ? GROUP BY c.id");
+        params.add(tag.toUpperCase());
+      }
+    } else {
+      sql.append(" GROUP BY c.id");
+    }
+
+    sql.append(" ORDER BY c.created_at DESC");
+    return db.queryForList(sql.toString(), params.toArray());
+  }
+
+  @GetMapping("/api/customers/{id}/history")
+  @PreAuthorize("isAuthenticated()")
+  public Map<String, Object> customerHistory(@PathVariable String id, @AuthenticationPrincipal Jwt j) {
+    UUID t = tenant(j);
+    modules.require(t, "CUSTOMERS");
+    ctx(t);
+    UUID custId = id(id);
+
+    Map<String, Object> customer = db.queryForMap("""
+        SELECT
+          c.id, c.tenant_id, c.name, c.email, c.phone, c.address, c.city,
+          COALESCE(c.identification_type, 'CEDULA') AS identification_type,
+          c.identification_number, c.notes, COALESCE(c.tag, 'REGULAR') AS tag, c.created_at
+        FROM customers c
+        WHERE c.id = ? AND c.tenant_id = ?
+        """, custId, t);
+
+    List<Map<String, Object>> sales = db.queryForList("""
+        SELECT id, subtotal, tax, total, status, COALESCE(fulfillment_type, 'STORE') AS fulfillment_type, created_at
+        FROM sales
+        WHERE customer_id = ? AND tenant_id = ?
+        ORDER BY created_at DESC LIMIT 20
+        """, custId, t);
+
+    List<Map<String, Object>> workOrders = db.queryForList("""
+        SELECT id, order_number, device_brand, device_model, serial_number, description, diagnosis, quote, status, created_at
+        FROM work_orders
+        WHERE customer_id = ? AND tenant_id = ?
+        ORDER BY created_at DESC LIMIT 20
+        """, custId, t);
+
+    List<Map<String, Object>> warranties = db.queryForList("""
+        SELECT
+          w.id,
+          COALESCE(w.warranty_code, 'GAR-' || UPPER(SUBSTRING(w.id::text, 1, 6))) AS warranty_code,
+          w.serial_number, w.status, w.starts_at, w.expires_at, w.terms,
+          p.name AS product_name, p.sku AS product_sku,
+          GREATEST(0, EXTRACT(DAY FROM (w.expires_at - now()))::int) AS remaining_days
+        FROM warranties w
+        LEFT JOIN products p ON p.id = w.product_id
+        WHERE w.customer_id = ? AND w.tenant_id = ?
+        ORDER BY w.created_at DESC LIMIT 20
+        """, custId, t);
+
+    List<Map<String, Object>> deliveries = db.queryForList("""
+        SELECT id, status, courier, address, recipient_name, recipient_phone, tracking_number, created_at
+        FROM deliveries
+        WHERE customer_id = ? AND tenant_id = ?
+        ORDER BY created_at DESC LIMIT 10
+        """, custId, t);
+
+    return Map.of(
+        "customer", customer,
+        "sales", sales,
+        "workOrders", workOrders,
+        "warranties", warranties,
+        "deliveries", deliveries
+    );
   }
 
   @PostMapping("/api/customers")
@@ -94,21 +231,44 @@ public class BusinessModulesController {
     required(b, "name");
     ctx(t);
     UUID id = UUID.randomUUID();
-    db.update("insert into customers(id,tenant_id,name,email,phone,address,city) values(?,?,?,?,?,?,?)",
-        id, t, b.get("name"), b.get("email"), b.get("phone"), b.get("address"), b.get("city"));
-    return ResponseEntity.status(201).body(db.queryForMap("select * from customers where id=?", id));
+    String email = (b.get("email") != null && !b.get("email").toString().isBlank()) ? b.get("email").toString().trim() : null;
+    String idType = (b.get("identificationType") != null && !b.get("identificationType").toString().isBlank()) ? b.get("identificationType").toString().trim().toUpperCase() : "CEDULA";
+    String idNum = (b.get("identificationNumber") != null && !b.get("identificationNumber").toString().isBlank()) ? b.get("identificationNumber").toString().trim() : null;
+    String tag = (b.get("tag") != null && !b.get("tag").toString().isBlank()) ? b.get("tag").toString().trim().toUpperCase() : "REGULAR";
+    String notes = (String) b.get("notes");
+
+    db.update("""
+        INSERT INTO customers(id, tenant_id, name, email, phone, address, city, identification_type, identification_number, notes, tag)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        id, t, b.get("name"), email, b.get("phone"), b.get("address"), b.get("city"), idType, idNum, notes, tag);
+
+    return ResponseEntity.status(201).body(db.queryForMap("SELECT * FROM customers WHERE id=?", id));
   }
 
   @PutMapping("/api/customers/{id}")
-  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_SELLER','SCOPE_SUPER_ADMIN')")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_SUPER_ADMIN')")
   public Map<String, Object> updateCustomer(@PathVariable String id, @AuthenticationPrincipal Jwt j, @RequestBody Map<String, Object> b) {
     UUID t = tenant(j);
     modules.require(t, "CUSTOMERS");
     required(b, "name");
     ctx(t);
-    db.update("update customers set name=?,email=?,phone=?,address=?,city=? where id=? and tenant_id=?",
-        b.get("name"), b.get("email"), b.get("phone"), b.get("address"), b.get("city"), id(id), t);
-    return db.queryForMap("select * from customers where id=?", id(id));
+    String email = (b.get("email") != null && !b.get("email").toString().isBlank()) ? b.get("email").toString().trim() : null;
+    String idType = (b.get("identificationType") != null && !b.get("identificationType").toString().isBlank()) ? b.get("identificationType").toString().trim().toUpperCase() : "CEDULA";
+    String idNum = (b.get("identificationNumber") != null && !b.get("identificationNumber").toString().isBlank()) ? b.get("identificationNumber").toString().trim() : null;
+    String tag = (b.get("tag") != null && !b.get("tag").toString().isBlank()) ? b.get("tag").toString().trim().toUpperCase() : "REGULAR";
+    String notes = (String) b.get("notes");
+
+    db.update("""
+        UPDATE customers
+        SET name = ?, email = ?, phone = ?, address = ?, city = ?,
+            identification_type = ?, identification_number = ?, notes = ?, tag = ?
+        WHERE id = ? AND tenant_id = ?
+        """,
+        b.get("name"), email, b.get("phone"), b.get("address"), b.get("city"),
+        idType, idNum, notes, tag, id(id), t);
+
+    return db.queryForMap("SELECT * FROM customers WHERE id=?", id(id));
   }
 
   @DeleteMapping("/api/customers/{id}")

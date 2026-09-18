@@ -8,3 +8,4 @@ ALTER TABLE warranties ADD COLUMN IF NOT EXISTS warranty_code text;
 CREATE INDEX IF NOT EXISTS warranties_tenant_status ON warranties(tenant_id, status);
 CREATE INDEX IF NOT EXISTS warranties_tenant_serial ON warranties(tenant_id, serial_number);
 CREATE INDEX IF NOT EXISTS warranties_tenant_code ON warranties(tenant_id, warranty_code);
+

@@ -73,6 +73,37 @@ public class SaleController {
     );
   }
 
+  @GetMapping("/stats")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER','SCOPE_ACCOUNTANT')")
+  public Map<String, Object> stats(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) UUID branchId) {
+    UUID t = tenant(jwt);
+    jdbc.queryForObject("select set_config('app.tenant_id',?,true)", String.class, t.toString());
+
+    String sql = """
+        SELECT
+          COUNT(*) AS total_tickets,
+          COALESCE(SUM(s.total), 0) AS total_revenue,
+          COALESCE(SUM((SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS total_cogs,
+          COALESCE(SUM(s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)), 0) AS gross_profit,
+          COALESCE(AVG(s.total), 0) AS avg_ticket,
+          COUNT(*) FILTER (WHERE s.created_at >= CURRENT_DATE) AS today_tickets,
+          COALESCE(SUM(s.total) FILTER (WHERE s.created_at >= CURRENT_DATE), 0) AS today_revenue,
+          COUNT(*) FILTER (WHERE s.channel = 'STORE') AS store_tickets,
+          COALESCE(SUM(s.total) FILTER (WHERE s.channel = 'STORE'), 0) AS store_revenue,
+          COUNT(*) FILTER (WHERE s.channel = 'ONLINE') AS online_tickets,
+          COALESCE(SUM(s.total) FILTER (WHERE s.channel = 'ONLINE'), 0) AS online_revenue,
+          COUNT(*) FILTER (WHERE s.fulfillment_type = 'DELIVERY') AS delivery_tickets
+        FROM sales s
+        WHERE s.tenant_id = ?
+        """;
+
+    if (branchId != null) {
+      return jdbc.queryForMap(sql + " AND s.branch_id = ?", t, branchId);
+    } else {
+      return jdbc.queryForMap(sql, t);
+    }
+  }
+
   @GetMapping
   @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER','SCOPE_ACCOUNTANT')")
   public List<Map<String, Object>> list(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) UUID branchId) {
@@ -82,21 +113,35 @@ public class SaleController {
     String sql = """
         SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
+               b.name AS branch_name,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller,
-               c.name AS customer, c.phone AS customer_phone,
+               COALESCE(NULLIF(u.full_name, ''), u.email) AS seller_name,
+               u.email AS seller_email, u.role AS seller_role,
+               c.name AS customer, c.name AS customer_name,
+               c.identification_type AS customer_identification_type,
+               c.identification_number AS customer_identification_number,
+               c.phone AS customer_phone, c.email AS customer_email, c.address AS customer_address,
                d.id AS delivery_id, d.status AS delivery_status, d.courier, d.address AS delivery_address,
+               d.recipient_name, d.recipient_phone, d.tracking_number, d.tracking_url,
                (SELECT string_agg(p.payment_method, ', ') FROM payments p WHERE p.sale_id = s.id) AS payment_methods,
                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
-               (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit
+               (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit,
+               (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) AS items_count,
+               (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.sale_id = s.id) AS items_quantity,
+               (SELECT w.warranty_code FROM warranties w WHERE w.sale_id = s.id LIMIT 1) AS warranty_code
         FROM sales s
         JOIN app_users u ON u.id = s.user_id
+        LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
-        WHERE s.tenant_id = ? AND (? IS NULL OR s.branch_id = ?)
-        ORDER BY s.created_at DESC
+        WHERE s.tenant_id = ?
         """;
 
-    return jdbc.queryForList(sql, t, branchId, branchId);
+    if (branchId != null) {
+      return jdbc.queryForList(sql + " AND s.branch_id = ? ORDER BY s.created_at DESC", t, branchId);
+    } else {
+      return jdbc.queryForList(sql + " ORDER BY s.created_at DESC", t);
+    }
   }
 
   @GetMapping("/{id}")
@@ -110,13 +155,21 @@ public class SaleController {
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
                (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit,
+               b.name AS branch_name,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller_name,
+               u.email AS seller_email, u.role AS seller_role,
                c.name AS customer, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+               c.identification_type AS customer_identification_type,
+               c.identification_number AS customer_identification_number,
+               c.address AS customer_address,
                d.id AS delivery_id, d.status AS delivery_status, d.courier, d.address AS delivery_address,
-               d.recipient_name, d.recipient_phone, d.tracking_number, d.tracking_url
+               d.recipient_name, d.recipient_phone, d.tracking_number, d.tracking_url,
+               (SELECT w.warranty_code FROM warranties w WHERE w.sale_id = s.id LIMIT 1) AS warranty_code,
+               (SELECT w.id FROM warranties w WHERE w.sale_id = s.id LIMIT 1) AS warranty_id
         FROM sales s
         JOIN app_users u ON u.id = s.user_id
+        LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
         WHERE s.tenant_id = ? AND s.id = ?
@@ -126,6 +179,7 @@ public class SaleController {
 
     var items = jdbc.queryForList("""
         SELECT si.id, si.product_id, si.quantity, si.unit_price, si.unit_price AS price, si.cost_price,
+               si.cost_price AS unit_cost,
                si.line_total, si.line_total AS subtotal,
                (si.quantity * si.cost_price) AS total_cost,
                (si.line_total - (si.quantity * si.cost_price)) AS gross_profit,

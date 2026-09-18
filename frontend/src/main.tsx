@@ -1,7 +1,7 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
 type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.scope||'').replace('SCOPE_','').split(' ')[0]}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['products','customers','work-orders','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=allowed[role]||['home'];const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.scope||'').replace('SCOPE_','').split(' ')[0]}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['products','customers','work-orders','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=allowed[role]||['home'];const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
 function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok)onLogin((await r.json()).accessToken);else setError('No pudimos validar tus credenciales.')}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
@@ -1142,9 +1142,13 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [rows, setRows] = React.useState<Any[]>([]);
   const [filterChannel, setFilterChannel] = React.useState('ALL');
+  const [filterFulfillment, setFilterFulfillment] = React.useState('ALL');
+  const [filterSeller, setFilterSeller] = React.useState('ALL');
+  const [filterDate, setFilterDate] = React.useState('ALL');
   const [search, setSearch] = React.useState('');
   const [detailModal, setDetailModal] = React.useState<Any|null>(null);
   const [loadingDetail, setLoadingDetail] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
 
   const load = React.useCallback(() => {
     api(`/api/sales?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setRows);
@@ -1165,29 +1169,208 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
     }
   }
 
+  // Unique sellers for filter dropdown
+  const uniqueSellers = React.useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach(r => {
+      const s = r.seller_name || r.seller;
+      if (s) set.add(s);
+    });
+    return Array.from(set);
+  }, [rows]);
+
   const filtered = rows.filter(r => {
-    const matchChannel = filterChannel === 'ALL' ? true : r.channel === filterChannel;
+    // Channel filter
+    if (filterChannel !== 'ALL' && r.channel !== filterChannel) return false;
+    // Fulfillment filter
+    if (filterFulfillment !== 'ALL' && r.fulfillment_type !== filterFulfillment) return false;
+    // Seller filter
+    if (filterSeller !== 'ALL' && (r.seller_name || r.seller) !== filterSeller) return false;
+    // Date filter
+    if (filterDate !== 'ALL') {
+      const saleDate = new Date(r.created_at);
+      const now = new Date();
+      if (filterDate === 'TODAY') {
+        if (saleDate.toDateString() !== now.toDateString()) return false;
+      } else if (filterDate === 'WEEK') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (saleDate < weekAgo) return false;
+      } else if (filterDate === 'MONTH') {
+        if (saleDate.getMonth() !== now.getMonth() || saleDate.getFullYear() !== now.getFullYear()) return false;
+      }
+    }
+    // Search filter
     const q = search.toLowerCase().trim();
-    const matchSearch = !q || [
-      r.id, r.customer, r.customer_name, r.seller, r.payment_methods, r.delivery_address
-    ].some(v => v && String(v).toLowerCase().includes(q));
-    return matchChannel && matchSearch;
+    if (q) {
+      const matchSearch = [
+        r.id,
+        r.customer,
+        r.customer_name,
+        r.customer_identification_number,
+        r.customer_phone,
+        r.seller,
+        r.seller_name,
+        r.payment_methods,
+        r.delivery_address,
+        r.courier,
+        r.tracking_number,
+        r.warranty_code
+      ].some(v => v && String(v).toLowerCase().includes(q));
+      if (!matchSearch) return false;
+    }
+    return true;
   });
 
+  // KPI Calculations
   const totalSales = filtered.reduce((acc, r) => acc + Number(r.total || 0), 0);
   const totalCost = filtered.reduce((acc, r) => acc + Number(r.total_cost || 0), 0);
   const totalProfit = filtered.reduce((acc, r) => acc + Number(r.gross_profit || 0), 0);
   const avgMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : '0.0';
+  const avgTicket = filtered.length > 0 ? (totalSales / filtered.length).toFixed(2) : '0.00';
+
+  // Export to CSV
+  function exportCSV() {
+    if (!filtered.length) {
+      alert('No hay ventas para exportar con los filtros actuales.');
+      return;
+    }
+    const headers = [
+      'ID Ticket',
+      'Fecha',
+      'Hora',
+      'Sucursal',
+      'Vendedor',
+      'Rol Vendedor',
+      'Cliente',
+      'Tipo Doc',
+      'Nro Identificacion',
+      'Telefono',
+      'Email',
+      'Canal',
+      'Modalidad Entrega',
+      'Courier',
+      'Guia',
+      'Direccion',
+      'Subtotal',
+      'Envio',
+      'Total Venta',
+      'Costo Inversion',
+      'Utilidad Bruta',
+      'Margen %',
+      'Metodos Pago',
+      'Garantia Dias',
+      'Codigo Garantia'
+    ];
+
+    const csvRows = filtered.map(r => {
+      const d = new Date(r.created_at);
+      const rev = Number(r.total || 0);
+      const cost = Number(r.total_cost || 0);
+      const prof = Number(r.gross_profit || 0);
+      const marg = rev > 0 ? ((prof / rev) * 100).toFixed(1) : '0';
+
+      return [
+        `"${r.id || ''}"`,
+        `"${d.toLocaleDateString()}"`,
+        `"${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`,
+        `"${r.branch_name || 'Principal'}"`,
+        `"${r.seller_name || r.seller || ''}"`,
+        `"${r.seller_role || ''}"`,
+        `"${r.customer_name || r.customer || 'Consumidor Final'}"`,
+        `"${r.customer_identification_type || ''}"`,
+        `"${r.customer_identification_number || ''}"`,
+        `"${r.customer_phone || ''}"`,
+        `"${r.customer_email || ''}"`,
+        `"${r.channel === 'ONLINE' ? 'Internet' : 'Local'}"`,
+        `"${r.fulfillment_type === 'DELIVERY' ? 'Domicilio' : 'Retiro'}"`,
+        `"${r.courier || ''}"`,
+        `"${r.tracking_number || ''}"`,
+        `"${(r.delivery_address || r.customer_address || '').replace(/"/g, '""')}"`,
+        Number(r.subtotal || 0).toFixed(2),
+        Number(r.shipping_cost || 0).toFixed(2),
+        rev.toFixed(2),
+        cost.toFixed(2),
+        prof.toFixed(2),
+        marg,
+        `"${r.payment_methods || 'CASH'}"`,
+        r.warranty_days || 0,
+        `"${r.warranty_code || ''}"`
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `ventas_fixme_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Generate formatted WhatsApp message
+  function getWhatsAppMessage(sale: Any) {
+    const itemsText = (sale.items || [])
+      .map((it: Any) => `  • ${it.quantity}x ${it.product_name} ($${Number(it.unit_price).toFixed(2)}) = $${Number(it.line_total).toFixed(2)}`)
+      .join('\n');
+
+    const paymentText = (sale.payments || [])
+      .map((p: Any) => `${p.payment_method}: $${Number(p.amount).toFixed(2)}`)
+      .join(', ') || 'Contado';
+
+    const deliveryBlock = sale.fulfillment_type === 'DELIVERY'
+      ? `\n🛵 *DESPACHO A DOMICILIO:*\n  • Courier: ${sale.courier || 'Motorizado Express'}\n  • N° Guía: ${sale.tracking_number || 'S/N'}${sale.tracking_url ? `\n  • Rastreo: ${sale.tracking_url}` : ''}\n  • Destino: ${sale.delivery_address || 'Registrada'}`
+      : '';
+
+    const warrantyBlock = Number(sale.warranty_days || 0) > 0
+      ? `\n🛡️ *GARANTÍA TÉCNICA OFICIAL:*\n  • Cobertura: ${sale.warranty_days} días\n  • Código: ${sale.warranty_code || 'Emitido con ticket'}\n  • Válida ante defectos de fábrica y mano de obra.`
+      : '';
+
+    return `🧾 *COMPROBANTE DE VENTA FIXMETIENDAS* 🧾
+*Ticket N°:* #${sale.id?.slice(0, 8).toUpperCase()}
+*Fecha:* ${new Date(sale.created_at).toLocaleDateString()} ${new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+*Sucursal:* ${sale.branch_name || 'Principal'}
+*Atendido por:* ${sale.seller_name || sale.seller}
+
+👤 *CLIENTE:* ${sale.customer_name || sale.customer || 'Consumidor Final'}
+📄 *IDENTIFICACIÓN:* ${sale.customer_identification_type || 'C.I.'}: ${sale.customer_identification_number || 'Consumidor Final'}
+
+📦 *DETALLE DE PRODUCTOS:*
+${itemsText}
+
+💰 *TOTAL PAGADO:* $${Number(sale.total).toFixed(2)}
+💳 *Forma de Pago:* ${paymentText}${deliveryBlock}${warrantyBlock}
+
+¡Muchas gracias por confiar en *FixmeTiendas*! 🚀
+Cualquier consulta o servicio técnico estamos a la orden.`;
+  }
+
+  function copyTicketSummary(sale: Any) {
+    const text = getWhatsAppMessage(sale);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
 
   return (
     <>
       <section className="inventory-hero">
         <div>
-          <span className="eyebrow">HISTORIAL COMERCIAL & RENTABILIDAD</span>
-          <h2>Ventas Registradas</h2>
-          <p>Consulta canales (Local vs Online), método de pago, costo de venta y ganancia bruta generada.</p>
+          <span className="eyebrow">AUDITORÍA COMERCIAL & REGISTRO DE VENTAS (SALES JOURNAL)</span>
+          <h2>Registro General de Ventas</h2>
+          <p>
+            Bitácora de transacciones: vendedor/cajero responsable, ficha fiscal del cliente, detalle de productos, rentabilidad real (COGS vs Utilidad), canal y logística.
+          </p>
         </div>
-        <button className="primary-action" onClick={load}>Actualizar Ventas</button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button type="button" className="secondary-action" onClick={exportCSV} title="Descargar reporte en formato Excel/CSV">
+            📥 Exportar Excel/CSV
+          </button>
+          <button type="button" className="primary-action" onClick={load}>
+            🔄 Actualizar Ventas
+          </button>
+        </div>
       </section>
 
       {/* SALES FINANCIAL SUMMARY KPIS */}
@@ -1195,73 +1378,140 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         <div className="finance-card">
           <small>Ventas Totales Cobradas</small>
           <strong className="text-revenue">${totalSales.toFixed(2)}</strong>
-          <span>{filtered.length} tickets facturados</span>
+          <span>{filtered.length} tickets facturados ({rows.length} en total)</span>
         </div>
         <div className="finance-card">
-          <small>Costo de Mercadería (Inversión)</small>
+          <small>Costo de Mercadería (COGS)</small>
           <strong style={{ color: '#f43f5e' }}>${totalCost.toFixed(2)}</strong>
           <span>Capital invertido en productos vendidos</span>
         </div>
         <div className="finance-card">
           <small>Ganancia Bruta Real (Utilidad)</small>
           <strong className="text-profit">+${totalProfit.toFixed(2)}</strong>
-          <span>Beneficio neto sobre ventas</span>
+          <span>Beneficio comercial neto generado</span>
         </div>
         <div className="finance-card">
           <small>Margen de Rentabilidad</small>
           <strong style={{ color: '#3b82f6' }}>{avgMargin}%</strong>
-          <span>Margen bruto promedio del periodo</span>
+          <span>Margen bruto promedio sobre ventas</span>
+        </div>
+        <div className="finance-card">
+          <small>Ticket Promedio</small>
+          <strong style={{ color: '#8b5cf6' }}>${avgTicket}</strong>
+          <span>Gasto promedio por cliente</span>
         </div>
       </div>
 
+      {/* TOOLBAR CONTROLS & MULTI-FILTER BAR */}
       <div className="panel" style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              className={`filter-pill ${filterChannel === 'ALL' ? 'active' : ''}`}
-              onClick={() => setFilterChannel('ALL')}
-            >
-              Todas ({rows.length})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filterChannel === 'STORE' ? 'active' : ''}`}
-              onClick={() => setFilterChannel('STORE')}
-            >
-              🏪 En Local ({rows.filter(r => r.channel === 'STORE').length})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filterChannel === 'ONLINE' ? 'active' : ''}`}
-              onClick={() => setFilterChannel('ONLINE')}
-            >
-              🌐 Por Internet ({rows.filter(r => r.channel === 'ONLINE').length})
-            </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Channel and Fulfillment Pills */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              <button
+                type="button"
+                className={`filter-pill ${filterChannel === 'ALL' ? 'active' : ''}`}
+                onClick={() => setFilterChannel('ALL')}
+              >
+                Todos los Canales ({rows.length})
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${filterChannel === 'STORE' ? 'active' : ''}`}
+                onClick={() => setFilterChannel('STORE')}
+              >
+                🏪 En Local ({rows.filter(r => r.channel === 'STORE').length})
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${filterChannel === 'ONLINE' ? 'active' : ''}`}
+                onClick={() => setFilterChannel('ONLINE')}
+              >
+                🌐 Por Internet ({rows.filter(r => r.channel === 'ONLINE').length})
+              </button>
+
+              <span style={{ borderLeft: '1px solid #cbd5e1', margin: '0 4px' }} />
+
+              <button
+                type="button"
+                className={`filter-pill ${filterFulfillment === 'ALL' ? 'active' : ''}`}
+                onClick={() => setFilterFulfillment('ALL')}
+              >
+                Todas las Entregas
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${filterFulfillment === 'PICKUP' ? 'active' : ''}`}
+                onClick={() => setFilterFulfillment('PICKUP')}
+              >
+                🏬 Retiro ({rows.filter(r => r.fulfillment_type === 'PICKUP').length})
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${filterFulfillment === 'DELIVERY' ? 'active' : ''}`}
+                onClick={() => setFilterFulfillment('DELIVERY')}
+              >
+                🛵 Domicilio ({rows.filter(r => r.fulfillment_type === 'DELIVERY').length})
+              </button>
+            </div>
+
+            {/* Date Range Selector */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <small style={{ fontWeight: 700, color: '#64748b' }}>Periodo:</small>
+              <select
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff' }}
+              >
+                <option value="ALL">Todo el Historial</option>
+                <option value="TODAY">Hoy</option>
+                <option value="WEEK">Últimos 7 días</option>
+                <option value="MONTH">Este Mes</option>
+              </select>
+            </div>
           </div>
 
-          <div className="search-box" style={{ minWidth: '260px' }}>
-            <span>🔍</span>
-            <input
-              placeholder="Buscar cliente, ticket, vendedor..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          {/* Search Box and Seller Selector */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div className="search-box" style={{ flex: 1, minWidth: '280px' }}>
+              <span>🔍</span>
+              <input
+                placeholder="Buscar por ticket #, cliente, cédula/RUC, vendedor, teléfono, producto..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <small style={{ fontWeight: 700, color: '#64748b' }}>Vendedor / Cajero:</small>
+              <select
+                value={filterSeller}
+                onChange={e => setFilterSeller(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#fff', minWidth: '180px' }}
+              >
+                <option value="ALL">👤 Todos los vendedores ({uniqueSellers.length})</option>
+                {uniqueSellers.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ENRICHED SALES DATA TABLE */}
       <div className="panel table-panel">
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Ticket / Fecha</th>
+                <th>Vendedor / Cajero</th>
+                <th>Cliente & Identificación</th>
                 <th>Canal</th>
-                <th>Entrega</th>
-                <th>Vendedor</th>
-                <th>Cliente</th>
-                <th>Pago</th>
+                <th>Entrega / Courier</th>
+                <th>Método Pago</th>
+                <th>Garantía</th>
                 <th>Costo (COGS)</th>
                 <th>Total Venta</th>
                 <th>Ganancia Bruta</th>
@@ -1269,180 +1519,494 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => (
-                <tr key={r.id}>
-                  <td>
-                    <strong style={{ display: 'block', fontSize: '13px' }}>#{r.id?.slice(0, 8)}</strong>
-                    <small style={{ color: '#64748b' }}>
-                      {new Date(r.created_at).toLocaleDateString()} {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </small>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${r.channel === 'ONLINE' ? 'status-quoted' : 'status-approved'}`}>
-                      {r.channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'}
-                    </span>
-                  </td>
-                  <td>
-                    {r.fulfillment_type === 'DELIVERY' ? (
-                      <span className="status-badge status-open" title={r.delivery_address || ''}>
-                        🛵 Domicilio ({r.delivery_status || 'PENDING'})
+              {filtered.map(r => {
+                const sellerInitial = (r.seller_name || r.seller || 'V').slice(0, 1).toUpperCase();
+                const totalVal = Number(r.total || 0);
+                const costVal = Number(r.total_cost || 0);
+                const profitVal = Number(r.gross_profit || 0);
+                const marginVal = totalVal > 0 ? ((profitVal / totalVal) * 100).toFixed(0) : '0';
+
+                return (
+                  <tr key={r.id}>
+                    <td>
+                      <strong style={{ display: 'block', fontSize: '13px', color: '#1e293b' }}>
+                        #{r.id?.slice(0, 8).toUpperCase()}
+                      </strong>
+                      <small style={{ color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {new Date(r.created_at).toLocaleDateString()} {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </small>
+                      {r.branch_name && (
+                        <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8' }}>
+                          📍 {r.branch_name}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Vendedor */}
+                    <td>
+                      <div className="seller-avatar-chip">
+                        <span className="seller-circle">{sellerInitial}</span>
+                        <div>
+                          <span>{r.seller_name || r.seller || 'Sistema'}</span>
+                          {r.seller_role && (
+                            <span className="seller-role-badge">{r.seller_role}</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Cliente */}
+                    <td>
+                      <strong style={{ display: 'block', fontSize: '12.5px', color: '#0f172a' }}>
+                        {r.customer_name || r.customer || 'Consumidor Final'}
+                      </strong>
+                      {r.customer_identification_number ? (
+                        <div className="customer-id-pill">
+                          <span>{r.customer_identification_type || 'CI'}:</span>
+                          <strong>{r.customer_identification_number}</strong>
+                        </div>
+                      ) : (
+                        <small style={{ color: '#94a3b8' }}>Consumidor Final</small>
+                      )}
+                      {r.customer_phone && (
+                        <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                          <a
+                            href={`tel:${r.customer_phone}`}
+                            style={{ textDecoration: 'none', color: '#3b82f6' }}
+                          >
+                            📞 {r.customer_phone}
+                          </a>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Canal */}
+                    <td>
+                      <span className={`status-badge ${r.channel === 'ONLINE' ? 'status-quoted' : 'status-approved'}`}>
+                        {r.channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'}
                       </span>
-                    ) : (
-                      <span className="status-badge status-completed">
-                        🏬 Retiro
+                    </td>
+
+                    {/* Entrega / Logística */}
+                    <td>
+                      {r.fulfillment_type === 'DELIVERY' ? (
+                        <div>
+                          <span className="courier-pill" title={r.delivery_address || ''}>
+                            🛵 {r.courier || 'Domicilio'}
+                          </span>
+                          {r.tracking_number && (
+                            <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px' }}>
+                              Guía: <b>{r.tracking_number}</b>
+                            </div>
+                          )}
+                          {r.delivery_status && (
+                            <span style={{ display: 'inline-block', fontSize: '10px', color: '#059669', fontWeight: 600 }}>
+                              ● {r.delivery_status}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="status-badge status-completed">
+                          🏬 Retiro
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Métodos de Pago */}
+                    <td>
+                      <span style={{ fontWeight: 600, fontSize: '11px', color: '#334155' }}>
+                        {r.payment_methods || 'CASH'}
                       </span>
-                    )}
-                  </td>
-                  <td>{r.seller || 'Sistema'}</td>
-                  <td>{r.customer || r.customer_name || 'Consumidor final'}</td>
-                  <td><span style={{ fontWeight: 600, fontSize: '11px' }}>{r.payment_methods || 'CASH'}</span></td>
-                  <td style={{ color: '#f43f5e' }}>${Number(r.total_cost || 0).toFixed(2)}</td>
-                  <td style={{ fontWeight: 700 }}>${Number(r.total || 0).toFixed(2)}</td>
-                  <td style={{ fontWeight: 800, color: '#10b981' }}>
-                    +${Number(r.gross_profit || 0).toFixed(2)}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      className="secondary-action"
-                      style={{ padding: '5px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
-                      onClick={() => openDetail(r.id)}
-                    >
-                      👁️ Ver Ticket
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    {/* Garantía */}
+                    <td>
+                      {Number(r.warranty_days || 0) > 0 ? (
+                        <div>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 700, color: '#1d4ed8', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px' }}>
+                            🛡️ {r.warranty_days}d
+                          </span>
+                          {r.warranty_code && (
+                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>
+                              {r.warranty_code}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: '11px' }}>Sin garantía</span>
+                      )}
+                    </td>
+
+                    {/* Costo Mercadería */}
+                    <td style={{ color: '#f43f5e', fontSize: '12px', fontWeight: 600 }}>
+                      ${costVal.toFixed(2)}
+                    </td>
+
+                    {/* Total Venta */}
+                    <td>
+                      <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>
+                        ${totalVal.toFixed(2)}
+                      </strong>
+                    </td>
+
+                    {/* Ganancia Bruta */}
+                    <td>
+                      <div style={{ fontWeight: 800, color: '#10b981', fontSize: '13px' }}>
+                        +${profitVal.toFixed(2)}
+                      </div>
+                      <span className="margin-pill">
+                        +{marginVal}%
+                      </span>
+                    </td>
+
+                    {/* Acciones */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="secondary-action"
+                          style={{ padding: '5px 9px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                          onClick={() => openDetail(r.id)}
+                          title="Ver y re-imprimir comprobante térmico oficial"
+                        >
+                          👁️ Ver Ticket
+                        </button>
+                        {r.customer_phone && (
+                          <a
+                            className="whatsapp-btn"
+                            style={{ padding: '5px 8px', fontSize: '11px', textDecoration: 'none' }}
+                            href={`https://wa.me/${r.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                              `Hola ${r.customer_name || 'cliente'}, te saludamos de FixmeTiendas. Tu compra #${r.id?.slice(0, 8)} por un total de $${Number(r.total || 0).toFixed(2)} está registrada con éxito. ¡Gracias por tu preferencia!`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Enviar comprobante por WhatsApp"
+                          >
+                            💬
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {!filtered.length && (
             <div className="empty">
               <b>🧾</b>
-              <p>No se encontraron ventas para este filtro.</p>
+              <p>No se encontraron ventas para los criterios seleccionados.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* DETAILED SALE & PROFITABILITY INSPECTION MODAL */}
+      {/* DETAILED SALE & 80MM THERMAL RECEIPT MODAL */}
       {detailModal && (
         <div className="modal-overlay" onClick={() => setDetailModal(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div className="modal-head">
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px', padding: '16px' }}>
+            <div className="modal-head no-print" style={{ marginBottom: '12px' }}>
               <div>
-                <h3>🧾 Comprobante de Venta #{detailModal.id?.slice(0, 8)}</h3>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>
+                  🧾 Comprobante de Venta #{detailModal.id?.slice(0, 8).toUpperCase()}
+                </h3>
                 <small style={{ color: '#64748b' }}>
-                  {new Date(detailModal.created_at).toLocaleString()} · Canal: {detailModal.channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'}
+                  Formato estándar para ticketera térmica EPSON / POS-80
                 </small>
               </div>
               <button className="close-button" onClick={() => setDetailModal(null)}>✕</button>
             </div>
 
-            <div id="printable-ticket" className="ticket-preview" style={{ marginTop: '10px' }}>
-              <h2>FIXMETIENDAS</h2>
-              <div className="ticket-center">Comprobante de Venta y Despacho</div>
-              <div className="ticket-divider"></div>
-              <div><strong>TICKET: #{detailModal.id?.slice(0, 8)}</strong></div>
-              <div>Fecha: {new Date(detailModal.created_at).toLocaleString()}</div>
-              <div>Vendedor: {detailModal.seller_name || 'Vendedor'}</div>
-              <div>Cliente: {detailModal.customer_name || 'Consumidor Final'}</div>
-              {detailModal.customer_phone && <div>Teléfono: {detailModal.customer_phone}</div>}
+            {/* 80MM THERMAL PAPER ROLL RECEIPT */}
+            <div id="printable-sale-receipt" className="receipt-80mm-container">
+              <div className="receipt-header">
+                <h2>FIXMETIENDAS</h2>
+                <p><b>RUC:</b> 1792345678001</p>
+                <p><b>Sucursal:</b> {detailModal.branch_name || 'Principal'}</p>
+                <p>Quito, Ecuador · Tel: 0994175857</p>
+                <div className="receipt-divider-double" />
+                <div style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '0.5px' }}>
+                  COMPROBANTE DE VENTA & DESPACHO
+                </div>
+                <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                  CANAL: {detailModal.channel === 'ONLINE' ? 'VENTA EN LÍNEA / WHATSAPP' : 'VENTA EN TIENDA FÍSICA'}
+                </div>
+              </div>
 
+              <div className="receipt-divider-dash" />
+
+              {/* TICKET METADATA */}
+              <div className="receipt-meta-row">
+                <span>TICKET N°:</span>
+                <strong>#{detailModal.id?.slice(0, 8).toUpperCase()}</strong>
+              </div>
+              <div className="receipt-meta-row">
+                <span>FECHA / HORA:</span>
+                <span>
+                  {new Date(detailModal.created_at).toLocaleDateString()} {new Date(detailModal.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className="receipt-meta-row">
+                <span>VENDEDOR / CAJERO:</span>
+                <strong>{detailModal.seller_name || detailModal.seller}</strong>
+              </div>
+              {detailModal.seller_role && (
+                <div className="receipt-meta-row">
+                  <span>ROL:</span>
+                  <span>{detailModal.seller_role}</span>
+                </div>
+              )}
+
+              <div className="receipt-divider-dash" />
+
+              {/* CUSTOMER FISCAL DATA */}
+              <div className="receipt-section-title">DATOS DEL CLIENTE:</div>
+              <div className="receipt-meta-row">
+                <span>CLIENTE:</span>
+                <strong>{detailModal.customer_name || detailModal.customer || 'Consumidor Final'}</strong>
+              </div>
+              <div className="receipt-meta-row">
+                <span>DOC. FISCAL:</span>
+                <span>
+                  {detailModal.customer_identification_type || 'C.I.'}: {detailModal.customer_identification_number || '9999999999999'}
+                </span>
+              </div>
+              {detailModal.customer_phone && (
+                <div className="receipt-meta-row">
+                  <span>TELÉFONO:</span>
+                  <span>{detailModal.customer_phone}</span>
+                </div>
+              )}
+              {detailModal.customer_address && (
+                <div className="receipt-meta-row">
+                  <span>DIRECCIÓN:</span>
+                  <span>{detailModal.customer_address}</span>
+                </div>
+              )}
+
+              {/* DELIVERY DISPATCH INFO IF APPLICABLE */}
               {detailModal.fulfillment_type === 'DELIVERY' && (
                 <>
-                  <div className="ticket-divider"></div>
-                  <div><strong>🛵 ENTREGA A DOMICILIO</strong></div>
-                  <div>Dirección: {detailModal.delivery_address || 'No especificada'}</div>
-                  {detailModal.recipient_name && <div>Recibe: {detailModal.recipient_name} (Tel: {detailModal.recipient_phone || 'N/A'})</div>}
-                  {detailModal.delivery_notes && <div>Notas: {detailModal.delivery_notes}</div>}
+                  <div className="receipt-divider-dash" />
+                  <div className="receipt-section-title">🛵 DESPACHO / ENTREGA A DOMICILIO:</div>
+                  <div className="receipt-meta-row">
+                    <span>COURIER / TRANSPORTE:</span>
+                    <strong>{detailModal.courier || 'Motorizado Express'}</strong>
+                  </div>
+                  {detailModal.tracking_number && (
+                    <div className="receipt-meta-row">
+                      <span>N° DE GUÍA:</span>
+                      <strong>{detailModal.tracking_number}</strong>
+                    </div>
+                  )}
+                  {detailModal.tracking_url && (
+                    <div className="receipt-meta-row">
+                      <span>ENLACE RASTREO:</span>
+                      <a href={detailModal.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '10.5px' }}>
+                        Ver seguimiento
+                      </a>
+                    </div>
+                  )}
+                  {detailModal.recipient_name && (
+                    <div className="receipt-meta-row">
+                      <span>DESTINATARIO:</span>
+                      <span>{detailModal.recipient_name} ({detailModal.recipient_phone || 'S/T'})</span>
+                    </div>
+                  )}
+                  <div className="receipt-meta-row">
+                    <span>DIRECCIÓN DE ENTREGA:</span>
+                    <span>{detailModal.delivery_address || 'No especificada'}</span>
+                  </div>
+                  {detailModal.delivery_notes && (
+                    <div className="receipt-meta-row">
+                      <span>INSTRUCCIONES:</span>
+                      <span>{detailModal.delivery_notes}</span>
+                    </div>
+                  )}
                 </>
               )}
 
-              <div className="ticket-divider"></div>
-              <div><strong>DETALLE DE PRODUCTOS & RENTABILIDAD:</strong></div>
-              <table style={{ width: '100%', fontSize: '11px', margin: '6px 0', borderCollapse: 'collapse' }}>
+              <div className="receipt-divider-dash" />
+
+              {/* PRODUCTS BREAKDOWN TABLE */}
+              <div className="receipt-section-title">DETALLE DE ARTÍCULOS:</div>
+              <table className="receipt-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b' }}>
-                    <th style={{ padding: '3px 0' }}>Cant / Prod</th>
-                    <th style={{ padding: '3px 0', textAlign: 'right' }}>P. Venta</th>
-                    <th style={{ padding: '3px 0', textAlign: 'right' }}>Costo (Inv)</th>
-                    <th style={{ padding: '3px 0', textAlign: 'right' }}>Total</th>
-                    <th style={{ padding: '3px 0', textAlign: 'right', color: '#10b981' }}>Ganancia</th>
+                  <tr style={{ textAlign: 'left' }}>
+                    <th>CANT / PRODUCTO</th>
+                    <th style={{ textAlign: 'right' }}>P.UNIT</th>
+                    <th style={{ textAlign: 'right' }}>TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(detailModal.items || []).map((it: Any, idx: number) => {
-                    const profit = Number(it.gross_profit || 0);
+                    const unitP = Number(it.unit_price || 0);
+                    const subT = Number(it.line_total || (unitP * Number(it.quantity || 1)));
+                    const unitCost = Number(it.cost_price || it.unit_cost || 0);
+                    const itemProfit = Number(it.gross_profit || (subT - (unitCost * Number(it.quantity || 1))));
+
                     return (
-                      <tr key={idx} style={{ borderBottom: '1px dashed #f1f5f9' }}>
+                      <tr key={idx} style={{ borderBottom: '1px dotted #cbd5e1' }}>
                         <td style={{ padding: '4px 0' }}>
-                          <b>{it.quantity}x</b> {it.product_name || 'Producto'}
-                          {it.sku && <small style={{ display: 'block', color: '#94a3b8' }}>SKU: {it.sku}</small>}
+                          <b>{it.quantity}x</b> {it.product_name || 'Artículo'}
+                          {it.product_sku && (
+                            <small style={{ display: 'block', color: '#64748b', fontSize: '9.5px' }}>
+                              SKU: {it.product_sku}
+                            </small>
+                          )}
+                          {unitCost > 0 && (
+                            <small style={{ display: 'block', color: '#94a3b8', fontSize: '9px' }}>
+                              (Costo: ${unitCost.toFixed(2)} · Utilidad: +${itemProfit.toFixed(2)})
+                            </small>
+                          )}
                         </td>
-                        <td style={{ textAlign: 'right' }}>${Number(it.unit_price || 0).toFixed(2)}</td>
-                        <td style={{ textAlign: 'right', color: '#f43f5e' }}>${Number(it.unit_cost || 0).toFixed(2)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>${Number(it.subtotal || 0).toFixed(2)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>+${profit.toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          ${unitP.toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          ${subT.toFixed(2)}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
 
-              <div className="ticket-divider"></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                <span>Subtotal Productos:</span>
+              <div className="receipt-divider-dash" />
+
+              {/* TOTALS AND FINANCIALS */}
+              <div className="receipt-meta-row">
+                <span>SUBTOTAL PRODUCTOS:</span>
                 <span>${Number(detailModal.subtotal || 0).toFixed(2)}</span>
               </div>
               {Number(detailModal.shipping_cost || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <span>Flete / Envío Domicilio:</span>
+                <div className="receipt-meta-row">
+                  <span>FLETE / ENVÍO DOMICILIO:</span>
                   <span>+${Number(detailModal.shipping_cost || 0).toFixed(2)}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 800, margin: '6px 0', borderTop: '1px dashed #000', paddingTop: '4px' }}>
-                <span>TOTAL VENTA:</span>
+              {Number(detailModal.tax || 0) > 0 && (
+                <div className="receipt-meta-row">
+                  <span>IVA (15%):</span>
+                  <span>+${Number(detailModal.tax || 0).toFixed(2)}</span>
+                </div>
+              )}
+
+              <div className="receipt-divider-double" />
+
+              <div className="receipt-total-row">
+                <span>TOTAL A PAGAR:</span>
                 <span>${Number(detailModal.total || 0).toFixed(2)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#f43f5e' }}>
-                <span>Inversión en Mercadería (Costo):</span>
-                <span>-${Number(detailModal.total_cost || 0).toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800, color: '#10b981' }}>
-                <span>UTILIDAD BRUTA GENERADA:</span>
-                <span>+${Number(detailModal.gross_profit || 0).toFixed(2)}</span>
+
+              {/* RETAIL PROFITABILITY AUDIT (COGS & PROFIT) */}
+              <div style={{ background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', margin: '6px 0', border: '1px solid #e2e8f0' }}>
+                <div className="receipt-meta-row" style={{ color: '#dc2626', fontSize: '10.5px' }}>
+                  <span>Inversión Mercadería (Costo):</span>
+                  <span>-${Number(detailModal.total_cost || 0).toFixed(2)}</span>
+                </div>
+                <div className="receipt-meta-row" style={{ color: '#059669', fontWeight: 800, fontSize: '11.5px' }}>
+                  <span>Ganancia Bruta Negocio:</span>
+                  <span>+${Number(detailModal.gross_profit || 0).toFixed(2)}</span>
+                </div>
               </div>
 
-              <div className="ticket-divider"></div>
-              <div><strong>PAGOS REGISTRADOS:</strong></div>
+              <div className="receipt-divider-dash" />
+
+              {/* PAYMENTS RECORDED */}
+              <div className="receipt-section-title">MÉTODOS DE PAGO:</div>
               {(detailModal.payments || []).map((p: Any, pIdx: number) => (
-                <div key={pIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <span>● {p.payment_method || 'CASH'}:</span>
-                  <span>${Number(p.amount || 0).toFixed(2)}</span>
+                <div key={pIdx} className="receipt-meta-row">
+                  <span>● {p.payment_method || 'EFECTIVO'}:</span>
+                  <strong>${Number(p.amount || 0).toFixed(2)}</strong>
                 </div>
               ))}
+
+              {/* WARRANTY BADGE & CLAUSE */}
+              {Number(detailModal.warranty_days || 0) > 0 && (
+                <>
+                  <div className="receipt-divider-dash" />
+                  <div className="receipt-section-title">🛡️ GARANTÍA TÉCNICA OFICIAL:</div>
+                  <div className="receipt-meta-row">
+                    <span>COBERTURA:</span>
+                    <strong>{detailModal.warranty_days} DÍAS CALENDARIO</strong>
+                  </div>
+                  <div className="receipt-meta-row">
+                    <span>CÓDIGO ÚNICO:</span>
+                    <strong style={{ color: '#2563eb' }}>
+                      {detailModal.warranty_code || `GAR-${detailModal.id?.slice(0, 6).toUpperCase()}`}
+                    </strong>
+                  </div>
+                  <p style={{ fontSize: '10px', color: '#475569', margin: '4px 0 0 0', lineHeight: 1.3 }}>
+                    * Válida ante defectos de fábrica y funcionamiento. Conserve este comprobante original. No cubre caídas, roturas o derrame de líquidos.
+                  </p>
+                </>
+              )}
+
+              {/* DYNAMIC QR CODE FOR DIGITAL VERIFICATION */}
+              <div className="receipt-qr-wrap">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                    `https://fixmetiendas.local/ticket/${detailModal.id}`
+                  )}`}
+                  alt="QR Verificación Comprobante"
+                />
+                <div style={{ fontSize: '9px', color: '#64748b', marginTop: '3px' }}>
+                  Escanee para validar ticket y garantía oficial
+                </div>
+              </div>
+
+              <div className="receipt-divider-double" />
+              <div className="receipt-footer-text">
+                <p style={{ margin: 0, fontWeight: 700 }}>¡Gracias por confiar en FixmeTiendas!</p>
+                <p style={{ margin: '2px 0 0', fontSize: '9.5px' }}>Tecnología y Servicio Especializado</p>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-              <button className="secondary-action" style={{ flex: 1 }} onClick={() => setDetailModal(null)}>
-                Cerrar
-              </button>
-              <button className="primary-action" style={{ flex: 1 }} onClick={() => window.print()}>
-                🖨️ Re-imprimir Ticket
-              </button>
-              {detailModal.customer_phone && (
-                <a
-                  className="whatsapp-btn"
-                  style={{ flex: 1, textDecoration: 'none', justifyContent: 'center' }}
-                  href={`https://wa.me/${detailModal.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                    `Hola ${detailModal.customer_name || 'cliente'}, te compartimos el detalle de tu compra #${detailModal.id?.slice(0, 8)} en FixmeTiendas por un total de $${Number(detailModal.total || 0).toFixed(2)}. ¡Gracias por tu preferencia!`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
+            {/* ACTION BUTTONS (NO-PRINT) */}
+            <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="primary-action"
+                  style={{ flex: 1, padding: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  onClick={() => window.print()}
                 >
-                  💬 WhatsApp
-                </a>
-              )}
+                  🖨️ Imprimir Térmico (80mm)
+                </button>
+                {detailModal.customer_phone && (
+                  <a
+                    className="whatsapp-btn"
+                    style={{ flex: 1, textDecoration: 'none', justifyContent: 'center', padding: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    href={`https://wa.me/${detailModal.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                      getWhatsAppMessage(detailModal)
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    💬 Enviar WhatsApp
+                  </a>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  style={{ flex: 1, padding: '8px', fontSize: '12px' }}
+                  onClick={() => copyTicketSummary(detailModal)}
+                >
+                  {copied ? '✅ ¡Copiado al Portapapeles!' : '📋 Copiar Resumen de Venta'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  style={{ flex: 1, padding: '8px', fontSize: '12px' }}
+                  onClick={() => setDetailModal(null)}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2113,7 +2677,960 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
   );
 }
 
-function Customers({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){const[rows,setRows]=React.useState<Any[]>([]),[form,setForm]=React.useState({name:'',email:'',phone:'',address:'',city:''});const load=React.useCallback(()=>api('/api/customers').then(r=>r.ok?r.json():[]).then(setRows),[api]);React.useEffect(()=>{load()},[load]);async function add(e:React.FormEvent){e.preventDefault();const r=await api('/api/customers',{method:'POST',body:JSON.stringify(form)});if(r.ok){setForm({name:'',email:'',phone:'',address:'',city:''});notify('Cliente creado correctamente');load()}}return <><div className="panel"><h3>Registrar cliente</h3><form className="form-grid" onSubmit={add}>{[['name','Nombres y apellidos'],['email','Correo'],['phone','Teléfono'],['address','Dirección'],['city','Ciudad']].map(([k,l])=><label key={k}>{l}<input value={form[k as keyof typeof form]} onChange={e=>setForm({...form,[k]:e.target.value})} required={k==='name'}/></label>)}<button>+ Guardar cliente</button></form></div><Table title="Clientes" columns={['name','email','phone','address','city']} rows={rows} empty="Agrega tu primer cliente." /></>}
+function Customers({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify:(s:string)=>void, go?:(page:string)=>void}){
+  const [rows, setRows] = React.useState<Any[]>([]);
+  const [stats, setStats] = React.useState({ totalCustomers: 0, vipCustomers: 0, totalSalesVolume: 0, activeRepairCustomers: 0 });
+  const [loading, setLoading] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const [tagFilter, setTagFilter] = React.useState('ALL');
+
+  // Modals
+  const [showModal, setShowModal] = React.useState(false);
+  const [editingCustomer, setEditingCustomer] = React.useState<Any|null>(null);
+  const [profileCustomer, setProfileCustomer] = React.useState<Any|null>(null);
+  const [profileHistory, setProfileHistory] = React.useState<Any|null>(null);
+  const [profileTab, setProfileTab] = React.useState<'SUMMARY'|'SALES'|'WORK_ORDERS'|'WARRANTIES'|'DELIVERIES'>('SUMMARY');
+  const [loadingHistory, setLoadingHistory] = React.useState(false);
+
+  // Form
+  const [form, setForm] = React.useState({
+    name: '',
+    identificationType: 'CEDULA',
+    identificationNumber: '',
+    phone: '',
+    email: '',
+    city: '',
+    address: '',
+    tag: 'REGULAR',
+    notes: ''
+  });
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const loadData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (tagFilter && tagFilter !== 'ALL') q.set('tag', tagFilter);
+      if (search.trim()) q.set('search', search.trim());
+
+      const [rRows, rStats] = await Promise.all([
+        api(`/api/customers?${q.toString()}`),
+        api('/api/customers/stats')
+      ]);
+
+      if (rRows.ok) setRows(await rRows.json());
+      if (rStats.ok) setStats(await rStats.json());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, tagFilter, search]);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const openCreate = () => {
+    setEditingCustomer(null);
+    setForm({
+      name: '',
+      identificationType: 'CEDULA',
+      identificationNumber: '',
+      phone: '',
+      email: '',
+      city: '',
+      address: '',
+      tag: 'REGULAR',
+      notes: ''
+    });
+    setShowModal(true);
+  };
+
+  const openEdit = (c: Any) => {
+    setEditingCustomer(c);
+    setForm({
+      name: c.name || '',
+      identificationType: c.identification_type || 'CEDULA',
+      identificationNumber: c.identification_number || '',
+      phone: c.phone || '',
+      email: c.email || '',
+      city: c.city || '',
+      address: c.address || '',
+      tag: c.tag || 'REGULAR',
+      notes: c.notes || ''
+    });
+    setShowModal(true);
+  };
+
+  const openProfile = async (c: Any) => {
+    setProfileCustomer(c);
+    setProfileTab('SUMMARY');
+    setLoadingHistory(true);
+    try {
+      const res = await api(`/api/customers/${c.id}/history`);
+      if (res.ok) {
+        setProfileHistory(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      alert('El nombre o razón social es obligatorio.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const url = editingCustomer ? `/api/customers/${editingCustomer.id}` : '/api/customers';
+      const method = editingCustomer ? 'PUT' : 'POST';
+      const res = await api(url, {
+        method,
+        body: JSON.stringify({
+          ...form,
+          email: form.email.trim() || null,
+          identificationNumber: form.identificationNumber.trim() || null
+        })
+      });
+
+      if (res.ok) {
+        notify(editingCustomer ? 'Cliente actualizado correctamente' : 'Cliente registrado exitosamente');
+        setShowModal(false);
+        loadData();
+        if (profileCustomer && editingCustomer && profileCustomer.id === editingCustomer.id) {
+          openProfile(await res.json());
+        }
+      } else {
+        const err = await res.text();
+        alert('Error al guardar cliente: ' + (err.includes('unique') ? 'El correo ya está registrado por otro cliente' : err));
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (c: Any) => {
+    if (!confirm(`¿Estás seguro de eliminar al cliente "${c.name}"?`)) return;
+    try {
+      const res = await api(`/api/customers/${c.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        notify('Cliente eliminado.');
+        if (profileCustomer?.id === c.id) setProfileCustomer(null);
+        loadData();
+      } else {
+        alert('No se pudo eliminar el cliente. Verifique que no tenga ventas u órdenes vinculadas.');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
+  const exportCSV = () => {
+    if (!rows.length) {
+      alert('No hay clientes para exportar.');
+      return;
+    }
+    const headers = ['Nombre', 'Tipo Documento', 'Numero Documento', 'Telefono', 'Email', 'Ciudad', 'Direccion', 'Total Gastado ($)', 'Compras', 'Etiqueta'];
+    const csvRows = [headers.join(',')];
+    rows.forEach(r => {
+      const row = [
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${r.identification_type || 'CEDULA'}"`,
+        `"${r.identification_number || ''}"`,
+        `"${r.phone || ''}"`,
+        `"${r.email || ''}"`,
+        `"${r.city || ''}"`,
+        `"${(r.address || '').replace(/"/g, '""')}"`,
+        `"${Number(r.total_spent || 0).toFixed(2)}"`,
+        `"${r.total_sales_count || 0}"`,
+        `"${r.tag || 'REGULAR'}"`
+      ];
+      csvRows.push(row.join(','));
+    });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clientes_fixmetiendas_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify('Directorio de clientes exportado a CSV exitosamente');
+  };
+
+  const openWhatsApp = (c: Any) => {
+    const raw = (c.phone || '').replace(/\D/g, '');
+    const cleanPhone = raw.startsWith('0') ? '593' + raw.slice(1) : (raw || '');
+    const text = `Hola ${c.name || 'Estimado cliente'}, le saludamos de *Fixme Tiendas*. ¿En qué podemos asistirle el día de hoy?`;
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  return (
+    <div className="customers-page">
+      {/* Header & Primary Actions */}
+      <section className="panel" style={{marginBottom: 16}}>
+        <div className="panel-head" style={{flexWrap: 'wrap', gap: 12}}>
+          <div>
+            <h2 style={{fontSize: 20, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8}}>
+              👥 Directorio y CRM de Clientes 360°
+            </h2>
+            <p style={{margin: 0, fontSize: 13, color: '#64748b'}}>
+              Gestión comercial integral de clientes, identificación fiscal, historial de ventas, taller y garantías.
+            </p>
+          </div>
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <button className="secondary" onClick={() => exportCSV()} title="Exportar a Excel/CSV" style={{display: 'flex', alignItems: 'center', gap: 5}}>
+              📥 Exportar CSV
+            </button>
+            <button className="secondary" onClick={() => loadData()} title="Recargar lista" style={{display: 'flex', alignItems: 'center', gap: 5}}>
+              🔄 Refrescar
+            </button>
+            <button onClick={openCreate} style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
+              ➕ Registrar Cliente
+            </button>
+          </div>
+        </div>
+
+        {/* CRM KPI Cards */}
+        <div className="crm-kpi-grid" style={{marginTop: 16}}>
+          <div
+            className={`crm-kpi-card ${tagFilter === 'ALL' ? 'active-filter' : ''}`}
+            onClick={() => setTagFilter('ALL')}
+          >
+            <span className="kpi-label">👥 Total Clientes</span>
+            <span className="kpi-value">{stats.totalCustomers}</span>
+          </div>
+          <div
+            className={`crm-kpi-card kpi-vip ${tagFilter === 'VIP' ? 'active-filter' : ''}`}
+            onClick={() => setTagFilter('VIP')}
+          >
+            <span className="kpi-label">⭐ Clientes VIP</span>
+            <span className="kpi-value">{stats.vipCustomers}</span>
+          </div>
+          <div
+            className={`crm-kpi-card kpi-money ${tagFilter === 'WITH_SALES' ? 'active-filter' : ''}`}
+            onClick={() => setTagFilter('WITH_SALES')}
+          >
+            <span className="kpi-label">💰 Facturación Clientes</span>
+            <span className="kpi-value">${Number(stats.totalSalesVolume || 0).toFixed(2)}</span>
+          </div>
+          <div
+            className={`crm-kpi-card kpi-repair ${tagFilter === 'ACTIVE_WORK_ORDERS' ? 'active-filter' : ''}`}
+            onClick={() => setTagFilter('ACTIVE_WORK_ORDERS')}
+          >
+            <span className="kpi-label">🛠️ En Taller Activo</span>
+            <span className="kpi-value">{stats.activeRepairCustomers}</span>
+          </div>
+        </div>
+
+        {/* Toolbar: Search and Filter Pills */}
+        <div className="warranty-controls">
+          <div className="warranty-search-wrap">
+            <span className="warranty-search-icon">🔍</span>
+            <input
+              type="text"
+              className="warranty-search-input"
+              placeholder="Buscar por nombre, cédula / RUC, teléfono, correo o ciudad..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: '2px 6px'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="warranty-filter-pills">
+            {[
+              ['ALL', 'Todos'],
+              ['VIP', '⭐ VIP'],
+              ['FREQUENT', '🔄 Frecuentes'],
+              ['WITH_SALES', '🛍️ Con Compras'],
+              ['ACTIVE_WORK_ORDERS', '🛠️ En Taller'],
+              ['NEW', '🆕 Nuevos']
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                className={`warranty-pill ${tagFilter === k ? 'active' : ''}`}
+                onClick={() => setTagFilter(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Customer Directory Table */}
+      <section className="panel table-panel">
+        <div className="panel-head">
+          <h3>
+            Listado de Clientes {tagFilter !== 'ALL' && <small style={{color: '#64748b'}}>({tagFilter})</small>}
+          </h3>
+          <span style={{fontSize: 12, color: '#64748b'}}>{rows.length} clientes encontrados</span>
+        </div>
+
+        {loading ? (
+          <div style={{textAlign: 'center', padding: 32, color: '#64748b'}}>
+            <p>Cargando directorio de clientes...</p>
+          </div>
+        ) : rows.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente & Identificación</th>
+                  <th>Contacto Directo</th>
+                  <th>Ubicación</th>
+                  <th>Métricas CRM (LTV)</th>
+                  <th>Servicios Activos</th>
+                  <th style={{textAlign: 'right'}}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((c: Any) => (
+                  <tr key={c.id}>
+                    <td data-label="Cliente">
+                      <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: '50%',
+                            background: '#e0e7ff',
+                            color: '#3730a3',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: 14,
+                            flexShrink: 0
+                          }}
+                        >
+                          {(c.name || 'C').slice(0, 1).toUpperCase()}
+                        </div>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 2}}>
+                          <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                            <strong style={{fontSize: 13.5, color: '#0f172a'}}>{c.name}</strong>
+                            <span className={`tag-chip ${c.tag || 'REGULAR'}`}>
+                              {c.tag === 'VIP' ? '⭐ VIP' : c.tag === 'FREQUENT' ? '🔄 FRECUENTE' : c.tag === 'NEW' ? '🆕 NUEVO' : 'REGULAR'}
+                            </span>
+                          </div>
+                          <div style={{display: 'flex', alignItems: 'center', gap: 4}}>
+                            <span className="id-chip">
+                              {c.identification_type === 'FINAL_CONSUMER'
+                                ? 'Consumidor Final'
+                                : `${c.identification_type || 'CÉDULA'}: ${c.identification_number || 'S/N'}`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Contacto">
+                      <div style={{display: 'flex', flexDirection: 'column', gap: 3}}>
+                        {c.phone ? (
+                          <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                            <span style={{fontSize: 12, color: '#334155'}}>{c.phone}</span>
+                            <button
+                              type="button"
+                              onClick={() => openWhatsApp(c)}
+                              className="btn-wa-link"
+                              title="Abrir chat en WhatsApp"
+                            >
+                              💬 WhatsApp
+                            </button>
+                          </div>
+                        ) : (
+                          <small style={{color: '#94a3b8'}}>Sin teléfono</small>
+                        )}
+                        {c.email ? (
+                          <small style={{color: '#64748b', fontSize: 11}}>✉️ {c.email}</small>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td data-label="Ubicación">
+                      <div style={{display: 'flex', flexDirection: 'column', fontSize: 12}}>
+                        <strong style={{color: '#334155'}}>{c.city || 'No especificada'}</strong>
+                        {c.address && (
+                          <small style={{color: '#64748b', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={c.address}>
+                            {c.address}
+                          </small>
+                        )}
+                      </div>
+                    </td>
+                    <td data-label="Métricas LTV">
+                      <div style={{display: 'flex', flexDirection: 'column', gap: 2}}>
+                        <strong style={{fontSize: 13, color: '#059669'}}>
+                          ${Number(c.total_spent || 0).toFixed(2)}
+                        </strong>
+                        <div style={{fontSize: 11, color: '#64748b'}}>
+                          {c.total_sales_count} compras
+                          {c.last_purchase_at ? ` • Última: ${new Date(c.last_purchase_at).toLocaleDateString()}` : ''}
+                        </div>
+                      </div>
+                    </td>
+                    <td data-label="Servicios">
+                      <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
+                        {c.active_work_orders_count > 0 && (
+                          <span
+                            className="chip"
+                            style={{background: '#eff6ff', color: '#1e40af', width: 'fit-content', fontSize: 11, cursor: 'pointer'}}
+                            onClick={() => go && go('work-orders')}
+                            title="Ver en Taller Técnico"
+                          >
+                            🛠️ {c.active_work_orders_count} en taller
+                          </span>
+                        )}
+                        {c.active_warranties_count > 0 && (
+                          <span
+                            className="chip"
+                            style={{background: '#ecfdf5', color: '#065f46', width: 'fit-content', fontSize: 11, cursor: 'pointer'}}
+                            onClick={() => go && go('warranties')}
+                            title="Ver en Garantías"
+                          >
+                            🛡️ {c.active_warranties_count} garantías
+                          </span>
+                        )}
+                        {!c.active_work_orders_count && !c.active_warranties_count && (
+                          <small style={{color: '#94a3b8', fontSize: 11}}>Sin servicios pendientes</small>
+                        )}
+                      </div>
+                    </td>
+                    <td data-label="Acciones" style={{textAlign: 'right'}}>
+                      <div style={{display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap'}}>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => openProfile(c)}
+                          style={{padding: '5px 9px', fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 4}}
+                          title="Ver Perfil CRM 360°"
+                        >
+                          👁️ Perfil 360°
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => openEdit(c)}
+                          style={{padding: '5px 8px', fontSize: 11.5}}
+                          title="Editar cliente"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => handleDelete(c)}
+                          style={{padding: '5px 8px', fontSize: 11, color: '#ef4444', borderColor: '#fca5a5'}}
+                          title="Eliminar cliente"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">
+            <b>👥</b>
+            <p>No se encontraron clientes registrados con los filtros seleccionados.</p>
+            <small>Agrega tu primer cliente para emitir ventas en el POS, registrar órdenes en taller y emitir garantías.</small>
+            <button onClick={openCreate} style={{marginTop: 12}}>
+              ➕ Registrar Primer Cliente
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* MODAL / DRAWER: PERFIL CRM 360° DEL CLIENTE */}
+      {profileCustomer && (
+        <div className="modal-overlay" onClick={() => setProfileCustomer(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 620, padding: 0}}>
+            {/* Header */}
+            <div className="customer-360-header">
+              <div className="customer-avatar-large">
+                {(profileCustomer.name || 'C').slice(0, 1).toUpperCase()}
+              </div>
+              <div style={{flex: 1}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                  <h3 style={{margin: 0, fontSize: 17, color: '#0f172a'}}>{profileCustomer.name}</h3>
+                  <span className={`tag-chip ${profileCustomer.tag || 'REGULAR'}`}>
+                    {profileCustomer.tag === 'VIP' ? '⭐ VIP' : profileCustomer.tag === 'FREQUENT' ? '🔄 FRECUENTE' : profileCustomer.tag === 'NEW' ? '🆕 NUEVO' : 'REGULAR'}
+                  </span>
+                </div>
+                <div style={{display: 'flex', gap: 8, fontSize: 12, color: '#64748b', marginTop: 3}}>
+                  <span>{profileCustomer.identification_type || 'CÉDULA'}: {profileCustomer.identification_number || 'S/N'}</span>
+                  {profileCustomer.city && <span>• {profileCustomer.city}</span>}
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setProfileCustomer(null)}>✕</button>
+            </div>
+
+            {/* Action Bar */}
+            <div style={{display: 'flex', gap: 8, padding: '10px 16px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap'}}>
+              {profileCustomer.phone && (
+                <button
+                  type="button"
+                  onClick={() => openWhatsApp(profileCustomer)}
+                  className="btn-wa-link"
+                  style={{fontSize: 12, padding: '6px 10px'}}
+                >
+                  💬 Iniciar WhatsApp
+                </button>
+              )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setProfileCustomer(null);
+                  if (go) go('pos');
+                }}
+                style={{fontSize: 12, padding: '6px 10px'}}
+              >
+                🛒 Nueva Venta POS
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setProfileCustomer(null);
+                  if (go) go('work-orders');
+                }}
+                style={{fontSize: 12, padding: '6px 10px'}}
+              >
+                🛠️ Nueva Orden Taller
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  openEdit(profileCustomer);
+                }}
+                style={{fontSize: 12, padding: '6px 10px'}}
+              >
+                ✏️ Editar Datos
+              </button>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="customer-360-tabs">
+              <button
+                type="button"
+                className={`customer-tab-btn ${profileTab === 'SUMMARY' ? 'active' : ''}`}
+                onClick={() => setProfileTab('SUMMARY')}
+              >
+                📌 Resumen & Contacto
+              </button>
+              <button
+                type="button"
+                className={`customer-tab-btn ${profileTab === 'SALES' ? 'active' : ''}`}
+                onClick={() => setProfileTab('SALES')}
+              >
+                🛒 Ventas ({profileHistory?.sales?.length || 0})
+              </button>
+              <button
+                type="button"
+                className={`customer-tab-btn ${profileTab === 'WORK_ORDERS' ? 'active' : ''}`}
+                onClick={() => setProfileTab('WORK_ORDERS')}
+              >
+                🛠️ Taller ({profileHistory?.workOrders?.length || 0})
+              </button>
+              <button
+                type="button"
+                className={`customer-tab-btn ${profileTab === 'WARRANTIES' ? 'active' : ''}`}
+                onClick={() => setProfileTab('WARRANTIES')}
+              >
+                🛡️ Garantías ({profileHistory?.warranties?.length || 0})
+              </button>
+              <button
+                type="button"
+                className={`customer-tab-btn ${profileTab === 'DELIVERIES' ? 'active' : ''}`}
+                onClick={() => setProfileTab('DELIVERIES')}
+              >
+                🚚 Envíos ({profileHistory?.deliveries?.length || 0})
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="customer-360-body">
+              {loadingHistory ? (
+                <div style={{textAlign: 'center', padding: 24, color: '#64748b'}}>
+                  Cargando expediente 360°...
+                </div>
+              ) : profileTab === 'SUMMARY' ? (
+                <div>
+                  <div className="profile-stats-strip">
+                    <div className="strip-stat">
+                      <span>Total Invertido (LTV)</span>
+                      <strong style={{color: '#059669'}}>
+                        ${Number(profileCustomer.total_spent || 0).toFixed(2)}
+                      </strong>
+                    </div>
+                    <div className="strip-stat">
+                      <span>Compras Registradas</span>
+                      <strong>{profileCustomer.total_sales_count || 0}</strong>
+                    </div>
+                    <div className="strip-stat">
+                      <span>Órdenes en Taller</span>
+                      <strong>{profileCustomer.total_work_orders_count || 0}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Documento:</span>
+                      <strong>{profileCustomer.identification_type}: {profileCustomer.identification_number || 'N/A'}</strong>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Teléfono:</span>
+                      <strong>{profileCustomer.phone || 'No registrado'}</strong>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Correo electrónico:</span>
+                      <strong>{profileCustomer.email || 'No registrado'}</strong>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Ciudad:</span>
+                      <strong>{profileCustomer.city || 'No especificada'}</strong>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Dirección Domiciliaria:</span>
+                      <strong style={{textAlign: 'right', maxWidth: '60%'}}>{profileCustomer.address || 'No registrada'}</strong>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: 6}}>
+                      <span style={{color: '#64748b'}}>Fecha de Registro:</span>
+                      <strong>{new Date(profileCustomer.created_at).toLocaleDateString()}</strong>
+                    </div>
+                    {profileCustomer.notes && (
+                      <div style={{marginTop: 6}}>
+                        <span style={{color: '#64748b', display: 'block', marginBottom: 4}}>Notas Comerciales / Preferencias:</span>
+                        <div style={{background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#92400e'}}>
+                          {profileCustomer.notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : profileTab === 'SALES' ? (
+                <div>
+                  {profileHistory?.sales?.length ? (
+                    <div className="table-wrap">
+                      <table style={{fontSize: 12}}>
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th>Canal</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profileHistory.sales.map((s: Any) => (
+                            <tr key={s.id}>
+                              <td>{new Date(s.created_at).toLocaleDateString()}</td>
+                              <td><strong>${Number(s.total || 0).toFixed(2)}</strong></td>
+                              <td>{s.fulfillment_type === 'DELIVERY' ? '🚚 Domicilio' : '🏪 Local'}</td>
+                              <td><span className="w-badge ACTIVE">{s.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: 24, color: '#94a3b8'}}>
+                      <p>El cliente no tiene compras registradas en el POS.</p>
+                    </div>
+                  )}
+                </div>
+              ) : profileTab === 'WORK_ORDERS' ? (
+                <div>
+                  {profileHistory?.workOrders?.length ? (
+                    <div className="table-wrap">
+                      <table style={{fontSize: 12}}>
+                        <thead>
+                          <tr>
+                            <th>N° Orden</th>
+                            <th>Equipo</th>
+                            <th>Falla Reportada</th>
+                            <th>Cotización</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profileHistory.workOrders.map((w: Any) => (
+                            <tr key={w.id}>
+                              <td><strong>{w.order_number}</strong></td>
+                              <td>{w.device_brand} {w.device_model}</td>
+                              <td style={{maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={w.reported_fault || w.description}>
+                                {w.reported_fault || w.description}
+                              </td>
+                              <td>${Number(w.quote || 0).toFixed(2)}</td>
+                              <td><span className="w-badge CLAIMED">{w.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: 24, color: '#94a3b8'}}>
+                      <p>No hay órdenes técnicas de taller para este cliente.</p>
+                    </div>
+                  )}
+                </div>
+              ) : profileTab === 'WARRANTIES' ? (
+                <div>
+                  {profileHistory?.warranties?.length ? (
+                    <div className="table-wrap">
+                      <table style={{fontSize: 12}}>
+                        <thead>
+                          <tr>
+                            <th>Código</th>
+                            <th>Producto</th>
+                            <th>Vencimiento</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profileHistory.warranties.map((war: Any) => (
+                            <tr key={war.id}>
+                              <td><strong>{war.warranty_code}</strong></td>
+                              <td>{war.product_name}</td>
+                              <td>{new Date(war.expires_at).toLocaleDateString()} ({war.remaining_days}d)</td>
+                              <td><span className={`w-badge ${war.status}`}>{war.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: 24, color: '#94a3b8'}}>
+                      <p>No hay garantías registradas para este cliente.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  {profileHistory?.deliveries?.length ? (
+                    <div className="table-wrap">
+                      <table style={{fontSize: 12}}>
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Dirección</th>
+                            <th>Courier</th>
+                            <th>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profileHistory.deliveries.map((d: Any) => (
+                            <tr key={d.id}>
+                              <td>{new Date(d.created_at).toLocaleDateString()}</td>
+                              <td style={{maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{d.address}</td>
+                              <td>{d.courier || 'Flota Propia'}</td>
+                              <td><span className="w-badge ACTIVE">{d.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{textAlign: 'center', padding: 24, color: '#94a3b8'}}>
+                      <p>No hay envíos registrados a este cliente.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CREAR O EDITAR CLIENTE */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 540}}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{margin: 0}}>
+                  {editingCustomer ? '✏️ Editar Datos de Cliente' : '➕ Registrar Nuevo Cliente'}
+                </h3>
+                <small style={{color: '#64748b'}}>Datos fiscales, contacto directo y segmentación</small>
+              </div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSubmit} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Tipo de Documento:
+                  </label>
+                  <select
+                    value={form.identificationType}
+                    onChange={e => setForm({...form, identificationType: e.target.value})}
+                    style={{width: '100%', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  >
+                    <option value="CEDULA">Cédula de Identidad (10 d)</option>
+                    <option value="RUC">RUC Tributario (13 d)</option>
+                    <option value="PASSPORT">Pasaporte / Extranjero</option>
+                    <option value="FINAL_CONSUMER">Consumidor Final</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Número de Documento / RUC:
+                  </label>
+                  <input
+                    type="text"
+                    disabled={form.identificationType === 'FINAL_CONSUMER'}
+                    placeholder={form.identificationType === 'CEDULA' ? 'Ej: 1712345678' : form.identificationType === 'RUC' ? 'Ej: 1712345678001' : 'Número...'}
+                    value={form.identificationNumber}
+                    onChange={e => setForm({...form, identificationNumber: e.target.value})}
+                    style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Nombres y Apellidos / Razón Social: *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Juan Carlos Pérez o Fixme Soluciones S.A."
+                  value={form.name}
+                  onChange={e => setForm({...form, name: e.target.value})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13}}
+                />
+              </div>
+
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Teléfono Celular / WhatsApp:
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Ej: 0991234567"
+                    value={form.phone}
+                    onChange={e => setForm({...form, phone: e.target.value})}
+                    style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  />
+                </div>
+
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Correo Electrónico (Facturación):
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={form.email}
+                    onChange={e => setForm({...form, email: e.target.value})}
+                    style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  />
+                </div>
+              </div>
+
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10}}>
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Ciudad:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Quito, Guayaquil..."
+                    value={form.city}
+                    onChange={e => setForm({...form, city: e.target.value})}
+                    style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  />
+                </div>
+
+                <div>
+                  <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                    Clasificación / Etiqueta:
+                  </label>
+                  <select
+                    value={form.tag}
+                    onChange={e => setForm({...form, tag: e.target.value})}
+                    style={{width: '100%', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                  >
+                    <option value="REGULAR">👤 Regular</option>
+                    <option value="VIP">⭐ VIP / Corporativo</option>
+                    <option value="FREQUENT">🔄 Frecuente</option>
+                    <option value="NEW">🆕 Nuevo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Dirección Domiciliaria / Entrega:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Calle principal, número y calle secundaria..."
+                  value={form.address}
+                  onChange={e => setForm({...form, address: e.target.value})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12.5}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Notas Comerciales Internas (Opcional):
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Preferencias de atención, condiciones de crédito o indicaciones de entrega..."
+                  value={form.notes}
+                  onChange={e => setForm({...form, notes: e.target.value})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12}}
+                />
+              </div>
+
+              <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10}}>
+                <button type="button" className="secondary" onClick={() => setShowModal(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={submitting} style={{fontWeight: 700}}>
+                  {submitting ? 'Guardando...' : (editingCustomer ? 'Guardar Cambios' : 'Registrar Cliente')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [rows, setRows] = React.useState<Any[]>([]);
@@ -3865,6 +5382,954 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
     </>
   );
 }
-function Warranties({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){const[rows,setRows]=React.useState<Any[]>([]),[form,setForm]=React.useState({saleId:'',productId:'',expiresAt:'',terms:''}),[msg,setMsg]=React.useState('');const load=React.useCallback(()=>api('/api/warranties').then(r=>r.ok?r.json():[]).then(setRows),[api]);React.useEffect(()=>{load()},[load]);async function add(e:React.FormEvent){e.preventDefault();const r=await api('/api/warranties',{method:'POST',body:JSON.stringify({...form,expiresAt:new Date(form.expiresAt).toISOString()})});setMsg(r.ok?'Garant?a creada':'No se pudo crear');if(r.ok){setForm({saleId:'',productId:'',expiresAt:'',terms:''});load()}}return <><section className="panel"><h3>Nueva garant?a</h3><form className="form-grid" onSubmit={add}><input placeholder="ID de venta" value={form.saleId} onChange={e=>setForm({...form,saleId:e.target.value})} required/><input placeholder="ID de producto" value={form.productId} onChange={e=>setForm({...form,productId:e.target.value})} required/><input type="datetime-local" value={form.expiresAt} onChange={e=>setForm({...form,expiresAt:e.target.value})} required/><input placeholder="T?rminos" value={form.terms} onChange={e=>setForm({...form,terms:e.target.value})}/><button>Guardar garant?a</button>{msg&&<small>{msg}</small>}</form></section><Table title="Garant?as de ventas" columns={['product_id','sale_id','starts_at','expires_at','status','terms']} rows={rows} empty="No hay garant?as registradas."/> </>}
+function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(msg:string)=>void, go?:(page:string)=>void}){
+  const [rows, setRows] = React.useState<Any[]>([]);
+  const [stats, setStats] = React.useState({ total: 0, active: 0, expiringSoon: 0, claimed: 0, expired: 0 });
+  const [loading, setLoading] = React.useState(false);
+  const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [search, setSearch] = React.useState('');
+
+  // Modals
+  const [selectedCert, setSelectedCert] = React.useState<Any|null>(null);
+  const [claimTarget, setClaimTarget] = React.useState<Any|null>(null);
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [voidTarget, setVoidTarget] = React.useState<Any|null>(null);
+  const [voidReason, setVoidReason] = React.useState('');
+
+  // Selectors data
+  const [products, setProducts] = React.useState<Any[]>([]);
+  const [customers, setCustomers] = React.useState<Any[]>([]);
+  const [technicians, setTechnicians] = React.useState<Any[]>([]);
+
+  // Create form
+  const [createForm, setCreateForm] = React.useState({
+    productId: '',
+    customerId: '',
+    serialNumber: '',
+    days: 365,
+    terms: 'Garantía técnica oficial ante defectos de fábrica y mano de obra. No cubre humedad o caídas.'
+  });
+
+  // Claim form
+  const [claimForm, setClaimForm] = React.useState({
+    resolution: 'REPAIR_WORK_ORDER',
+    notes: '',
+    technicianId: '',
+    slaHours: 48
+  });
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const loadData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (statusFilter && statusFilter !== 'ALL') q.set('status', statusFilter);
+      if (search.trim()) q.set('search', search.trim());
+      
+      const [rRows, rStats] = await Promise.all([
+        api(`/api/warranties?${q.toString()}`),
+        api('/api/warranties/stats')
+      ]);
+
+      if (rRows.ok) setRows(await rRows.json());
+      if (rStats.ok) setStats(await rStats.json());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, statusFilter, search]);
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Load auxiliary data for modals
+  React.useEffect(() => {
+    api(`/api/products?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {});
+    api('/api/customers').then(r => r.ok ? r.json() : []).then(setCustomers).catch(() => {});
+    api('/api/work-orders/technicians').then(r => r.ok ? r.json() : []).then(setTechnicians).catch(() => {});
+  }, [api]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.productId) {
+      alert('Debes seleccionar un producto.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await api('/api/warranties', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: createForm.productId,
+          customerId: createForm.customerId || null,
+          serialNumber: createForm.serialNumber ? createForm.serialNumber.trim() : null,
+          days: Number(createForm.days) || 365,
+          terms: createForm.terms
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        if (notify) notify('🛡️ Garantía emitida exitosamente: ' + (created.warranty_code || ''));
+        setShowCreate(false);
+        setCreateForm({
+          productId: '',
+          customerId: '',
+          serialNumber: '',
+          days: 365,
+          terms: 'Garantía técnica oficial ante defectos de fábrica y mano de obra. No cubre humedad o caídas.'
+        });
+        loadData();
+        setSelectedCert(created);
+      } else {
+        const err = await res.text();
+        alert('Error al emitir garantía: ' + err);
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClaim = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimTarget) return;
+    setSubmitting(true);
+    try {
+      const res = await api(`/api/warranties/${claimTarget.id}/claim`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          notes: claimForm.notes,
+          resolution: claimForm.resolution,
+          technicianId: claimForm.technicianId || null,
+          slaHours: Number(claimForm.slaHours) || 48
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        const otMsg = updated.work_order_number ? ` (Orden técnica creada: ${updated.work_order_number})` : '';
+        if (notify) notify(`🛡️ Reclamo procesado exitosamente${otMsg}`);
+        setClaimTarget(null);
+        setClaimForm({
+          resolution: 'REPAIR_WORK_ORDER',
+          notes: '',
+          technicianId: '',
+          slaHours: 48
+        });
+        loadData();
+      } else {
+        const err = await res.text();
+        alert('Error al procesar reclamo: ' + err);
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVoid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voidTarget) return;
+    setSubmitting(true);
+    try {
+      const res = await api(`/api/warranties/${voidTarget.id}/void`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: voidReason || 'Anulada por administrador' })
+      });
+      if (res.ok) {
+        if (notify) notify('Garantía anulada correctamente.');
+        setVoidTarget(null);
+        setVoidReason('');
+        loadData();
+      } else {
+        alert('No se pudo anular la garantía.');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const shareWhatsApp = (w: Any) => {
+    const rawPhone = (w.customer_phone || '').replace(/\D/g, '');
+    const cleanPhone = rawPhone.startsWith('0') ? '593' + rawPhone.slice(1) : (rawPhone || '');
+    const verifyUrl = `${window.location.origin}/public/warranties/verify?token=${w.tenant_id}.${w.warranty_code}`;
+    const text = `Hola ${w.customer_name || 'Estimado cliente'}, aquí tiene su Certificado Oficial de Garantía de *${w.product_name || 'su equipo'}* emitido por *Fixme Tiendas*.\n\n🛡️ *Código de Garantía:* ${w.warranty_code}\n📅 *Válido hasta:* ${new Date(w.expires_at).toLocaleDateString()}\n🔍 *Consulta tu cobertura en vivo:* ${verifyUrl}`;
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  return (
+    <div className="warranties-page">
+      {/* Header with Title and Primary Actions */}
+      <section className="panel" style={{marginBottom: 16}}>
+        <div className="panel-head" style={{flexWrap: 'wrap', gap: 12}}>
+          <div>
+            <h2 style={{fontSize: 20, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8}}>
+              🛡️ Garantías y Pólizas Técnicas
+            </h2>
+            <p style={{margin: 0, fontSize: 13, color: '#64748b'}}>
+              Control integral de garantías, certificados 80mm con QR en tiempo real y flujo automático hacia Taller.
+            </p>
+          </div>
+          <div style={{display: 'flex', gap: 8}}>
+            <button className="secondary" onClick={() => loadData()} title="Recargar lista" style={{display: 'flex', alignItems: 'center', gap: 5}}>
+              🔄 Refrescar
+            </button>
+            <button onClick={() => setShowCreate(true)} style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
+              ➕ Emitir Garantía Manual
+            </button>
+          </div>
+        </div>
+
+        {/* KPI Metrics Cards */}
+        <div className="warranty-kpi-grid" style={{marginTop: 16}}>
+          <div
+            className={`warranty-kpi-card ${statusFilter === 'ALL' ? 'active-filter' : ''}`}
+            onClick={() => setStatusFilter('ALL')}
+          >
+            <span className="kpi-label">📋 Total Registradas</span>
+            <span className="kpi-value">{stats.total}</span>
+          </div>
+          <div
+            className={`warranty-kpi-card kpi-active ${statusFilter === 'ACTIVE' ? 'active-filter' : ''}`}
+            onClick={() => setStatusFilter('ACTIVE')}
+          >
+            <span className="kpi-label">🟢 Vigentes</span>
+            <span className="kpi-value">{stats.active}</span>
+          </div>
+          <div
+            className={`warranty-kpi-card kpi-expiring ${statusFilter === 'EXPIRING_SOON' ? 'active-filter' : ''}`}
+            onClick={() => setStatusFilter('EXPIRING_SOON')}
+          >
+            <span className="kpi-label">⚠️ Por Vencer (&le;15d)</span>
+            <span className="kpi-value">{stats.expiringSoon}</span>
+          </div>
+          <div
+            className={`warranty-kpi-card kpi-claimed ${statusFilter === 'CLAIMED' ? 'active-filter' : ''}`}
+            onClick={() => setStatusFilter('CLAIMED')}
+          >
+            <span className="kpi-label">🛠️ Reclamadas / Taller</span>
+            <span className="kpi-value">{stats.claimed}</span>
+          </div>
+          <div
+            className={`warranty-kpi-card kpi-expired ${statusFilter === 'EXPIRED' ? 'active-filter' : ''}`}
+            onClick={() => setStatusFilter('EXPIRED')}
+          >
+            <span className="kpi-label">🔴 Vencidas</span>
+            <span className="kpi-value">{stats.expired}</span>
+          </div>
+        </div>
+
+        {/* Toolbar: Search and Filter Pills */}
+        <div className="warranty-controls">
+          <div className="warranty-search-wrap">
+            <span className="warranty-search-icon">🔍</span>
+            <input
+              type="text"
+              className="warranty-search-input"
+              placeholder="Buscar por código, serie, producto, cliente o teléfono..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: '2px 6px'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="warranty-filter-pills">
+            {[
+              ['ALL', 'Todas'],
+              ['ACTIVE', '🟢 Vigentes'],
+              ['EXPIRING_SOON', '⚠️ Por Vencer'],
+              ['CLAIMED', '🛠️ Reclamadas'],
+              ['EXPIRED', '🔴 Vencidas'],
+              ['VOID', '⚪ Anuladas']
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                className={`warranty-pill ${statusFilter === k ? 'active' : ''}`}
+                onClick={() => setStatusFilter(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Warranties Table */}
+      <section className="panel table-panel">
+        <div className="panel-head">
+          <h3>
+            Listado de Garantías {statusFilter !== 'ALL' && <small style={{color: '#64748b'}}>({statusFilter})</small>}
+          </h3>
+          <span style={{fontSize: 12, color: '#64748b'}}>{rows.length} registros encontrados</span>
+        </div>
+
+        {loading ? (
+          <div style={{textAlign: 'center', padding: 32, color: '#64748b'}}>
+            <p>Cargando garantías...</p>
+          </div>
+        ) : rows.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código / Serie</th>
+                  <th>Producto</th>
+                  <th>Cliente</th>
+                  <th>Plazo / Cobertura</th>
+                  <th>Estado / Resolución</th>
+                  <th style={{textAlign: 'right'}}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r: Any) => {
+                  const isExpiring = r.status === 'ACTIVE' && r.remaining_days <= 15 && r.remaining_days >= 0;
+                  return (
+                    <tr key={r.id}>
+                      <td data-label="Código">
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 3}}>
+                          <strong style={{fontFamily: 'monospace', fontSize: 13, color: '#1e293b'}}>
+                            {r.warranty_code || 'GAR-XXXX'}
+                          </strong>
+                          {r.serial_number ? (
+                            <span className="serial-tag" title={r.serial_number}>
+                              S/N: {r.serial_number}
+                            </span>
+                          ) : (
+                            <small style={{color: '#94a3b8', fontSize: 11}}>Sin N° de Serie</small>
+                          )}
+                        </div>
+                      </td>
+                      <td data-label="Producto">
+                        <div style={{display: 'flex', flexDirection: 'column'}}>
+                          <strong style={{fontSize: 13, color: '#0f172a'}}>
+                            {r.product_name || 'Producto'}
+                          </strong>
+                          <div style={{display: 'flex', gap: 6, fontSize: 11, color: '#64748b', marginTop: 2}}>
+                            <span>SKU: {r.product_sku || 'N/A'}</span>
+                            {r.product_price ? <span>• ${Number(r.product_price).toFixed(2)}</span> : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Cliente">
+                        <div style={{display: 'flex', flexDirection: 'column'}}>
+                          <strong style={{fontSize: 12.5, color: '#334155'}}>
+                            {r.customer_name || 'Consumidor Final'}
+                          </strong>
+                          {r.customer_phone && (
+                            <small style={{color: '#64748b', display: 'flex', alignItems: 'center', gap: 4}}>
+                              📞 {r.customer_phone}
+                            </small>
+                          )}
+                        </div>
+                      </td>
+                      <td data-label="Plazo">
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 3}}>
+                          <div style={{fontSize: 11.5, color: '#475569'}}>
+                            {new Date(r.starts_at).toLocaleDateString()} &rarr; {new Date(r.expires_at).toLocaleDateString()}
+                          </div>
+                          <div>
+                            {r.status === 'ACTIVE' ? (
+                              isExpiring ? (
+                                <span className="days-counter warning">⚠️ Vence en {r.remaining_days}d</span>
+                              ) : (
+                                <span className="days-counter good">🟢 {r.remaining_days}d restantes</span>
+                              )
+                            ) : r.status === 'CLAIMED' ? (
+                              <span className="days-counter" style={{background: '#eff6ff', color: '#1e40af'}}>
+                                🛡️ Reclamada
+                              </span>
+                            ) : r.status === 'EXPIRED' ? (
+                              <span className="days-counter danger">🔴 Expirada</span>
+                            ) : (
+                              <span className="days-counter" style={{background: '#f1f5f9', color: '#64748b'}}>
+                                ⚪ Anulada
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Estado">
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
+                          <span className={`w-badge ${r.status}`}>
+                            {r.status === 'ACTIVE'
+                              ? 'VIGENTE'
+                              : r.status === 'CLAIMED'
+                              ? 'RECLAMADA'
+                              : r.status === 'EXPIRED'
+                              ? 'VENCIDA'
+                              : 'ANULADA'}
+                          </span>
+                          {r.claim_resolution && (
+                            <small style={{fontSize: 11, color: '#475569', fontWeight: 600}}>
+                              {r.claim_resolution === 'REPAIR_WORK_ORDER'
+                                ? '🛠️ Reparación Taller'
+                                : r.claim_resolution === 'REPLACEMENT'
+                                ? '🔄 Reemplazo'
+                                : r.claim_resolution === 'REFUND'
+                                ? '💰 Reembolso'
+                                : '🎧 Asistencia'}
+                            </small>
+                          )}
+                          {r.work_order_number && (
+                            <button
+                              type="button"
+                              onClick={() => go && go('work-orders')}
+                              style={{
+                                background: '#f0fdf4',
+                                border: '1px solid #bbf7d0',
+                                color: '#166534',
+                                borderRadius: 6,
+                                padding: '2px 6px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                width: 'fit-content'
+                              }}
+                              title="Ver en Taller"
+                            >
+                              📋 {r.work_order_number} ({r.work_order_status || 'TALLER'}) &rarr;
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td data-label="Acciones" style={{textAlign: 'right'}}>
+                        <div style={{display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap'}}>
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => setSelectedCert(r)}
+                            style={{padding: '5px 9px', fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 4}}
+                            title="Ver e Imprimir Certificado de Garantía"
+                          >
+                            📜 Certificado
+                          </button>
+                          {r.status === 'ACTIVE' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClaimTarget(r);
+                                setClaimForm({
+                                  resolution: 'REPAIR_WORK_ORDER',
+                                  notes: '',
+                                  technicianId: '',
+                                  slaHours: 48
+                                });
+                              }}
+                              style={{
+                                padding: '5px 9px',
+                                fontSize: 11.5,
+                                background: '#3157d5',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                              title="Procesar reclamo de garantía"
+                            >
+                              🛡️ Reclamar
+                            </button>
+                          )}
+                          {r.status === 'ACTIVE' && (
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => {
+                                setVoidTarget(r);
+                                setVoidReason('');
+                              }}
+                              style={{padding: '5px 8px', fontSize: 11, color: '#ef4444', borderColor: '#fca5a5'}}
+                              title="Anular garantía"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">
+            <b>🛡️</b>
+            <p>No se encontraron garantías registradas con los filtros actuales.</p>
+            <small>Puedes emitir una nueva garantía manual o generarla automáticamente al registrar una venta en el POS.</small>
+            <button onClick={() => setShowCreate(true)} style={{marginTop: 12}}>
+              ➕ Emitir Primera Garantía
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* MODAL: Certificado Oficial Térmico 80mm + QR + WhatsApp */}
+      {selectedCert && (
+        <div className="modal-overlay" onClick={() => setSelectedCert(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 420}}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{margin: 0}}>📜 Certificado de Garantía</h3>
+                <small style={{color: '#64748b'}}>Ticket oficial 80mm para el cliente</small>
+              </div>
+              <button className="modal-close" onClick={() => setSelectedCert(null)}>✕</button>
+            </div>
+
+            <div className="cert-container">
+              <div id="printable-warranty-cert" className="thermal-cert">
+                <div className="cert-header">
+                  <h4 className="cert-store">Fixme Tiendas</h4>
+                  <p className="cert-subtitle">Servicio Técnico y Garantías Oficiales</p>
+                  <div className="cert-code-badge">{selectedCert.warranty_code || 'GAR-CERT'}</div>
+                </div>
+
+                <div className="cert-section">
+                  <div className="cert-row">
+                    <span>Estado:</span>
+                    <strong>
+                      {selectedCert.status === 'ACTIVE' ? '🟢 VIGENTE (COBERTURA TOTAL)' : selectedCert.status}
+                    </strong>
+                  </div>
+                  <div className="cert-row">
+                    <span>Emisión:</span>
+                    <strong>{new Date(selectedCert.starts_at).toLocaleDateString()}</strong>
+                  </div>
+                  <div className="cert-row">
+                    <span>Vencimiento:</span>
+                    <strong>{new Date(selectedCert.expires_at).toLocaleDateString()}</strong>
+                  </div>
+                  <div className="cert-row">
+                    <span>Días Restantes:</span>
+                    <strong>{selectedCert.remaining_days} días</strong>
+                  </div>
+                </div>
+
+                <div className="cert-section">
+                  <div className="cert-row">
+                    <span>Producto:</span>
+                    <strong>{selectedCert.product_name || 'Equipo / Repuesto'}</strong>
+                  </div>
+                  <div className="cert-row">
+                    <span>SKU:</span>
+                    <strong>{selectedCert.product_sku || 'N/A'}</strong>
+                  </div>
+                  <div className="cert-row">
+                    <span>N° Serie / IMEI:</span>
+                    <strong>{selectedCert.serial_number || 'N/A'}</strong>
+                  </div>
+                </div>
+
+                <div className="cert-section">
+                  <div className="cert-row">
+                    <span>Cliente:</span>
+                    <strong>{selectedCert.customer_name || 'Consumidor Final'}</strong>
+                  </div>
+                  {selectedCert.customer_phone && (
+                    <div className="cert-row">
+                      <span>Teléfono:</span>
+                      <strong>{selectedCert.customer_phone}</strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="cert-terms">
+                  <strong>Términos de Cobertura:</strong>
+                  <p style={{margin: '4px 0 0'}}>
+                    {selectedCert.terms || 'Cubre defectos de fábrica y mano de obra. No cubre caídas, humedad o intervención de terceros no autorizados.'}
+                  </p>
+                </div>
+
+                {/* QR Code */}
+                <div className="cert-qr-wrap">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                      `${window.location.origin}/public/warranties/verify?token=${selectedCert.tenant_id}.${selectedCert.warranty_code}`
+                    )}`}
+                    alt="QR Garantía"
+                  />
+                  <div className="cert-qr-hint">Escanee para verificar vigencia oficial en línea</div>
+                </div>
+
+                <div className="cert-footer">
+                  <p style={{margin: '0 0 2px'}}>¡Gracias por su preferencia!</p>
+                  <p style={{margin: 0}}>Fixme Tiendas • Soporte Especializado</p>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="cert-actions">
+                <button
+                  type="button"
+                  className="btn-whatsapp"
+                  onClick={() => shareWhatsApp(selectedCert)}
+                >
+                  💬 Enviar WhatsApp
+                </button>
+                <button
+                  type="button"
+                  className="btn-print"
+                  onClick={() => window.print()}
+                >
+                  🖨️ Imprimir (80mm)
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  style={{width: '100%'}}
+                  onClick={() => {
+                    const link = `${window.location.origin}/public/warranties/verify?token=${selectedCert.tenant_id}.${selectedCert.warranty_code}`;
+                    navigator.clipboard.writeText(link);
+                    if (notify) notify('Enlace público de garantía copiado al portapapeles');
+                  }}
+                >
+                  📋 Copiar Enlace Público de Verificación
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Procesar Reclamo de Garantía (Conexión Taller $0.00) */}
+      {claimTarget && (
+        <div className="modal-overlay" onClick={() => setClaimTarget(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 520}}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{margin: 0}}>🛡️ Procesar Reclamo de Garantía</h3>
+                <small style={{color: '#64748b'}}>
+                  {claimTarget.warranty_code} • {claimTarget.product_name}
+                </small>
+              </div>
+              <button className="modal-close" onClick={() => setClaimTarget(null)}>✕</button>
+            </div>
+
+            <form onSubmit={handleClaim} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+              <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, fontSize: 12}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 4}}>
+                  <span style={{color: '#64748b'}}>Cliente:</span>
+                  <strong>{claimTarget.customer_name || 'Consumidor Final'}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 4}}>
+                  <span style={{color: '#64748b'}}>Número de Serie:</span>
+                  <strong>{claimTarget.serial_number || 'N/A'}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                  <span style={{color: '#64748b'}}>Vigencia restante:</span>
+                  <span style={{color: '#059669', fontWeight: 700}}>{claimTarget.remaining_days} días de cobertura</span>
+                </div>
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 6}}>
+                  Resolución del Reclamo:
+                </label>
+                <div className="resolution-grid">
+                  <div
+                    className={`resolution-card ${claimForm.resolution === 'REPAIR_WORK_ORDER' ? 'selected' : ''}`}
+                    onClick={() => setClaimForm({...claimForm, resolution: 'REPAIR_WORK_ORDER'})}
+                  >
+                    <input
+                      type="radio"
+                      name="res"
+                      checked={claimForm.resolution === 'REPAIR_WORK_ORDER'}
+                      onChange={() => setClaimForm({...claimForm, resolution: 'REPAIR_WORK_ORDER'})}
+                    />
+                    <div className="resolution-info">
+                      <strong>🛠️ Crear Orden de Trabajo en Taller ($0.00 Cobertura Total)</strong>
+                      <small>Genera automáticamente la OT técnica con número de seguimiento y SLA garantizado sin costo al cliente.</small>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`resolution-card ${claimForm.resolution === 'REPLACEMENT' ? 'selected' : ''}`}
+                    onClick={() => setClaimForm({...claimForm, resolution: 'REPLACEMENT'})}
+                  >
+                    <input
+                      type="radio"
+                      name="res"
+                      checked={claimForm.resolution === 'REPLACEMENT'}
+                      onChange={() => setClaimForm({...claimForm, resolution: 'REPLACEMENT'})}
+                    />
+                    <div className="resolution-info">
+                      <strong>🔄 Reemplazo / Cambio Directo de Unidad</strong>
+                      <small>Autoriza entrega de producto sustituto nuevo o refabricado al cliente.</small>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`resolution-card ${claimForm.resolution === 'REFUND' ? 'selected' : ''}`}
+                    onClick={() => setClaimForm({...claimForm, resolution: 'REFUND'})}
+                  >
+                    <input
+                      type="radio"
+                      name="res"
+                      checked={claimForm.resolution === 'REFUND'}
+                      onChange={() => setClaimForm({...claimForm, resolution: 'REFUND'})}
+                    />
+                    <div className="resolution-info">
+                      <strong>💰 Nota de Crédito / Reembolso Comercial</strong>
+                      <small>Devolución del importe pagado o emisión de saldo a favor en tienda.</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {claimForm.resolution === 'REPAIR_WORK_ORDER' && (
+                <div style={{background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10}}>
+                  <strong style={{fontSize: 12, color: '#1e40af'}}>Detalles Técnicos para el Taller:</strong>
+                  
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                    <div>
+                      <label style={{fontSize: 11, color: '#1e3a8a', display: 'block', marginBottom: 3}}>Técnico Asignado</label>
+                      <select
+                        value={claimForm.technicianId}
+                        onChange={e => setClaimForm({...claimForm, technicianId: e.target.value})}
+                        style={{width: '100%', fontSize: 12, padding: 8, borderRadius: 6, border: '1px solid #93c5fd'}}
+                      >
+                        <option value="">-- Asignación Automática --</option>
+                        {technicians.map((t: Any) => (
+                          <option key={t.id} value={t.id}>{t.fullName || t.email}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{fontSize: 11, color: '#1e3a8a', display: 'block', marginBottom: 3}}>SLA / Plazo Máximo</label>
+                      <select
+                        value={claimForm.slaHours}
+                        onChange={e => setClaimForm({...claimForm, slaHours: Number(e.target.value)})}
+                        style={{width: '100%', fontSize: 12, padding: 8, borderRadius: 6, border: '1px solid #93c5fd'}}
+                      >
+                        <option value={24}>⚡ Express 24 horas</option>
+                        <option value={48}>🕒 Estándar 48 horas</option>
+                        <option value={72}>📆 Extendido 72 horas</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Motivo del Reclamo / Falla Reportada por el Cliente:
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={claimForm.notes}
+                  onChange={e => setClaimForm({...claimForm, notes: e.target.value})}
+                  placeholder="Ej: La pantalla presenta líneas verticales o el equipo no enciende tras carga..."
+                  style={{width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12}}
+                />
+              </div>
+
+              <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10}}>
+                <button type="button" className="secondary" onClick={() => setClaimTarget(null)}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={submitting} style={{fontWeight: 700}}>
+                  {submitting ? 'Procesando...' : 'Confirmar Reclamo'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Nueva Garantía Manual */}
+      {showCreate && (
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 520}}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{margin: 0}}>➕ Emitir Garantía Manual</h3>
+                <small style={{color: '#64748b'}}>Emisión directa con código único y certificado QR</small>
+              </div>
+              <button className="modal-close" onClick={() => setShowCreate(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleCreate} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Producto Cubierto: *
+                </label>
+                <select
+                  required
+                  value={createForm.productId}
+                  onChange={e => setCreateForm({...createForm, productId: e.target.value})}
+                  style={{width: '100%', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13}}
+                >
+                  <option value="">-- Selecciona el producto --</option>
+                  {products.map((p: Any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (SKU: {p.sku}) - ${Number(p.price).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Cliente Titular (Opcional):
+                </label>
+                <select
+                  value={createForm.customerId}
+                  onChange={e => setCreateForm({...createForm, customerId: e.target.value})}
+                  style={{width: '100%', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13}}
+                >
+                  <option value="">-- Consumidor Final / Mostrador --</option>
+                  {customers.map((c: Any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Número de Serie / IMEI / Código de Equipo:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: SN-APP-2026-X01 o IMEI 3548..."
+                  value={createForm.serialNumber}
+                  onChange={e => setCreateForm({...createForm, serialNumber: e.target.value})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 9, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Plazo de Cobertura (Días):
+                </label>
+                <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6}}>
+                  {[
+                    [30, '30 días (1 mes)'],
+                    [90, '90 días (3 meses)'],
+                    [180, '180 días (6 meses)'],
+                    [365, '1 año (365 d)'],
+                    [730, '2 años (730 d)']
+                  ].map(([d, lbl]) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`chip ${createForm.days === d ? 'active' : ''}`}
+                      onClick={() => setCreateForm({...createForm, days: Number(d)})}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: 16,
+                        border: '1px solid #cbd5e1',
+                        background: createForm.days === d ? '#1e293b' : '#fff',
+                        color: createForm.days === d ? '#fff' : '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  value={createForm.days}
+                  onChange={e => setCreateForm({...createForm, days: Number(e.target.value)})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Términos y Condiciones:
+                </label>
+                <textarea
+                  rows={2}
+                  value={createForm.terms}
+                  onChange={e => setCreateForm({...createForm, terms: e.target.value})}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12}}
+                />
+              </div>
+
+              <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10}}>
+                <button type="button" className="secondary" onClick={() => setShowCreate(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={submitting} style={{fontWeight: 700}}>
+                  {submitting ? 'Generando...' : 'Emitir Garantía Oficial'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Anular Garantía */}
+      {voidTarget && (
+        <div className="modal-overlay" onClick={() => setVoidTarget(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 440}}>
+            <div className="modal-header">
+              <h3 style={{margin: 0, color: '#ef4444'}}>✕ Anular Garantía</h3>
+              <button className="modal-close" onClick={() => setVoidTarget(null)}>✕</button>
+            </div>
+            <form onSubmit={handleVoid} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+              <p style={{fontSize: 13, color: '#475569', margin: 0}}>
+                ¿Estás seguro de que deseas anular la garantía <strong>{voidTarget.warranty_code}</strong> correspondiente a <strong>{voidTarget.product_name}</strong>?
+              </p>
+              <div>
+                <label style={{fontWeight: 700, fontSize: 12, display: 'block', marginBottom: 4}}>
+                  Motivo de anulación:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Devolución comercial, producto canjeado o error de registro"
+                  value={voidReason}
+                  onChange={e => setVoidReason(e.target.value)}
+                  style={{width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12}}
+                />
+              </div>
+              <div className="modal-actions" style={{display: 'flex', justifyContent: 'flex-end', gap: 8}}>
+                <button type="button" className="secondary" onClick={() => setVoidTarget(null)}>
+                  Volver
+                </button>
+                <button type="submit" disabled={submitting} style={{background: '#ef4444', color: '#fff', fontWeight: 700}}>
+                  {submitting ? 'Anulando...' : 'Confirmar Anulación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 function Table({title,columns,rows,empty,action}:{title:string,columns:string[],rows:Any[],empty:string,action?:string}){return <section className="panel table-panel"><div className="panel-head"><h3>{title}</h3>{action&&<button>{action}</button>}</div>{rows.length?<div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c}>{c.replace(/([A-Z])/g,' $1')}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||i}>{columns.map(c=><td data-label={c.replace(/([A-Z])/g,' $1')} key={c}>{c==='price'||c==='quote'||c==='total'?`$${Number(r[c]||0).toFixed(2)}`:c==='approval_url'?<a href={r[c]} target="_blank" rel="noreferrer">Abrir autorización</a>:r[c]??'*'}</td>)}</tr>)}</tbody></table></div>:<div className="empty"><b>--</b><p>{empty}</p><small>Los registros aparecerán aquí.</small></div>}</section>}
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
