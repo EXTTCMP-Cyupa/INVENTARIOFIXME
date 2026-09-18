@@ -53,9 +53,18 @@ de siete días y URL apta para QR:
 
 * `GET|POST|PUT|DELETE /api/customers`
 * `GET|POST /api/deliveries`, `PATCH /api/deliveries/{id}/status`
-* `GET|POST /api/work-orders`, `PATCH /api/work-orders/{id}/status`
-* `POST /api/public/work-orders/approve?token=...&accepted=true|false`
+* `GET|POST /api/work-orders`, `PUT /api/work-orders/{id}`, `PATCH /api/work-orders/{id}/status`
+* `GET /api/public/work-orders/tracking?token=...` (API pública de seguimiento en tiempo real)
+* `GET|POST /public/work-orders/approve?token=...` (Portal web interactivo para el cliente final)
 * `GET /api/reports/summary?branchId=...`
+
+V17 implementa la experiencia completa de taller y servicio técnico profesional:
+ficha técnica de equipo (marca, modelo, serie/IMEI, falla reportada y accesorios),
+numeración de folio amigable (`OT-1001`), portal web de seguimiento para clientes con
+línea de tiempo (Stepper interactivo), autorización de presupuesto en 1 clic, botón
+para enviar enlace por WhatsApp, modal con código QR para escaneo en mostrador y
+ticket de recepción imprimible en formato de 80mm. El token de seguimiento permanece
+activo tras la aprobación para que el cliente consulte el avance hasta la entrega final.
 
 La PWA ofrece navegación lateral de escritorio y navegación inferior móvil, dashboard de KPIs,
 inventario, clientes, entregas, órdenes y reportes; cada opción se oculta cuando el módulo del
