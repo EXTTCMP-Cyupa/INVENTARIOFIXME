@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fixmetiendas
+      POSTGRES_USER: fixme
+      POSTGRES_PASSWORD: fixme_dev_password
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fixme -d fixmetiendas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/fixmetiendas
+      DB_USER: fixme
+      DB_PASSWORD: fixme_dev_password
+      JWT_SECRET: change-me-in-production-use-32-bytes-minimum
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  frontend:
+    build: ./frontend
+    ports: ["3000:80"]
+    depends_on: [backend]
+volumes:
+  postgres_data:

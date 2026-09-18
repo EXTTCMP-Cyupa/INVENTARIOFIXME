@@ -1,0 +1,12 @@
+package com.fixme.infrastructure.web;
+import com.fixme.application.*; import com.fixme.domain.Sale; import java.math.BigDecimal; import java.util.*;
+import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.security.oauth2.jwt.Jwt; import org.springframework.security.core.annotation.AuthenticationPrincipal; import org.springframework.web.bind.annotation.*;
+@RestController @RequestMapping("/api/sales") public class SaleController {
+ private final SaleService service; private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+ public SaleController(SaleService s,org.springframework.jdbc.core.JdbcTemplate j){service=s;jdbc=j;}
+ public record Item(UUID productId,int quantity){} public record Payment(String method,BigDecimal amount){} public record Input(UUID branchId,UUID customerId,Integer warrantyDays,List<Item> items,List<Payment> payments){}
+ @PostMapping @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER')")
+ public Sale create(@AuthenticationPrincipal Jwt jwt,@RequestBody Input in){UUID t=tenant(jwt);UUID u=user(t,jwt.getSubject());return service.create(t,in.branchId(),u,in.items().stream().map(i->new SalePort.Item(i.productId(),i.quantity())).toList(),in.payments().stream().map(p->new SalePort.Payment(p.method().toUpperCase(Locale.ROOT),p.amount())).toList(),in.customerId(),in.warrantyDays());}
+ @GetMapping @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER','SCOPE_ACCOUNTANT')") public List<Map<String,Object>> list(@AuthenticationPrincipal Jwt jwt,@RequestParam(required=false)UUID branchId){UUID t=tenant(jwt);jdbc.queryForObject("select set_config('app.tenant_id',?,true)",String.class,t.toString());return jdbc.queryForList("select s.id,s.branch_id,s.user_id,s.customer_id,s.subtotal,s.tax,s.total,s.status,s.warranty_days,s.created_at,coalesce(nullif(u.full_name,''),u.email) seller,c.name customer from sales s join app_users u on u.id=s.user_id left join customers c on c.id=s.customer_id where s.tenant_id=? and (? is null or s.branch_id=?) order by s.created_at desc",t,branchId,branchId);}
+ private UUID tenant(Jwt j){return UUID.fromString(j.getClaimAsString("tenant_id"));} private UUID user(UUID t,String email){jdbc.queryForObject("select set_config('app.tenant_id',?,true)",String.class,t.toString());return jdbc.queryForObject("select id from app_users where tenant_id=? and lower(email)=lower(?)",UUID.class,t,email);}
+}

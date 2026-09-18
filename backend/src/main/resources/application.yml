@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/fixmetiendas}
+    username: ${DB_USER:fixme}
+    password: ${DB_PASSWORD:fixme_dev_password}
+  flyway:
+    enabled: true
+server:
+  port: 8080
+app:
+  jwt-secret: ${JWT_SECRET:change-me-in-production-use-32-bytes-minimum}
