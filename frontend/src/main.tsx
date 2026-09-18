@@ -1,7 +1,7 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
 type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
-const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.scope||'').replace('SCOPE_','').split(' ')[0]}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['products','customers','work-orders','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=allowed[role]||['home'];const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
+const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';let userPerms:string[]=[];try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=userPerms.length>0?userPerms:(allowed[role]||['home']);const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api} notify={setToast}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
 function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok)onLogin((await r.json()).accessToken);else setError('No pudimos validar tus credenciales.')}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
@@ -2015,7 +2015,875 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
   );
 }function PlatformAdministration({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){const[tenants,setTenants]=React.useState<Any[]>([]),[selected,setSelected]=React.useState<Any|null>(null),[overview,setOverview]=React.useState<Any>({}),[users,setUsers]=React.useState<Any[]>([]),[inventory,setInventory]=React.useState<Any>({}),[name,setName]=React.useState(''),[ownerEmail,setOwnerEmail]=React.useState(''),[ownerPassword,setOwnerPassword]=React.useState('password'),[msg,setMsg]=React.useState('');const load=React.useCallback(()=>api('/api/platform/tenants').then(r=>r.ok?r.json():[]).then(setTenants),[api]);React.useEffect(()=>{load()},[load]);async function select(t:Any){setSelected(t);const [o,u,i]=await Promise.all([api(`/api/platform/tenants/${t.id}/overview`),api(`/api/platform/tenants/${t.id}/users`),api(`/api/platform/tenants/${t.id}/inventory`)]);setOverview(o.ok?await o.json():{});setUsers(u.ok?await u.json():[]);setInventory(i.ok?await i.json():{})}async function create(e:React.FormEvent){e.preventDefault();const r=await api('/api/platform/tenants',{method:'POST',body:JSON.stringify({name,ownerEmail,ownerPassword,plan:'STARTER',subscriptionStatus:'ACTIVE'})});if(r.ok){setName('');setOwnerEmail('');setOwnerPassword('password');setMsg('Empresa creada');load()}else setMsg('No se pudo crear la empresa')}async function changeStatus(status:string){if(!selected)return;const r=await api(`/api/platform/tenants/${selected.id}`,{method:'PATCH',body:JSON.stringify({subscriptionStatus:status})});if(r.ok){setSelected({...selected,subscription_status:status});setTenants(tenants.map(t=>t.id===selected.id?{...t,subscription_status:status}:t));setMsg('Estado actualizado')}}return <><section className="inventory-hero"><div><span className="eyebrow">ADMINISTRACIÓN GLOBAL</span><h2>Empresas y tiendas</h2><p>Supervisa suscripciones, usuarios e inventario sin mezclar datos.</p></div></section><div className="platform-layout"><section className="panel tenant-list"><div className="panel-head"><div><h3>Empresas registradas</h3><p className="catalog-toolbar-p">{tenants.length} empresas</p></div></div>{tenants.map(t=><button className={selected?.id===t.id?'tenant-row selected':'tenant-row'} onClick={()=>select(t)} key={t.id}><span className="tenant-avatar">{(t.name||'E')[0]}</span><span><b>{t.name}</b><small>{t.plan||'STARTER'} · {t.subscription_status||'ACTIVE'}</small></span><i>â€º</i></button>)}<form className="tenant-create" onSubmit={create}><input placeholder="Nombre de nueva empresa" value={name} onChange={e=>setName(e.target.value)} required/><input type="email" placeholder="Correo del manager" value={ownerEmail} onChange={e=>setOwnerEmail(e.target.value)} required/><input type="password" placeholder="Contraseña inicial (8+)" value={ownerPassword} onChange={e=>setOwnerPassword(e.target.value)} minLength={8} required/><button>ï¼‹ Crear empresa</button>{msg&&<small>{msg}</small>}</form></section>{selected?<section className="platform-detail"><div className="panel detail-heading"><span className="eyebrow">EMPRESA SELECCIONADA</span><h2>{selected.name}</h2><div className="detail-meta"><span>Plan: <b>{selected.plan}</b></span><span>Estado: <b className={selected.subscription_status==='ACTIVE'?'status-active':'status-paused'}>{selected.subscription_status}</b></span><select value={selected.subscription_status} onChange={e=>changeStatus(e.target.value)}><option value="ACTIVE">ACTIVA</option><option value="PAST_DUE">PAGO PENDIENTE</option><option value="SUSPENDED">SUSPENDIDA</option></select></div></div><div className="inventory-stats"><div><span>Usuarios</span><strong>{overview.users||0}</strong><small>en la empresa</small></div><div><span>Productos</span><strong>{overview.products||0}</strong><small>en inventario</small></div><div><span>Clientes</span><strong>{overview.customers||0}</strong><small>registrados</small></div><div><span>Órdenes</span><strong>{overview.orders||0}</strong><small>de servicio</small></div></div><section className="panel"><h3>Inventario de {selected.name}</h3><div className="table-wrap"><table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Valor</th></tr></thead><tbody>{(inventory.items||[]).map((p:Any)=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.stock}</td><td>${(Number(p.stock||0)*Number(p.price||0)).toFixed(2)}</td></tr>)}</tbody></table></div></section><Table title={`Usuarios de ${selected.name}`} columns={['full_name','identification','email','phone','role']} rows={users} empty="Esta empresa aún no tiene usuarios." /></section>:<section className="panel empty platform-empty"><b>âŒ‚</b><p>Selecciona una empresa</p><small>Consulta su estado, inventario y usuarios sin cambiar de contexto.</small></section>}</div></>}
 
-function Administration({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){const[p,setP]=React.useState<Any>({}),[users,setUsers]=React.useState<Any[]>([]),[form,setForm]=React.useState<Any>({email:'',password:'password',role:'SELLER',fullName:'',identification:'',address:'',phone:''}),[msg,setMsg]=React.useState('');const load=React.useCallback(()=>{api('/api/administration/profile').then(r=>r.ok?r.json():{}).then(setP);api('/api/administration/users').then(r=>r.ok?r.json():[]).then(setUsers)},[api]);React.useEffect(()=>{load()},[load]);async function add(e:React.FormEvent){e.preventDefault();const r=await api('/api/administration/users',{method:'POST',body:JSON.stringify(form)});if(r.ok){setMsg('Usuario creado');setForm({...form,email:'',fullName:'',identification:'',address:'',phone:''});load()}else setMsg('No se pudo crear el usuario')}return <><section className="panel"><h3>Perfil de empresa</h3><p><b>{p.legal_name||p.name||'Empresa'}</b></p><p>Tipo: {p.business_type||'RETAIL'} · Plan: {p.plan||'FREE'} · Teléfono: {p.phone||'*'}</p></section><section className="panel"><h3>Crear usuario de la empresa</h3><form className="form-grid" onSubmit={add}>{[['fullName','Nombres y apellidos'],['identification','Cédula / identificación'],['email','Correo'],['phone','Teléfono'],['address','Dirección'],['password','Contraseña']].map(([k,l])=><label key={k}>{l}<input value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} required={k==='fullName'||k==='email'||k==='password'}/></label>)}<label>Rol<select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>{['MANAGER','SELLER','DELIVERY','TECHNICIAN','ACCOUNTANT'].map(x=><option key={x}>{x}</option>)}</select></label><button>+ Crear usuario</button>{msg&&<small>{msg}</small>}</form></section><Table title="Usuarios registrados" columns={['full_name','identification','email','phone','role']} rows={users} empty="Aún no hay usuarios." /></>}
+function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void}){
+  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'>('matrix');
+  const [profile, setProfile] = React.useState<Any>({});
+  const [users, setUsers] = React.useState<Any[]>([]);
+  const [rolePerms, setRolePerms] = React.useState<Record<string, string[]>>({});
+  const [savingMatrix, setSavingMatrix] = React.useState(false);
+  const [userPermModal, setUserPermModal] = React.useState<Any|null>(null);
+  const [selectedPerms, setSelectedPerms] = React.useState<string[]>([]);
+  const [isCustomPerms, setIsCustomPerms] = React.useState(false);
+  const [savingUserPerms, setSavingUserPerms] = React.useState(false);
+
+  // New user form state
+  const [showCreateUser, setShowCreateUser] = React.useState(false);
+  const [form, setForm] = React.useState<Any>({
+    email: '', password: 'password123', role: 'TECHNICIAN',
+    fullName: '', identification: '', address: '', phone: ''
+  });
+  const [userMsg, setUserMsg] = React.useState('');
+
+  const MODULES = [
+    { key: 'home', label: 'Resumen (Dashboard)', group: 'Principal', desc: 'Vista global y métricas' },
+    { key: 'my-work', label: 'Mi Trabajo Asignado', group: 'Taller', desc: 'Órdenes de servicio asignadas al técnico con SLA' },
+    { key: 'work-orders', label: 'Órdenes de Servicio', group: 'Taller', desc: 'Ingreso de equipos, presupuestos y entregas' },
+    { key: 'warranties', label: 'Garantías', group: 'Taller', desc: 'Validación y gestión de tickets de garantía' },
+    { key: 'pos', label: 'Punto de Venta (POS)', group: 'Ventas', desc: 'Facturación directa, tickets y ventas' },
+    { key: 'sales', label: 'Registro de Ventas', group: 'Ventas', desc: 'Historial de transacciones y comprobantes' },
+    { key: 'cash', label: 'Control de Caja', group: 'Ventas', desc: 'Apertura de caja, movimientos y arqueos' },
+    { key: 'deliveries', label: 'Entregas a Domicilio', group: 'Ventas', desc: 'Despachos con motorizados y apps' },
+    { key: 'products', label: 'Inventario de Productos', group: 'Inventario', desc: 'Catálogo de existencias y alertas de stock' },
+    { key: 'customers', label: 'Gestión de Clientes', group: 'Operación', desc: 'Ficha de clientes y cartera comercial' },
+    { key: 'reports', label: 'Reportes Financieros', group: 'Gestión', desc: 'COGS, utilidades y balance general' },
+    { key: 'administration', label: 'Empresa y Permisos', group: 'Gestión', desc: 'Usuarios y matriz de roles de la empresa' }
+  ];
+
+  const ROLES = [
+    { key: 'MANAGER', label: 'Manager / Administrador', icon: '👔', color: '#4f46e5' },
+    { key: 'TECHNICIAN', label: 'Técnico de Taller', icon: '🛠️', color: '#d97706' },
+    { key: 'SELLER', label: 'Vendedor / Asesor', icon: '🛒', color: '#2563eb' },
+    { key: 'DELIVERY', label: 'Repartidor / Motorizado', icon: '🛵', color: '#059669' },
+    { key: 'ACCOUNTANT', label: 'Contador / Finanzas', icon: '📊', color: '#7c3aed' }
+  ];
+
+  const load = React.useCallback(() => {
+    api('/api/administration/profile').then(r => r.ok ? r.json() : {}).then(setProfile);
+    api('/api/administration/users').then(r => r.ok ? r.json() : []).then(setUsers);
+    api('/api/administration/role-permissions').then(r => r.ok ? r.json() : {}).then(setRolePerms);
+  }, [api]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  function toggleRolePermission(roleKey: string, permKey: string, checked: boolean) {
+    setRolePerms(prev => {
+      const current = prev[roleKey] || [];
+      const updated = checked
+        ? (current.includes(permKey) ? current : [...current, permKey])
+        : current.filter(k => k !== permKey);
+      return { ...prev, [roleKey]: updated };
+    });
+  }
+
+  async function saveMatrix() {
+    setSavingMatrix(true);
+    let allOk = true;
+    for (const r of ROLES) {
+      const resp = await api('/api/administration/role-permissions', {
+        method: 'PUT',
+        body: JSON.stringify({ role: r.key, permissions: rolePerms[r.key] || [] })
+      });
+      if (!resp.ok) allOk = false;
+    }
+    setSavingMatrix(false);
+    if (allOk) {
+      notify?.('✓ Matriz de permisos por rol actualizada exitosamente');
+      load();
+    } else {
+      notify?.('Hubo un error al guardar algunos roles');
+    }
+  }
+
+  function grantTechPosAndCash() {
+    setRolePerms(prev => {
+      const current = prev['TECHNICIAN'] || ['home', 'my-work', 'work-orders', 'warranties', 'customers'];
+      const needed = ['pos', 'cash', 'sales'];
+      const combined = Array.from(new Set([...current, ...needed]));
+      return { ...prev, TECHNICIAN: combined };
+    });
+    notify?.('Se añadieron Punto de Venta, Caja y Ventas al rol Técnico. Haz clic en "Guardar Matriz" para aplicar.');
+  }
+
+  function openUserPerms(u: Any) {
+    const custom = u.customPermissions || u.custom_permissions;
+    const isCustom = Array.isArray(custom) && custom.length > 0;
+    setUserPermModal(u);
+    setIsCustomPerms(isCustom);
+    setSelectedPerms(isCustom ? [...custom] : (rolePerms[u.role] || []));
+  }
+
+  function toggleUserPerm(key: string, checked: boolean) {
+    setSelectedPerms(prev => checked ? (prev.includes(key) ? prev : [...prev, key]) : prev.filter(k => k !== key));
+  }
+
+  async function saveUserPerms() {
+    if (!userPermModal) return;
+    setSavingUserPerms(true);
+    const body = isCustomPerms ? { permissions: selectedPerms } : { permissions: null };
+    const r = await api(`/api/administration/users/${userPermModal.id}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    });
+    setSavingUserPerms(false);
+    if (r.ok) {
+      notify?.('Permisos de ' + (userPermModal.fullName || userPermModal.email) + ' actualizados');
+      setUserPermModal(null);
+      load();
+    } else {
+      notify?.('Error al actualizar permisos individuales');
+    }
+  }
+
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await api('/api/administration/users', {
+      method: 'POST',
+      body: JSON.stringify(form)
+    });
+    if (r.ok) {
+      notify?.('Usuario ' + form.email + ' registrado exitosamente');
+      setForm({ email: '', password: 'password123', role: 'TECHNICIAN', fullName: '', identification: '', address: '', phone: '' });
+      setShowCreateUser(false);
+      load();
+    } else {
+      setUserMsg('No se pudo crear el usuario. Verifica que el correo no esté duplicado.');
+    }
+  }
+
+  return (
+    <>
+      <div className="section-header" style={{ marginBottom: 16 }}>
+        <div>
+          <h2>🏢 Empresa, Usuarios & Permisos</h2>
+          <p>Control de roles, permisos dinámicos y personalización del equipo de trabajo.</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, marginBottom: 16 }}>
+        <button
+          onClick={() => setTab('matrix')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'matrix' ? '1px solid #3157d5' : '1px solid #cbd5e1',
+            background: tab === 'matrix' ? '#eff6ff' : '#ffffff',
+            color: tab === 'matrix' ? '#1d4ed8' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          🛡️ Matriz de Permisos por Rol
+        </button>
+        <button
+          onClick={() => setTab('users')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'users' ? '1px solid #3157d5' : '1px solid #cbd5e1',
+            background: tab === 'users' ? '#eff6ff' : '#ffffff',
+            color: tab === 'users' ? '#1d4ed8' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          👥 Usuarios de la Empresa ({users.length})
+        </button>
+        <button
+          onClick={() => setTab('profile')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'profile' ? '1px solid #3157d5' : '1px solid #cbd5e1',
+            background: tab === 'profile' ? '#eff6ff' : '#ffffff',
+            color: tab === 'profile' ? '#1d4ed8' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          🏢 Perfil de la Empresa
+        </button>
+      </div>
+
+      {/* TAB 1: MATRIX */}
+      {tab === 'matrix' && (
+        <section className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Matriz de Autorización por Rol</h3>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                Habilita o deshabilita módulos para cada rol. Los usuarios recibirán permisos dinámicos y acceso a la API inmediatamente.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={grantTechPosAndCash}
+                style={{ fontSize: '12px' }}
+              >
+                ⚡ Otorgar POS + Caja al Técnico
+              </button>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={savingMatrix}
+                onClick={saveMatrix}
+                style={{ fontSize: '12px' }}
+              >
+                {savingMatrix ? 'Guardando...' : '💾 Guardar Matriz de Permisos'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="matrix-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 220 }}>Módulo / Sección</th>
+                  {ROLES.map(r => (
+                    <th key={r.key} style={{ textAlign: 'center', minWidth: 120 }}>
+                      <div style={{ fontSize: '14px' }}>{r.icon}</div>
+                      <div>{r.label}</div>
+                      <small style={{ color: '#64748b', fontWeight: 'normal', fontSize: '11px' }}>
+                        {(rolePerms[r.key] || []).length} permisos
+                      </small>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {MODULES.map(m => (
+                  <tr key={m.key} className="matrix-role-row">
+                    <td>
+                      <strong style={{ color: '#1e293b' }}>{m.label}</strong>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>{m.desc}</div>
+                    </td>
+                    {ROLES.map(r => {
+                      const hasPerm = (rolePerms[r.key] || []).includes(m.key);
+                      const isManagerAdmin = r.key === 'MANAGER' && m.key === 'administration';
+                      return (
+                        <td key={r.key} style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            className="matrix-checkbox"
+                            checked={hasPerm || isManagerAdmin}
+                            disabled={isManagerAdmin}
+                            onChange={e => toggleRolePermission(r.key, m.key, e.target.checked)}
+                            title={`${m.label} para ${r.label}`}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="primary-action"
+              disabled={savingMatrix}
+              onClick={saveMatrix}
+            >
+              {savingMatrix ? 'Guardando...' : '💾 Guardar Matriz de Permisos'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* TAB 2: USERS */}
+      {tab === 'users' && (
+        <>
+          <section className="panel" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Usuarios del Sistema</h3>
+                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                  Administra las cuentas de tu equipo. Puedes otorgar permisos excepcionales a usuarios concretos.
+                </p>
+              </div>
+              <button
+                className="secondary-action"
+                onClick={() => setShowCreateUser(!showCreateUser)}
+              >
+                {showCreateUser ? '✕ Cancelar' : '＋ Nuevo Usuario'}
+              </button>
+            </div>
+
+            {showCreateUser && (
+              <form className="form-grid" onSubmit={createUser} style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16, marginTop: 12 }}>
+                {[
+                  ['fullName', 'Nombres y apellidos'],
+                  ['identification', 'Cédula / Identificación'],
+                  ['email', 'Correo electrónico'],
+                  ['phone', 'Teléfono'],
+                  ['address', 'Dirección'],
+                  ['password', 'Contraseña inicial']
+                ].map(([k, l]) => (
+                  <label key={k}>
+                    {l}
+                    <input
+                      value={form[k]}
+                      onChange={e => setForm({ ...form, [k]: e.target.value })}
+                      required={k === 'fullName' || k === 'email' || k === 'password'}
+                    />
+                  </label>
+                ))}
+                <label>
+                  Rol Asignado
+                  <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
+                    {ROLES.map(r => (
+                      <option key={r.key} value={r.key}>{r.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="primary-action">Crear Usuario</button>
+                  {userMsg && <small style={{ color: '#dc2626' }}>{userMsg}</small>}
+                </div>
+              </form>
+            )}
+          </section>
+
+          <section className="panel">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>Usuario</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>Identificación / Teléfono</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>Rol</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left' }}>Configuración de Permisos</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => {
+                    const custom = u.customPermissions || u.custom_permissions;
+                    const hasCustom = Array.isArray(custom) && custom.length > 0;
+                    return (
+                      <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px 12px' }}>
+                          <strong style={{ color: '#1e293b' }}>{u.fullName || u.full_name || u.email}</strong>
+                          <div style={{ fontSize: '11.5px', color: '#64748b' }}>{u.email}</div>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <div>{u.identification || 'Sin cédula'}</div>
+                          <small style={{ color: '#64748b' }}>{u.phone || 'Sin teléfono'}</small>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            background: u.role === 'MANAGER' ? '#e0e7ff' : u.role === 'TECHNICIAN' ? '#fef3c7' : '#f1f5f9',
+                            color: u.role === 'MANAGER' ? '#3730a3' : u.role === 'TECHNICIAN' ? '#92400e' : '#334155'
+                          }}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {hasCustom ? (
+                            <span style={{ background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: 6, fontSize: '11.5px', fontWeight: 600 }}>
+                              ✓ Personalizado ({custom.length} módulos)
+                            </span>
+                          ) : (
+                            <span style={{ background: '#f8fafc', color: '#64748b', padding: '2px 8px', borderRadius: 6, fontSize: '11.5px' }}>
+                              Hereda de rol ({u.role})
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                          <button
+                            className="tech-action-btn tech-action-diag"
+                            onClick={() => openUserPerms(u)}
+                            style={{ fontSize: '11.5px' }}
+                          >
+                            ⚙ Personalizar Permisos
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* TAB 3: PROFILE */}
+      {tab === 'profile' && (
+        <section className="panel">
+          <h3>Perfil de la Empresa</h3>
+          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, marginTop: 12 }}>
+            <p style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
+              <b>{profile.legal_name || profile.name || 'Fixme Store'}</b>
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: '13px', color: '#475569' }}>
+              <div>Tipo de Negocio: <strong>{profile.business_type || 'RETAIL'}</strong></div>
+              <div>Plan Activo: <strong>{profile.plan || 'STARTER'}</strong></div>
+              <div>Teléfono: <strong>{profile.phone || 'No registrado'}</strong></div>
+              <div>Estado de suscripción: <strong style={{ color: '#059669' }}>{profile.subscription_status || 'ACTIVA'}</strong></div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Modal for Individual User Permissions */}
+      {userPermModal && (
+        <div className="modal-backdrop" onClick={() => setUserPermModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <div className="modal-header">
+              <h3>⚙ Permisos de {userPermModal.fullName || userPermModal.email}</h3>
+              <button className="close-btn" onClick={() => setUserPermModal(null)}>✕</button>
+            </div>
+            <div>
+              <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, marginBottom: 14, fontSize: '12.5px' }}>
+                Rol actual: <strong>{userPermModal.role}</strong> · Correo: <strong>{userPermModal.email}</strong>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    className="matrix-checkbox"
+                    checked={isCustomPerms}
+                    onChange={e => {
+                      setIsCustomPerms(e.target.checked);
+                      if (!e.target.checked) {
+                        setSelectedPerms(rolePerms[userPermModal.role] || []);
+                      }
+                    }}
+                  />
+                  Activar permisos personalizados exclusivos para este usuario
+                </label>
+                <small style={{ display: 'block', color: '#64748b', marginTop: 4, marginLeft: 26, fontSize: '12px' }}>
+                  {isCustomPerms
+                    ? 'Este usuario tendrá su propia lista de permisos independientes de su rol.'
+                    : 'Si esta opción está desactivada, el usuario hereda automáticamente cualquier cambio que hagas en la matriz de su rol.'}
+                </small>
+              </div>
+
+              {isCustomPerms && (
+                <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, marginBottom: 16 }}>
+                  {MODULES.map(m => (
+                    <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '12.5px' }}>
+                      <input
+                        type="checkbox"
+                        className="matrix-checkbox"
+                        checked={selectedPerms.includes(m.key)}
+                        onChange={e => toggleUserPerm(m.key, e.target.checked)}
+                      />
+                      <div>
+                        <strong>{m.label}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{m.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setUserPermModal(null)}>Cancelar</button>
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={savingUserPerms}
+                  onClick={saveUserPerms}
+                >
+                  {savingUserPerms ? 'Guardando...' : 'Guardar Permisos'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, go?:(p:string)=>void}){
+  const [orders, setOrders] = React.useState<Any[]>([]);
+  const [stats, setStats] = React.useState<Any>({ total: 0, active: 0, in_repair: 0, waiting_parts: 0, ready: 0, completed: 0, urgent_sla: 0 });
+  const [filter, setFilter] = React.useState('ALL');
+  const [search, setSearch] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [noteModal, setNoteModal] = React.useState<Any|null>(null);
+  const [noteForm, setNoteForm] = React.useState({ diagnosis: '', technicianNotes: '' });
+  const [updating, setUpdating] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      api('/api/work-orders/my-work').then(r => r.ok ? r.json() : []),
+      api('/api/work-orders/my-work/stats').then(r => r.ok ? r.json() : {})
+    ]).then(([ordersData, statsData]) => {
+      setOrders(ordersData);
+      setStats(statsData);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [api]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  async function updateStatus(orderId: string, newStatus: string, defaultNote?: string) {
+    setUpdating(true);
+    const r = await api(`/api/work-orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus, technicianNotes: defaultNote || '' })
+    });
+    setUpdating(false);
+    if (r.ok) {
+      notify?.('Estado de la orden actualizado a ' + newStatus);
+      load();
+    } else {
+      notify?.('No se pudo actualizar el estado');
+    }
+  }
+
+  async function saveTechnicalNotes(e: React.FormEvent) {
+    e.preventDefault();
+    if (!noteModal) return;
+    setUpdating(true);
+    const r = await api(`/api/work-orders/${noteModal.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        diagnosis: noteForm.diagnosis,
+        technicianNotes: noteForm.technicianNotes,
+        quote: noteModal.quote || 0,
+        estimatedDelivery: noteModal.estimated_delivery || null,
+        assignedTechnicianId: noteModal.assigned_technician_id || null,
+        slaHours: noteModal.sla_hours || 48,
+        items: noteModal.items || []
+      })
+    });
+    setUpdating(false);
+    if (r.ok) {
+      notify?.('Notas técnicas y diagnóstico guardados');
+      setNoteModal(null);
+      load();
+    } else {
+      notify?.('Error al guardar notas');
+    }
+  }
+
+  function getSlaBadge(o: Any) {
+    if (o.status === 'COMPLETED' || o.status === 'ENTREGADO' || o.status === 'LISTO_ENTREGA') {
+      return <span className="sla-badge sla-badge-ok">✓ Listo / Reparado</span>;
+    }
+    const deadline = o.sla_deadline || o.estimated_delivery;
+    if (!deadline) {
+      return <span className="sla-badge sla-badge-ok">⏱ Meta {o.sla_hours || 48}h</span>;
+    }
+    const diffMs = new Date(deadline).getTime() - Date.now();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    if (diffHours < 0) {
+      const passed = Math.abs(Math.round(diffHours));
+      return <span className="sla-badge sla-badge-overdue">🚨 Vencido hace {passed}h</span>;
+    }
+    if (diffHours <= 12) {
+      const leftH = Math.floor(diffHours);
+      const leftM = Math.round((diffHours - leftH) * 60);
+      return <span className="sla-badge sla-badge-warning">⚠️ Urgente: {leftH}h {leftM}m restantes</span>;
+    }
+    const leftDays = Math.floor(diffHours / 24);
+    const leftH = Math.round(diffHours % 24);
+    return <span className="sla-badge sla-badge-ok">⏱ {leftDays > 0 ? `${leftDays}d ` : ''}{leftH}h restantes</span>;
+  }
+
+  const filteredOrders = orders.filter(o => {
+    if (filter !== 'ALL') {
+      if (filter === 'ACTIVE') {
+        if (!['RECIBIDO', 'EN_DIAGNOSTICO', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'OPEN', 'DIAGNOSIS', 'APPROVED', 'IN_PROGRESS'].includes(o.status)) return false;
+      } else if (filter === 'IN_REPAIR') {
+        if (!['EN_REPARACION', 'IN_PROGRESS'].includes(o.status)) return false;
+      } else if (filter === 'WAITING_PARTS') {
+        if (o.status !== 'ESPERANDO_REPUESTOS') return false;
+      } else if (filter === 'READY') {
+        if (!['LISTO_ENTREGA', 'COMPLETED'].includes(o.status)) return false;
+      }
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const match = (o.order_number || '').toLowerCase().includes(q) ||
+                    (o.device_brand || '').toLowerCase().includes(q) ||
+                    (o.device_model || '').toLowerCase().includes(q) ||
+                    (o.serial_number || '').toLowerCase().includes(q) ||
+                    (o.customer_name || '').toLowerCase().includes(q) ||
+                    (o.reported_fault || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  return (
+    <>
+      <div className="section-header" style={{ marginBottom: 16 }}>
+        <div>
+          <h2>🛠️ Mi Trabajo y Taller Personal</h2>
+          <p>Órdenes asignadas directamente a ti. Gestiona avances técnicos, cumple los tiempos de garantía y contacta a los clientes.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="secondary-action" onClick={load}>🔄 Refrescar</button>
+        </div>
+      </div>
+
+      {/* KPI Counters */}
+      <div className="summary-grid" style={{ marginBottom: 18 }}>
+        <div className="summary-card" onClick={() => setFilter('ALL')} style={{ cursor: 'pointer', borderLeft: filter === 'ALL' ? '4px solid #3157d5' : undefined }}>
+          <small>Total Asignadas</small>
+          <strong>{stats.total || orders.length}</strong>
+          <span>Todas mis órdenes</span>
+        </div>
+        <div className="summary-card" onClick={() => setFilter('IN_REPAIR')} style={{ cursor: 'pointer', borderLeft: filter === 'IN_REPAIR' ? '4px solid #2563eb' : undefined }}>
+          <small>En Reparación</small>
+          <strong style={{ color: '#2563eb' }}>{stats.in_repair || 0}</strong>
+          <span>En mi banco de trabajo</span>
+        </div>
+        <div className="summary-card" onClick={() => setFilter('WAITING_PARTS')} style={{ cursor: 'pointer', borderLeft: filter === 'WAITING_PARTS' ? '4px solid #d97706' : undefined }}>
+          <small>Esperando Repuestos</small>
+          <strong style={{ color: '#d97706' }}>{stats.waiting_parts || 0}</strong>
+          <span>Pendientes de piezas</span>
+        </div>
+        <div className="summary-card" onClick={() => setFilter('READY')} style={{ cursor: 'pointer', borderLeft: filter === 'READY' ? '4px solid #059669' : undefined }}>
+          <small>Listos para Entrega</small>
+          <strong style={{ color: '#059669' }}>{stats.ready || 0}</strong>
+          <span>Reparación culminada</span>
+        </div>
+        <div className="summary-card" style={{ background: Number(stats.urgent_sla || 0) > 0 ? '#fef2f2' : '#f8fafc', borderColor: Number(stats.urgent_sla || 0) > 0 ? '#fca5a5' : '#e2e8f0' }}>
+          <small style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : undefined }}>SLA Crítico (&lt;12h / Vencido)</small>
+          <strong style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : '#64748b' }}>{stats.urgent_sla || 0}</strong>
+          <span>Prioridad inmediata</span>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Search */}
+      <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+          {[
+            ['ALL', `Todas (${orders.length})`],
+            ['ACTIVE', `Activas (${stats.active || 0})`],
+            ['IN_REPAIR', `En Reparación (${stats.in_repair || 0})`],
+            ['WAITING_PARTS', `Esperando Repuestos (${stats.waiting_parts || 0})`],
+            ['READY', `Listas para Entrega (${stats.ready || 0})`]
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              className={filter === k ? 'btn-filter active' : 'btn-filter'}
+              onClick={() => setFilter(k)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '20px',
+                border: filter === k ? '1px solid #3157d5' : '1px solid #cbd5e1',
+                background: filter === k ? '#eff6ff' : '#ffffff',
+                color: filter === k ? '#1d4ed8' : '#475569',
+                fontWeight: filter === k ? 700 : 500,
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ minWidth: '240px', flex: '1 1 240px', maxWidth: '380px' }}>
+          <input
+            type="text"
+            placeholder="🔍 Buscar por orden, equipo, cliente, serie..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+          />
+        </div>
+      </div>
+
+      {/* Orders Grid */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Cargando órdenes asignadas...</div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="panel empty" style={{ textAlign: 'center', padding: '40px 20px', background: '#ffffff', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
+          <h3 style={{ margin: '0 0 6px 0', color: '#1e293b' }}>¡Todo al día en tu banco de trabajo!</h3>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
+            {orders.length === 0 ? 'No tienes órdenes de servicio asignadas actualmente.' : 'No hay órdenes que coincidan con este filtro o búsqueda.'}
+          </p>
+        </div>
+      ) : (
+        <div className="mywork-grid">
+          {filteredOrders.map(o => {
+            const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
+            const waMsg = encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`);
+            const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
+
+            const isRepair = ['EN_REPARACION', 'IN_PROGRESS'].includes(o.status);
+            const isWaiting = o.status === 'ESPERANDO_REPUESTOS';
+            const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(o.status);
+
+            return (
+              <div key={o.id} className="mywork-card">
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>{o.order_number || 'OT-#'}</span>
+                      <div style={{ marginTop: 2 }}>{getSlaBadge(o)}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: 12,
+                      background: isRepair ? '#dbeafe' : isWaiting ? '#fef3c7' : isReady ? '#d1fae5' : '#f1f5f9',
+                      color: isRepair ? '#1e40af' : isWaiting ? '#92400e' : isReady ? '#065f46' : '#475569'
+                    }}>
+                      {o.status}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                    📱 {o.device_brand} {o.device_model}
+                  </div>
+                  {o.serial_number && (
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: 6 }}>
+                      S/N: <code>{o.serial_number}</code>
+                    </div>
+                  )}
+
+                  <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: 6, fontSize: '12px', color: '#334155', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, color: '#64748b', fontSize: '10.5px', textTransform: 'uppercase', marginBottom: 2 }}>Falla Reportada:</div>
+                    <div>"{o.reported_fault || 'Sin detalle de falla'}"</div>
+                    {o.accessories && <div style={{ fontSize: '11px', color: '#64748b', marginTop: 4 }}>Accesorios: {o.accessories}</div>}
+                  </div>
+
+                  {o.diagnosis && (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '8px 10px', borderRadius: 6, fontSize: '12px', color: '#166534', marginBottom: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: '10.5px', textTransform: 'uppercase', marginBottom: 2 }}>Diagnóstico Técnico:</div>
+                      <div>{o.diagnosis}</div>
+                    </div>
+                  )}
+
+                  {o.technician_notes && (
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '8px 10px', borderRadius: 6, fontSize: '11.5px', color: '#1e40af', marginBottom: 8 }}>
+                      <strong>Nota de avance:</strong> {o.technician_notes}
+                    </div>
+                  )}
+
+                  {/* Customer Info */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', fontSize: '12px', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1e293b' }}>👤 {o.customer_name || 'Cliente'}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>📞 {o.customer_phone || 'Sin teléfono'}</div>
+                    </div>
+                    {waUrl && (
+                      <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#25d366', color: '#ffffff', padding: '4px 8px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                        💬 WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Technician Quick Actions */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 6 }}>
+                  {!isRepair && !isReady && (
+                    <button
+                      className="tech-action-btn tech-action-repair"
+                      disabled={updating}
+                      onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Técnico inició la reparación')}
+                    >
+                      ▶ Iniciar Reparación
+                    </button>
+                  )}
+                  {!isWaiting && !isReady && (
+                    <button
+                      className="tech-action-btn tech-action-parts"
+                      disabled={updating}
+                      onClick={() => updateStatus(o.id, 'ESPERANDO_REPUESTOS', 'Esperando repuestos')}
+                    >
+                      ⏳ Esperar Repuestos
+                    </button>
+                  )}
+                  {!isReady && (
+                    <button
+                      className="tech-action-btn tech-action-ready"
+                      disabled={updating}
+                      onClick={() => updateStatus(o.id, 'LISTO_ENTREGA', 'Reparación culminada con éxito')}
+                    >
+                      ✓ Marcar Listo
+                    </button>
+                  )}
+                  <button
+                    className="tech-action-btn tech-action-diag"
+                    onClick={() => {
+                      setNoteModal(o);
+                      setNoteForm({ diagnosis: o.diagnosis || '', technicianNotes: o.technician_notes || '' });
+                    }}
+                  >
+                    📝 Nota / Diagnóstico
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal for Technical Notes and Diagnosis */}
+      {noteModal && (
+        <div className="modal-backdrop" onClick={() => setNoteModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div className="modal-header">
+              <h3>📝 Ficha Técnica - {noteModal.order_number}</h3>
+              <button className="close-btn" onClick={() => setNoteModal(null)}>✕</button>
+            </div>
+            <form onSubmit={saveTechnicalNotes}>
+              <div style={{ marginBottom: 12 }}>
+                <strong>{noteModal.device_brand} {noteModal.device_model}</strong>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>Falla: {noteModal.reported_fault}</div>
+              </div>
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Diagnóstico Técnico</span>
+                <textarea
+                  rows={3}
+                  value={noteForm.diagnosis}
+                  onChange={e => setNoteForm({ ...noteForm, diagnosis: e.target.value })}
+                  placeholder="Describe la falla encontrada tras revisar el equipo..."
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 16 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Nota de Trabajo / Bitácora Interna</span>
+                <textarea
+                  rows={2}
+                  value={noteForm.technicianNotes}
+                  onChange={e => setNoteForm({ ...noteForm, technicianNotes: e.target.value })}
+                  placeholder="Ej: Cambio de pantalla ejecutado, testeando batería..."
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '13px' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setNoteModal(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={updating}>
+                  {updating ? 'Guardando...' : 'Guardar Ficha'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,go:(p:string)=>void,role:string}){
   const [data, setData] = React.useState<Any>({});
   const global = role === 'TENANT_ADMIN' || role === 'SUPER_ADMIN';
@@ -2034,7 +2902,7 @@ function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Respons
     : role === 'DELIVERY'
     ? [['deliveries', '🛵', 'Entregas a Domicilio', 'Rutas, llamadas y despachos']]
     : role === 'TECHNICIAN'
-    ? [['work-orders', '🛠️', 'Órdenes de Servicio', 'Diagnóstico y cotizaciones']]
+    ? [['my-work', '🛠️', 'Mi Trabajo Asignado', 'Mis órdenes y estados técnicos'], ['work-orders', '📋', 'Todas las Órdenes', 'Diagnóstico general'], ['pos', '🛒', 'Punto de Venta', 'Vender si tengo permiso']]
     : role === 'SELLER'
     ? [['pos', '🛒', 'Nueva Venta', 'Local o a domicilio'], ['cash', '💵', 'Arqueo de Caja', 'Efectivo y movimientos'], ['customers', '👤', 'Nuevo Cliente', 'Ficha comercial'], ['work-orders', '🛠️', 'Ingresar Equipo', 'Ficha técnica']]
     : [['pos', '🛒', 'Punto de Venta', 'Cobro omnicanal y delivery'], ['products', '📦', 'Catálogo & Margen', 'Precios, stock y costos'], ['deliveries', '🛵', 'Despachos', 'Envíos en curso'], ['reports', '📊', 'Reportes Financieros', 'Ingresos, COGS y margen']];

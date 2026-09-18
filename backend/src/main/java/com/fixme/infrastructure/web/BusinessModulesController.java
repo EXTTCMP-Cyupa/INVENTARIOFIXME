@@ -40,6 +40,11 @@ public class BusinessModulesController {
     db.queryForObject("select set_config('app.tenant_id',?,true)", String.class, t.toString());
   }
 
+  private UUID user(UUID t, String email) {
+    ctx(t);
+    return db.queryForObject("select id from app_users where tenant_id=? and lower(email)=lower(?)", UUID.class, t, email);
+  }
+
   private UUID id(String s) {
     try {
       return UUID.fromString(s);
@@ -398,6 +403,40 @@ public class BusinessModulesController {
   ) {
     UUID t = tenant(j);
     return workOrderService.listOrders(t, status, search, technicianId);
+  }
+
+  @GetMapping("/api/work-orders/my-work")
+  @PreAuthorize("isAuthenticated()")
+  public List<Map<String, Object>> myWorkOrders(
+      @AuthenticationPrincipal Jwt j,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String search
+  ) {
+    UUID t = tenant(j);
+    UUID u = user(t, j.getSubject());
+    return workOrderService.listOrders(t, status, search, u);
+  }
+
+  @GetMapping("/api/work-orders/my-work/stats")
+  @PreAuthorize("isAuthenticated()")
+  public Map<String, Object> myWorkStats(@AuthenticationPrincipal Jwt j) {
+    UUID t = tenant(j);
+    UUID u = user(t, j.getSubject());
+    ctx(t);
+    String sql = """
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status IN ('RECIBIDO','EN_DIAGNOSTICO','EN_REPARACION','ESPERANDO_REPUESTOS','OPEN','DIAGNOSIS','QUOTED','APPROVED','IN_PROGRESS','WAITING_PARTS')) AS active,
+          COUNT(*) FILTER (WHERE status IN ('EN_REPARACION','IN_PROGRESS')) AS in_repair,
+          COUNT(*) FILTER (WHERE status IN ('ESPERANDO_REPUESTOS','WAITING_PARTS')) AS waiting_parts,
+          COUNT(*) FILTER (WHERE status IN ('LISTO_ENTREGA','COMPLETED')) AS ready,
+          COUNT(*) FILTER (WHERE status IN ('ENTREGADO','DELIVERED')) AS completed,
+          COUNT(*) FILTER (WHERE status IN ('RECIBIDO','EN_DIAGNOSTICO','EN_REPARACION','ESPERANDO_REPUESTOS','OPEN','DIAGNOSIS','QUOTED','APPROVED','IN_PROGRESS','WAITING_PARTS')
+                           AND estimated_delivery IS NOT NULL AND estimated_delivery <= now() + interval '12 hours') AS urgent_sla
+        FROM work_orders
+        WHERE tenant_id = ? AND assigned_technician_id = ?
+        """;
+    return db.queryForMap(sql, t, u);
   }
 
   @PostMapping("/api/work-orders")

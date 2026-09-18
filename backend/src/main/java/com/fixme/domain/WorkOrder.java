@@ -35,7 +35,8 @@ public class WorkOrder {
   private List<WorkOrderItem> items = new ArrayList<>();
 
   public static final Set<String> VALID_STATUSES = Set.of(
-      "OPEN", "DIAGNOSIS", "QUOTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "CANCELLED"
+      "OPEN", "DIAGNOSIS", "QUOTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "CANCELLED",
+      "RECIBIDO", "EN_DIAGNOSTICO", "EN_REPARACION", "ESPERANDO_REPUESTOS", "WAITING_PARTS", "LISTO_ENTREGA", "ENTREGADO"
   );
 
   public WorkOrder(
