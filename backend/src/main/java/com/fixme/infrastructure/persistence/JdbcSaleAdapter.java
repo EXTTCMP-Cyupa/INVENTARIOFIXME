@@ -138,11 +138,11 @@ public class JdbcSaleAdapter implements SalePort {
       );
     }
 
-    if (warranty > 0 && customerId != null) {
+    if (warranty > 0) {
       for (Object[] row : rows) {
         jdbc.update(
             "insert into warranties(tenant_id, sale_id, product_id, customer_id, expires_at, terms) values(?,?,?,?,now()+(? * interval '1 day'),?)",
-            t, id, ((Item) row[0]).productId(), customerId, warranty, "Garantía registrada en la venta"
+            t, id, ((Item) row[0]).productId(), customerId, warranty, "Garantía de " + warranty + " días registrada en la venta"
         );
       }
     }
