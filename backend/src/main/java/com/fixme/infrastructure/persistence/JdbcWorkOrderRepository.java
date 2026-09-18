@@ -3,6 +3,7 @@ package com.fixme.infrastructure.persistence;
 import com.fixme.application.WorkOrderPort;
 import com.fixme.domain.WorkOrder;
 import com.fixme.domain.WorkOrderItem;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -21,7 +22,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
   }
 
   private void setTenantContext(UUID tenantId) {
-    db.queryForObject("select set_config('app.tenant_id', ?, true)", String.class, tenantId.toString());
+    db.queryForObject("SELECT set_config('app.tenant_id', ?, true)", String.class, tenantId.toString());
   }
 
   private final RowMapper<WorkOrder> mapper = (rs, rowNum) -> mapRow(rs);
@@ -50,6 +51,9 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
         rs.getString("client_notes"),
         rs.getString("rejection_reason"),
         rs.getObject("estimated_delivery", OffsetDateTime.class),
+        rs.getObject("assigned_technician_id", UUID.class),
+        rs.getInt("sla_hours"),
+        rs.getObject("sla_deadline", OffsetDateTime.class),
         rs.getObject("created_at", OffsetDateTime.class),
         rs.getObject("updated_at", OffsetDateTime.class)
     );
@@ -85,15 +89,17 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
           device_brand, device_model, serial_number, reported_fault, accessories,
           description, diagnosis, quote, status, approval_token_hash,
           approval_expires_at, approved_at, approval_url, technician_notes,
-          client_notes, rejection_reason, estimated_delivery, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          client_notes, rejection_reason, estimated_delivery, assigned_technician_id,
+          sla_hours, sla_deadline, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
     db.update(sql,
         w.getId(), w.getTenantId(), w.getCustomerId(), w.getBranchId(), w.getOrderNumber(),
         w.getDeviceBrand(), w.getDeviceModel(), w.getSerialNumber(), w.getReportedFault(), w.getAccessories(),
         w.getDescription(), w.getDiagnosis(), w.getQuote(), w.getStatus(), w.getApprovalTokenHash(),
         w.getApprovalExpiresAt(), w.getApprovedAt(), w.getApprovalUrl(), w.getTechnicianNotes(),
-        w.getClientNotes(), w.getRejectionReason(), w.getEstimatedDelivery(), w.getCreatedAt(), w.getUpdatedAt()
+        w.getClientNotes(), w.getRejectionReason(), w.getEstimatedDelivery(), w.getAssignedTechnicianId(),
+        w.getSlaHours(), w.getSlaDeadline(), w.getCreatedAt(), w.getUpdatedAt()
     );
 
     if (w.getItems() != null && !w.getItems().isEmpty()) {
@@ -112,7 +118,8 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
           reported_fault = ?, accessories = ?, description = ?, diagnosis = ?,
           quote = ?, status = ?, approval_token_hash = ?, approval_expires_at = ?,
           approved_at = ?, approval_url = ?, technician_notes = ?, client_notes = ?,
-          rejection_reason = ?, estimated_delivery = ?, updated_at = now()
+          rejection_reason = ?, estimated_delivery = ?, assigned_technician_id = ?,
+          sla_hours = ?, sla_deadline = ?, updated_at = now()
         WHERE id = ? AND tenant_id = ?
         """;
     db.update(sql,
@@ -120,7 +127,8 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
         w.getReportedFault(), w.getAccessories(), w.getDescription(), w.getDiagnosis(),
         w.getQuote(), w.getStatus(), w.getApprovalTokenHash(), w.getApprovalExpiresAt(),
         w.getApprovedAt(), w.getApprovalUrl(), w.getTechnicianNotes(), w.getClientNotes(),
-        w.getRejectionReason(), w.getEstimatedDelivery(), w.getId(), w.getTenantId()
+        w.getRejectionReason(), w.getEstimatedDelivery(), w.getAssignedTechnicianId(),
+        w.getSlaHours(), w.getSlaDeadline(), w.getId(), w.getTenantId()
     );
 
     if (w.getItems() != null) {
@@ -163,7 +171,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
   }
 
   @Override
-  public List<Map<String, Object>> listEnriched(UUID tenantId, String statusFilter, String search) {
+  public List<Map<String, Object>> listEnriched(UUID tenantId, String statusFilter, String search, UUID technicianId) {
     setTenantContext(tenantId);
     StringBuilder sql = new StringBuilder("""
         SELECT w.id, w.tenant_id, w.customer_id, w.branch_id, w.order_number,
@@ -171,11 +179,17 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
                w.accessories, w.description, w.diagnosis, w.quote, w.status,
                w.approval_url, w.approval_expires_at, w.approved_at, w.technician_notes,
                w.client_notes, w.rejection_reason, w.estimated_delivery, w.created_at, w.updated_at,
+               w.assigned_technician_id,
+               COALESCE(w.sla_deadline, w.created_at + (COALESCE(w.sla_hours, 48) || ' hours')::interval) AS sla_deadline,
+               COALESCE(w.sla_hours, 48) AS sla_hours,
                c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-               b.name AS branch_name
+               b.name AS branch_name,
+               COALESCE(NULLIF(tech.full_name, ''), tech.email) AS technician_name,
+               tech.phone AS technician_phone
         FROM work_orders w
         LEFT JOIN customers c ON c.id = w.customer_id
         LEFT JOIN branches b ON b.id = w.branch_id
+        LEFT JOIN app_users tech ON tech.id = w.assigned_technician_id
         WHERE w.tenant_id = ?
         """);
 
@@ -187,9 +201,15 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
       params.add(statusFilter);
     }
 
+    if (technicianId != null) {
+      sql.append(" AND w.assigned_technician_id = ?");
+      params.add(technicianId);
+    }
+
     if (search != null && !search.isBlank()) {
-      sql.append(" AND (lower(coalesce(w.order_number,'')) LIKE ? OR lower(coalesce(c.name,'')) LIKE ? OR lower(coalesce(w.device_model,'')) LIKE ? OR lower(coalesce(w.serial_number,'')) LIKE ? OR lower(coalesce(w.description,'')) LIKE ?)");
+      sql.append(" AND (lower(coalesce(w.order_number,'')) LIKE ? OR lower(coalesce(c.name,'')) LIKE ? OR lower(coalesce(w.device_model,'')) LIKE ? OR lower(coalesce(w.serial_number,'')) LIKE ? OR lower(coalesce(w.description,'')) LIKE ? OR lower(coalesce(tech.full_name,'')) LIKE ?)");
       String pattern = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
+      params.add(pattern);
       params.add(pattern);
       params.add(pattern);
       params.add(pattern);

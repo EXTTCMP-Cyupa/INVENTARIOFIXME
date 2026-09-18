@@ -3,7 +3,551 @@ type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false);let role='';try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.scope||'').replace('SCOPE_','').split(' ')[0]}catch{}const allowed:Record<string,string[]>={SUPER_ADMIN:nav.map(n=>n[0]),TENANT_ADMIN:nav.map(n=>n[0]),MANAGER:['home','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['products','customers','work-orders','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=allowed[role]||['home'];const item=(key:string)=>nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> Fixme<span>Tiendas</span></div><div className="branch-switch"><small>SUCURSAL ACTUAL</small><strong>Principal</strong><span>● Operativa</span></div><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=item(k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}<div className="sidebar-user"><div className="user-avatar">{role.slice(0,1)||'U'}</div><div><strong>{role||'USUARIO'}</strong><small>Sesión activa</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{role||'USUARIO'} · DEMO TENANT</small><h1>{item(page)?.[1]||'Acceso denegado'}</h1><p className="header-subtitle">Sucursal Principal <span>•</span> Información actualizada</p></div><div className="header-actions"><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{role.slice(0,1)||'U'}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?((role==='TENANT_ADMIN'||role==='SUPER_ADMIN')?<PlatformAdministration api={api}/>:<Administration api={api}/>):page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api}/>:<section className="panel"><h3>Acceso denegado</h3><p>No tienes permisos para esta sección.</p></section>}<nav className="mobile-nav">{nav.filter(n=>visible.includes(n[0])).slice(0,5).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main></div>}
 function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok)onLogin((await r.json()).accessToken);else setError('No pudimos validar tus credenciales.')}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
-function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){const[s,setS]=React.useState<Any|null>(null),[history,setHistory]=React.useState<Any[]>([]),[opening,setOpening]=React.useState('100'),[counted,setCounted]=React.useState(''),[movement,setMovement]=React.useState({type:'CASH_IN',paymentMethod:'CASH',amount:'',reason:''});const load=React.useCallback(()=>{api('/api/cash/current?branchId='+branchId).then(r=>r.json()).then(x=>setS(x&&x.id?x:null));api('/api/cash/movements?branchId='+branchId).then(r=>r.ok?r.json():[]).then(setHistory)},[api]);React.useEffect(()=>{load()},[load]);async function open(){const r=await api('/api/cash/open?branchId='+branchId,{method:'POST',body:JSON.stringify({openingCash:Number(opening),amounts:{CASH:Number(opening)}})});if(r.ok){notify('Caja abierta');load()}}async function move(){const r=await api('/api/cash/movement?branchId='+branchId,{method:'POST',body:JSON.stringify({...movement,amount:Number(movement.amount)})});if(r.ok){notify('Movimiento registrado');setMovement({...movement,amount:'',reason:''});load()}}async function close(){const r=await api('/api/cash/close?branchId='+branchId,{method:'POST',body:JSON.stringify({counted:{CASH:Number(counted||0),CARD:Number(s&&s.expected&&s.expected.CARD||0)}})});if(r.ok){notify('Caja cerrada');load()}}return <section className="panel"><h3>Caja</h3>{!s?<div className="inline-form"><p>No hay una sesi?n abierta.</p><input type="number" value={opening} onChange={e=>setOpening(e.target.value)}/><button onClick={open}>Abrir caja</button></div>:<><div className="kpis"><Kpi label="Efectivo esperado" value={'$'+Number(s.expected&&s.expected.CASH||0).toFixed(2)} trend="Sesi?n activa"/><Kpi label="Tarjeta" value={'$'+Number(s.expected&&s.expected.CARD||0).toFixed(2)} trend="No efectivo"/></div><div className="panel cash-movement"><h4>Registrar movimiento</h4><div className="form-grid"><select value={movement.type} onChange={e=>setMovement({...movement,type:e.target.value})}><option value="CASH_IN">Entrada de efectivo</option><option value="CASH_OUT">Salida de efectivo</option></select><select value={movement.paymentMethod} onChange={e=>setMovement({...movement,paymentMethod:e.target.value})}><option>CASH</option><option>CARD</option><option>TRANSFER</option><option>OTHER</option></select><input type="number" min="0.01" placeholder="Monto" value={movement.amount} onChange={e=>setMovement({...movement,amount:e.target.value})}/><input placeholder="Motivo" value={movement.reason} onChange={e=>setMovement({...movement,reason:e.target.value})}/><button onClick={move}>Registrar</button></div></div><div className="inline-form"><input type="number" value={counted} onChange={e=>setCounted(e.target.value)} placeholder="Efectivo contado"/><button onClick={close}>Cerrar y arquear</button></div><h4>Historial de movimientos</h4><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Método</th><th>Monto</th><th>Motivo</th></tr></thead><tbody>{history.map((m:Any)=><tr key={m.id}><td>{new Date(m.created_at).toLocaleString()}</td><td>{m.type}</td><td>{m.payment_method}</td><td>${Number(m.amount).toFixed(2)}</td><td>{m.reason||''}</td></tr>)}</tbody></table></div></>}</section>}
+function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
+  const [s, setS] = React.useState<Any|null>(null);
+  const [history, setHistory] = React.useState<Any[]>([]);
+  const [opening, setOpening] = React.useState('100');
+  const [movementFilter, setMovementFilter] = React.useState('ALL');
+
+  // Modals
+  const [showMoveModal, setShowMoveModal] = React.useState(false);
+  const [showDepositModal, setShowDepositModal] = React.useState(false);
+  const [showCloseModal, setShowCloseModal] = React.useState(false);
+
+  // Forms
+  const [movement, setMovement] = React.useState({ type: 'CASH_IN', paymentMethod: 'CASH', amount: '', reason: '' });
+  const [depositForm, setDepositForm] = React.useState({ destination: 'BANCO_PICHINCHA', amount: '', reference: '', notes: '' });
+  const [closeForm, setCloseForm] = React.useState({ countedCash: '', depositDestination: 'BANCO_PICHINCHA', depositReference: '', depositAmount: '', nextDayFund: '50', notes: '' });
+
+  const load = React.useCallback(() => {
+    api('/api/cash/current?branchId=' + branchId).then(r => r.json()).then(x => setS(x && x.id ? x : null));
+    api('/api/cash/movements?branchId=' + branchId).then(r => r.ok ? r.json() : []).then(setHistory);
+  }, [api]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  async function open() {
+    const r = await api('/api/cash/open?branchId=' + branchId, {
+      method: 'POST',
+      body: JSON.stringify({ openingCash: Number(opening), amounts: { CASH: Number(opening) } })
+    });
+    if (r.ok) { notify('Caja de turno abierta exitosamente'); load(); }
+  }
+
+  async function move(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await api('/api/cash/movement?branchId=' + branchId, {
+      method: 'POST',
+      body: JSON.stringify({ ...movement, amount: Number(movement.amount) })
+    });
+    if (r.ok) {
+      notify('Movimiento registrado en caja');
+      setMovement({ type: 'CASH_IN', paymentMethod: 'CASH', amount: '', reason: '' });
+      setShowMoveModal(false);
+      load();
+    }
+  }
+
+  async function recordDeposit(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await api('/api/cash/deposit?branchId=' + branchId, {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: Number(depositForm.amount),
+        destination: depositForm.destination,
+        reference: depositForm.reference,
+        notes: depositForm.notes
+      })
+    });
+    if (r.ok) {
+      notify('Depósito a banco registrado');
+      setDepositForm({ destination: 'BANCO_PICHINCHA', amount: '', reference: '', notes: '' });
+      setShowDepositModal(false);
+      load();
+    }
+  }
+
+  async function close(e: React.FormEvent) {
+    e.preventDefault();
+    const counted = Number(closeForm.countedCash || 0);
+    const r = await api('/api/cash/close?branchId=' + branchId, {
+      method: 'POST',
+      body: JSON.stringify({
+        counted: {
+          CASH: counted,
+          CARD: Number(s && s.expected && s.expected.CARD || 0),
+          TRANSFER: Number(s && s.expected && s.expected.TRANSFER || 0)
+        },
+        depositDestination: closeForm.depositDestination,
+        depositReference: closeForm.depositReference,
+        depositAmount: Number(closeForm.depositAmount || 0),
+        nextDayFund: Number(closeForm.nextDayFund || 0),
+        notes: closeForm.notes
+      })
+    });
+    if (r.ok) {
+      notify('Caja cerrada y arqueada correctamente');
+      setShowCloseModal(false);
+      load();
+    }
+  }
+
+  const inDrawer = Number(s?.currentCashInDrawer ?? (s?.expected?.CASH ?? 0));
+  const countedNum = Number(closeForm.countedCash || 0);
+  const diff = closeForm.countedCash ? countedNum - inDrawer : 0;
+
+  const filteredHistory = history.filter(m => {
+    if (movementFilter === 'ALL') return true;
+    if (movementFilter === 'DEPOSIT') return m.type === 'DEPOSIT';
+    if (movementFilter === 'CASH_IN') return m.type === 'CASH_IN';
+    if (movementFilter === 'CASH_OUT') return m.type === 'CASH_OUT';
+    return true;
+  });
+
+  return (
+    <>
+      <section className="inventory-hero">
+        <div>
+          <span className="eyebrow">CONTROL DE EFECTIVO & FONDOS</span>
+          <h2>Arqueo de Caja y Depósitos</h2>
+          <p>Supervisa el dinero físico en gaveta, ventas en efectivo, gastos menores y destino de depósitos bancarios.</p>
+        </div>
+        <button className="primary-action" onClick={load}>Actualizar Caja</button>
+      </section>
+
+      {!s ? (
+        <section className="panel" style={{ maxWidth: '520px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', padding: '20px 10px' }}>
+            <span style={{ fontSize: '42px', display: 'block', marginBottom: '8px' }}>🔒</span>
+            <h3>No hay turno de caja abierto</h3>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+              Para registrar ventas y movimientos en efectivo en esta sucursal, inicia un nuevo turno con tu fondo base de cambio.
+            </p>
+            <div className="inline-form" style={{ justifyContent: 'center' }}>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={opening}
+                onChange={e => setOpening(e.target.value)}
+                placeholder="Fondo base ($)"
+                style={{ width: '150px', fontSize: '16px', fontWeight: 700 }}
+              />
+              <button className="primary-action" onClick={open}>
+                🟢 Abrir Turno de Caja
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          {/* CASH DRAWER HERO SUMMARY CARD */}
+          <div className="cash-drawer-card">
+            <div>
+              <small style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                💵 DINERO FÍSICO EN GAVETA (ACTUAL ESPERADO)
+              </small>
+              <div className="cash-drawer-val">
+                ${inDrawer.toFixed(2)}
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                <span className="cash-status-tag">
+                  ● Turno Activo desde {s.openedAt ? new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Hoy'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                onClick={() => setShowDepositModal(true)}
+              >
+                🏦 Depositar a Banco / Bóveda
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+                onClick={() => setShowMoveModal(true)}
+              >
+                📥 / 📤 Entrada / Gasto
+              </button>
+              <button
+                type="button"
+                className="primary-action"
+                style={{ background: '#ef4444' }}
+                onClick={() => {
+                  setCloseForm(f => ({ ...f, countedCash: inDrawer.toFixed(2) }));
+                  setShowCloseModal(true);
+                }}
+              >
+                🔒 Cerrar y Arquear
+              </button>
+            </div>
+
+            <div className="cash-breakdown-strip">
+              <div className="cash-sub-item">
+                <small>Fondo Apertura</small>
+                <strong>+${Number(s.openingCash || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Ventas Efectivo</small>
+                <strong style={{ color: '#38bdf8' }}>+${Number(s.salesCash || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Ingresos Extra</small>
+                <strong style={{ color: '#4ade80' }}>+${Number(s.inflows || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Gastos / Retiros</small>
+                <strong style={{ color: '#f87171' }}>-${Number(s.outflows || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Depósitos Banco</small>
+                <strong style={{ color: '#fbbf24' }}>-${Number(s.deposits || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Tarjeta / Transf</small>
+                <strong style={{ color: '#c084fc' }}>${(Number(s.expected?.CARD || 0) + Number(s.expected?.TRANSFER || 0)).toFixed(2)}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* MOVEMENTS HISTORY */}
+          <div className="panel table-panel">
+            <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h3>Registro Detallado de Movimientos</h3>
+                <p className="catalog-toolbar-p">Entradas, salidas de efectivo y depósitos bancarios de este turno</p>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[
+                  ['ALL', `Todos (${history.length})`],
+                  ['DEPOSIT', '🏦 Depósitos'],
+                  ['CASH_IN', '📥 Entradas'],
+                  ['CASH_OUT', '📤 Salidas']
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`filter-pill ${movementFilter === k ? 'active' : ''}`}
+                    onClick={() => setMovementFilter(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha y Hora</th>
+                    <th>Tipo</th>
+                    <th>Método</th>
+                    <th>Destino / Concepto</th>
+                    <th>Referencia / Comprobante</th>
+                    <th>Monto ($)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistory.map((m: Any) => (
+                    <tr key={m.id}>
+                      <td>{new Date(m.created_at).toLocaleDateString()} {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td>
+                        <span className={`deliv-badge ${
+                          m.type === 'DEPOSIT' ? 'badge-movement-deposit' :
+                          m.type === 'CASH_IN' ? 'badge-movement-in' : 'badge-movement-out'
+                        }`}>
+                          {m.type === 'DEPOSIT' ? '🏦 Depósito Banco' :
+                           m.type === 'CASH_IN' ? '📥 Ingreso Extra' : '📤 Gasto / Salida'}
+                        </span>
+                      </td>
+                      <td><b>{m.payment_method || 'CASH'}</b></td>
+                      <td>
+                        <strong>{m.destination || m.reason || 'Sin detalle'}</strong>
+                        {m.notes && <div style={{ fontSize: '11px', color: '#64748b' }}>{m.notes}</div>}
+                      </td>
+                      <td>
+                        {m.reference ? (
+                          <span className="guide-pill">📄 {m.reference}</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>-</span>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 800, color: m.type === 'CASH_IN' ? '#10b981' : '#ef4444' }}>
+                        {m.type === 'CASH_IN' ? '+' : '-'}${Number(m.amount).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredHistory.length && (
+                <div className="empty">
+                  <b>💵</b>
+                  <p>No se encontraron movimientos para este criterio.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* MODAL DEPOSITO BANCARIO */}
+      {showDepositModal && (
+        <div className="modal-overlay" onClick={() => setShowDepositModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-head">
+              <h3>🏦 Registrar Depósito a Banco / Bóveda</h3>
+              <button className="close-button" onClick={() => setShowDepositModal(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 14px' }}>
+              Registra la salida física del dinero de gaveta hacia una cuenta de banco o resguardo en bóveda.
+            </p>
+            <div style={{ background: '#f0fdf4', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', color: '#166534', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Efectivo disponible en gaveta:</span>
+              <strong>${inDrawer.toFixed(2)}</strong>
+            </div>
+
+            <form onSubmit={recordDeposit}>
+              <label>
+                <span>Destino del Depósito *</span>
+                <select
+                  value={depositForm.destination}
+                  onChange={e => setDepositForm({ ...depositForm, destination: e.target.value })}
+                  required
+                >
+                  <option value="BANCO_PICHINCHA">Banco Pichincha (Cta. Corriente)</option>
+                  <option value="BANCO_GUAYAQUIL">Banco Guayaquil</option>
+                  <option value="BANCO_PRODUBANCO">Banco Produbanco</option>
+                  <option value="BOVEDA_CENTRAL">Bóveda Central / Caja Fuerte</option>
+                  <option value="RETIRO_GERENCIA">Retiro Propietario / Gerencia</option>
+                  <option value="OTRO">Otro Destino</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Monto a Depositar ($) *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={inDrawer > 0 ? inDrawer : undefined}
+                  placeholder="0.00"
+                  value={depositForm.amount}
+                  onChange={e => setDepositForm({ ...depositForm, amount: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </label>
+
+              <label>
+                <span>N° Papeleta / Comprobante / Referencia</span>
+                <input
+                  placeholder="Ej. DEP-9938472"
+                  value={depositForm.reference}
+                  onChange={e => setDepositForm({ ...depositForm, reference: e.target.value })}
+                />
+              </label>
+
+              <label>
+                <span>Observaciones / Detalle</span>
+                <input
+                  placeholder="Ej. Depósito cierre parcial mediodía"
+                  value={depositForm.notes}
+                  onChange={e => setDepositForm({ ...depositForm, notes: e.target.value })}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-action" onClick={() => setShowDepositModal(false)}>
+                  Cancelar
+                </button>
+                <button className="primary-action">
+                  ✓ Confirmar Depósito
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL MOVIMIENTO MENOR */}
+      {showMoveModal && (
+        <div className="modal-overlay" onClick={() => setShowMoveModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-head">
+              <h3>📥 / 📤 Registrar Movimiento Menor</h3>
+              <button className="close-button" onClick={() => setShowMoveModal(false)}>✕</button>
+            </div>
+
+            <form onSubmit={move}>
+              <label>
+                <span>Tipo de Movimiento</span>
+                <select value={movement.type} onChange={e => setMovement({ ...movement, type: e.target.value })}>
+                  <option value="CASH_IN">📥 Entrada de Efectivo (Aporte/Cambio)</option>
+                  <option value="CASH_OUT">📤 Salida de Efectivo (Gasto menor / Flete)</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Monto ($) *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  value={movement.amount}
+                  onChange={e => setMovement({ ...movement, amount: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </label>
+
+              <label>
+                <span>Motivo o Concepto *</span>
+                <input
+                  placeholder="Ej. Pago de flete moto, suministros oficina, almuerzo..."
+                  value={movement.reason}
+                  onChange={e => setMovement({ ...movement, reason: e.target.value })}
+                  required
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-action" onClick={() => setShowMoveModal(false)}>
+                  Cancelar
+                </button>
+                <button className="primary-action">
+                  ✓ Guardar Movimiento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CIERRE Y ARQUEO */}
+      {showCloseModal && (
+        <div className="modal-overlay" onClick={() => setShowCloseModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-head">
+              <h3>🔒 Cierre y Arqueo de Caja</h3>
+              <button className="close-button" onClick={() => setShowCloseModal(false)}>✕</button>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: '#64748b' }}>Efectivo esperado según sistema:</span>
+                <strong style={{ fontSize: '15px' }}>${inDrawer.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: '#64748b' }}>Efectivo físico contado:</span>
+                <strong style={{ fontSize: '15px', color: '#3157d5' }}>${countedNum.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '6px' }}>
+                <span style={{ fontWeight: 700 }}>Diferencia de Cuadre:</span>
+                <span style={{
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  color: Math.abs(diff) < 0.01 ? '#10b981' : diff > 0 ? '#3b82f6' : '#ef4444'
+                }}>
+                  {Math.abs(diff) < 0.01 ? '✓ Cuadre Perfecto ($0.00)' : diff > 0 ? `+ Sobrante: $${diff.toFixed(2)}` : `- Faltante: $${Math.abs(diff).toFixed(2)}`}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={close}>
+              <label>
+                <span>Efectivo Físico Contado en Gaveta ($) *</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={closeForm.countedCash}
+                  onChange={e => setCloseForm({ ...closeForm, countedCash: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                <label>
+                  <span>Destino del Depósito de Cierre</span>
+                  <select
+                    value={closeForm.depositDestination}
+                    onChange={e => setCloseForm({ ...closeForm, depositDestination: e.target.value })}
+                  >
+                    <option value="BANCO_PICHINCHA">Banco Pichincha</option>
+                    <option value="BANCO_GUAYAQUIL">Banco Guayaquil</option>
+                    <option value="BOVEDA_CENTRAL">Bóveda Central</option>
+                    <option value="RETIRO_GERENCIA">Retiro Propietario</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Fondo Base para Mañana ($)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="50.00"
+                    value={closeForm.nextDayFund}
+                    onChange={e => setCloseForm({ ...closeForm, nextDayFund: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                <label>
+                  <span>N° Papeleta / Comprobante</span>
+                  <input
+                    placeholder="Ej. DEP-FINAL-102"
+                    value={closeForm.depositReference}
+                    onChange={e => setCloseForm({ ...closeForm, depositReference: e.target.value })}
+                  />
+                </label>
+
+                <label>
+                  <span>Monto a Depositar ($)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={(countedNum > Number(closeForm.nextDayFund || 0) ? (countedNum - Number(closeForm.nextDayFund || 0)).toFixed(2) : '0.00')}
+                    value={closeForm.depositAmount}
+                    onChange={e => setCloseForm({ ...closeForm, depositAmount: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label>
+                <span>Notas de Cierre del Turno</span>
+                <input
+                  placeholder="Observaciones de caja..."
+                  value={closeForm.notes}
+                  onChange={e => setCloseForm({ ...closeForm, notes: e.target.value })}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-action" onClick={() => setShowCloseModal(false)}>
+                  Cancelar
+                </button>
+                <button className="primary-action" style={{ background: '#ef4444' }}>
+                  ✓ Confirmar y Cerrar Turno
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [products, setProducts] = React.useState<Any[]>([]);
   const [customers, setCustomers] = React.useState<Any[]>([]);
@@ -248,7 +792,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         <div className="cart">
           {/* CHANNEL SELECTOR */}
           <div>
-            <label style={{ marginBottom: '6px', display: 'block' }}>Canal de Venta</label>
+            <label style={{ marginBottom: '6px', display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569' }}>Canal de Venta</label>
             <div className="toggle-group">
               <button
                 type="button"
@@ -262,28 +806,28 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                 className={`toggle-btn ${channel === 'ONLINE' ? 'active' : ''}`}
                 onClick={() => setChannel('ONLINE')}
               >
-                🌐 Internet / WhatsApp
+                🌐 Online / WhatsApp
               </button>
             </div>
           </div>
 
           {/* FULFILLMENT SELECTOR */}
           <div>
-            <label style={{ marginBottom: '6px', display: 'block' }}>Modalidad de Entrega</label>
+            <label style={{ marginBottom: '6px', display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569' }}>Modalidad de Entrega</label>
             <div className="toggle-group">
               <button
                 type="button"
                 className={`toggle-btn ${fulfillment === 'PICKUP' ? 'active' : ''}`}
                 onClick={() => setFulfillment('PICKUP')}
               >
-                🏬 Retiro en tienda
+                🏬 En tienda
               </button>
               <button
                 type="button"
                 className={`toggle-btn ${fulfillment === 'DELIVERY' ? 'active' : ''}`}
                 onClick={() => setFulfillment('DELIVERY')}
               >
-                🛵 Domicilio
+                🛵 A domicilio
               </button>
             </div>
           </div>
@@ -291,15 +835,15 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
           {/* DELIVERY FIELDS IF DELIVERY */}
           {fulfillment === 'DELIVERY' && (
             <div className="delivery-box">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
                 <strong style={{ fontSize: '12px', color: '#1e293b' }}>📦 Datos de Despacho</strong>
                 {customerId && (
                   <button
                     type="button"
                     onClick={fillCustomerData}
-                    style={{ border: 0, background: 'transparent', color: '#3157d5', fontSize: '11px', fontWeight: 700 }}
+                    style={{ border: 0, background: 'transparent', color: '#3157d5', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
                   >
-                    Usar datos de cliente
+                    ⚡ Usar datos cliente
                   </button>
                 )}
               </div>
@@ -308,27 +852,28 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                 value={delivery.address}
                 onChange={e => setDelivery({ ...delivery, address: e.target.value })}
                 required
+                style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
               />
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: '100%', boxSizing: 'border-box' }}>
                 <input
                   placeholder="Destinatario"
                   value={delivery.recipientName}
                   onChange={e => setDelivery({ ...delivery, recipientName: e.target.value })}
-                  style={{ flex: 1 }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
                 />
                 <input
                   placeholder="Teléfono"
                   value={delivery.recipientPhone}
                   onChange={e => setDelivery({ ...delivery, recipientPhone: e.target.value })}
-                  style={{ flex: 1 }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '6px', width: '100%', boxSizing: 'border-box' }}>
                 <input
-                  placeholder="Referencias / Notas (ej. Torre B, Timbre 4)"
+                  placeholder="Referencias (Torre, piso...)"
                   value={delivery.notes}
                   onChange={e => setDelivery({ ...delivery, notes: e.target.value })}
-                  style={{ flex: 2 }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
                 />
                 <input
                   type="number"
@@ -337,7 +882,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                   placeholder="Flete ($)"
                   value={delivery.shippingCost}
                   onChange={e => setDelivery({ ...delivery, shippingCost: e.target.value })}
-                  style={{ flex: 1 }}
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -597,6 +1142,9 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [rows, setRows] = React.useState<Any[]>([]);
   const [filterChannel, setFilterChannel] = React.useState('ALL');
+  const [search, setSearch] = React.useState('');
+  const [detailModal, setDetailModal] = React.useState<Any|null>(null);
+  const [loadingDetail, setLoadingDetail] = React.useState(false);
 
   const load = React.useCallback(() => {
     api(`/api/sales?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setRows);
@@ -604,10 +1152,32 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
 
   React.useEffect(() => { load(); }, [load]);
 
+  async function openDetail(id: string) {
+    setLoadingDetail(true);
+    try {
+      const res = await api(`/api/sales/${id}`);
+      if (res.ok) {
+        const fullSale = await res.json();
+        setDetailModal(fullSale);
+      }
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
   const filtered = rows.filter(r => {
-    if (filterChannel === 'ALL') return true;
-    return r.channel === filterChannel;
+    const matchChannel = filterChannel === 'ALL' ? true : r.channel === filterChannel;
+    const q = search.toLowerCase().trim();
+    const matchSearch = !q || [
+      r.id, r.customer, r.customer_name, r.seller, r.payment_methods, r.delivery_address
+    ].some(v => v && String(v).toLowerCase().includes(q));
+    return matchChannel && matchSearch;
   });
+
+  const totalSales = filtered.reduce((acc, r) => acc + Number(r.total || 0), 0);
+  const totalCost = filtered.reduce((acc, r) => acc + Number(r.total_cost || 0), 0);
+  const totalProfit = filtered.reduce((acc, r) => acc + Number(r.gross_profit || 0), 0);
+  const avgMargin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : '0.0';
 
   return (
     <>
@@ -617,31 +1187,68 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <h2>Ventas Registradas</h2>
           <p>Consulta canales (Local vs Online), método de pago, costo de venta y ganancia bruta generada.</p>
         </div>
-        <button className="primary-action" onClick={load}>Actualizar</button>
+        <button className="primary-action" onClick={load}>Actualizar Ventas</button>
       </section>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        <button
-          type="button"
-          className={`filter-pill ${filterChannel === 'ALL' ? 'active' : ''}`}
-          onClick={() => setFilterChannel('ALL')}
-        >
-          Todas ({rows.length})
-        </button>
-        <button
-          type="button"
-          className={`filter-pill ${filterChannel === 'STORE' ? 'active' : ''}`}
-          onClick={() => setFilterChannel('STORE')}
-        >
-          🏪 En Local ({rows.filter(r => r.channel === 'STORE').length})
-        </button>
-        <button
-          type="button"
-          className={`filter-pill ${filterChannel === 'ONLINE' ? 'active' : ''}`}
-          onClick={() => setFilterChannel('ONLINE')}
-        >
-          🌐 Por Internet ({rows.filter(r => r.channel === 'ONLINE').length})
-        </button>
+      {/* SALES FINANCIAL SUMMARY KPIS */}
+      <div className="finance-grid">
+        <div className="finance-card">
+          <small>Ventas Totales Cobradas</small>
+          <strong className="text-revenue">${totalSales.toFixed(2)}</strong>
+          <span>{filtered.length} tickets facturados</span>
+        </div>
+        <div className="finance-card">
+          <small>Costo de Mercadería (Inversión)</small>
+          <strong style={{ color: '#f43f5e' }}>${totalCost.toFixed(2)}</strong>
+          <span>Capital invertido en productos vendidos</span>
+        </div>
+        <div className="finance-card">
+          <small>Ganancia Bruta Real (Utilidad)</small>
+          <strong className="text-profit">+${totalProfit.toFixed(2)}</strong>
+          <span>Beneficio neto sobre ventas</span>
+        </div>
+        <div className="finance-card">
+          <small>Margen de Rentabilidad</small>
+          <strong style={{ color: '#3b82f6' }}>{avgMargin}%</strong>
+          <span>Margen bruto promedio del periodo</span>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className={`filter-pill ${filterChannel === 'ALL' ? 'active' : ''}`}
+              onClick={() => setFilterChannel('ALL')}
+            >
+              Todas ({rows.length})
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${filterChannel === 'STORE' ? 'active' : ''}`}
+              onClick={() => setFilterChannel('STORE')}
+            >
+              🏪 En Local ({rows.filter(r => r.channel === 'STORE').length})
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${filterChannel === 'ONLINE' ? 'active' : ''}`}
+              onClick={() => setFilterChannel('ONLINE')}
+            >
+              🌐 Por Internet ({rows.filter(r => r.channel === 'ONLINE').length})
+            </button>
+          </div>
+
+          <div className="search-box" style={{ minWidth: '260px' }}>
+            <span>🔍</span>
+            <input
+              placeholder="Buscar cliente, ticket, vendedor..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="panel table-panel">
@@ -649,7 +1256,7 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <table>
             <thead>
               <tr>
-                <th>Fecha</th>
+                <th>Ticket / Fecha</th>
                 <th>Canal</th>
                 <th>Entrega</th>
                 <th>Vendedor</th>
@@ -658,12 +1265,18 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                 <th>Costo (COGS)</th>
                 <th>Total Venta</th>
                 <th>Ganancia Bruta</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(r => (
                 <tr key={r.id}>
-                  <td>{new Date(r.created_at).toLocaleDateString()} {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>
+                    <strong style={{ display: 'block', fontSize: '13px' }}>#{r.id?.slice(0, 8)}</strong>
+                    <small style={{ color: '#64748b' }}>
+                      {new Date(r.created_at).toLocaleDateString()} {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </small>
+                  </td>
                   <td>
                     <span className={`status-badge ${r.channel === 'ONLINE' ? 'status-quoted' : 'status-approved'}`}>
                       {r.channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'}
@@ -681,12 +1294,22 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                     )}
                   </td>
                   <td>{r.seller || 'Sistema'}</td>
-                  <td>{r.customer || 'Consumidor final'}</td>
+                  <td>{r.customer || r.customer_name || 'Consumidor final'}</td>
                   <td><span style={{ fontWeight: 600, fontSize: '11px' }}>{r.payment_methods || 'CASH'}</span></td>
                   <td style={{ color: '#f43f5e' }}>${Number(r.total_cost || 0).toFixed(2)}</td>
                   <td style={{ fontWeight: 700 }}>${Number(r.total || 0).toFixed(2)}</td>
                   <td style={{ fontWeight: 800, color: '#10b981' }}>
                     +${Number(r.gross_profit || 0).toFixed(2)}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      style={{ padding: '5px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                      onClick={() => openDetail(r.id)}
+                    >
+                      👁️ Ver Ticket
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -694,12 +1317,136 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           </table>
           {!filtered.length && (
             <div className="empty">
-              <b>--</b>
+              <b>🧾</b>
               <p>No se encontraron ventas para este filtro.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* DETAILED SALE & PROFITABILITY INSPECTION MODAL */}
+      {detailModal && (
+        <div className="modal-overlay" onClick={() => setDetailModal(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+            <div className="modal-head">
+              <div>
+                <h3>🧾 Comprobante de Venta #{detailModal.id?.slice(0, 8)}</h3>
+                <small style={{ color: '#64748b' }}>
+                  {new Date(detailModal.created_at).toLocaleString()} · Canal: {detailModal.channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'}
+                </small>
+              </div>
+              <button className="close-button" onClick={() => setDetailModal(null)}>✕</button>
+            </div>
+
+            <div id="printable-ticket" className="ticket-preview" style={{ marginTop: '10px' }}>
+              <h2>FIXMETIENDAS</h2>
+              <div className="ticket-center">Comprobante de Venta y Despacho</div>
+              <div className="ticket-divider"></div>
+              <div><strong>TICKET: #{detailModal.id?.slice(0, 8)}</strong></div>
+              <div>Fecha: {new Date(detailModal.created_at).toLocaleString()}</div>
+              <div>Vendedor: {detailModal.seller_name || 'Vendedor'}</div>
+              <div>Cliente: {detailModal.customer_name || 'Consumidor Final'}</div>
+              {detailModal.customer_phone && <div>Teléfono: {detailModal.customer_phone}</div>}
+
+              {detailModal.fulfillment_type === 'DELIVERY' && (
+                <>
+                  <div className="ticket-divider"></div>
+                  <div><strong>🛵 ENTREGA A DOMICILIO</strong></div>
+                  <div>Dirección: {detailModal.delivery_address || 'No especificada'}</div>
+                  {detailModal.recipient_name && <div>Recibe: {detailModal.recipient_name} (Tel: {detailModal.recipient_phone || 'N/A'})</div>}
+                  {detailModal.delivery_notes && <div>Notas: {detailModal.delivery_notes}</div>}
+                </>
+              )}
+
+              <div className="ticket-divider"></div>
+              <div><strong>DETALLE DE PRODUCTOS & RENTABILIDAD:</strong></div>
+              <table style={{ width: '100%', fontSize: '11px', margin: '6px 0', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b' }}>
+                    <th style={{ padding: '3px 0' }}>Cant / Prod</th>
+                    <th style={{ padding: '3px 0', textAlign: 'right' }}>P. Venta</th>
+                    <th style={{ padding: '3px 0', textAlign: 'right' }}>Costo (Inv)</th>
+                    <th style={{ padding: '3px 0', textAlign: 'right' }}>Total</th>
+                    <th style={{ padding: '3px 0', textAlign: 'right', color: '#10b981' }}>Ganancia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detailModal.items || []).map((it: Any, idx: number) => {
+                    const profit = Number(it.gross_profit || 0);
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px dashed #f1f5f9' }}>
+                        <td style={{ padding: '4px 0' }}>
+                          <b>{it.quantity}x</b> {it.product_name || 'Producto'}
+                          {it.sku && <small style={{ display: 'block', color: '#94a3b8' }}>SKU: {it.sku}</small>}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>${Number(it.unit_price || 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', color: '#f43f5e' }}>${Number(it.unit_cost || 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>${Number(it.subtotal || 0).toFixed(2)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>+${profit.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              <div className="ticket-divider"></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                <span>Subtotal Productos:</span>
+                <span>${Number(detailModal.subtotal || 0).toFixed(2)}</span>
+              </div>
+              {Number(detailModal.shipping_cost || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                  <span>Flete / Envío Domicilio:</span>
+                  <span>+${Number(detailModal.shipping_cost || 0).toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 800, margin: '6px 0', borderTop: '1px dashed #000', paddingTop: '4px' }}>
+                <span>TOTAL VENTA:</span>
+                <span>${Number(detailModal.total || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#f43f5e' }}>
+                <span>Inversión en Mercadería (Costo):</span>
+                <span>-${Number(detailModal.total_cost || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 800, color: '#10b981' }}>
+                <span>UTILIDAD BRUTA GENERADA:</span>
+                <span>+${Number(detailModal.gross_profit || 0).toFixed(2)}</span>
+              </div>
+
+              <div className="ticket-divider"></div>
+              <div><strong>PAGOS REGISTRADOS:</strong></div>
+              {(detailModal.payments || []).map((p: Any, pIdx: number) => (
+                <div key={pIdx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                  <span>● {p.payment_method || 'CASH'}:</span>
+                  <span>${Number(p.amount || 0).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button className="secondary-action" style={{ flex: 1 }} onClick={() => setDetailModal(null)}>
+                Cerrar
+              </button>
+              <button className="primary-action" style={{ flex: 1 }} onClick={() => window.print()}>
+                🖨️ Re-imprimir Ticket
+              </button>
+              {detailModal.customer_phone && (
+                <a
+                  className="whatsapp-btn"
+                  style={{ flex: 1, textDecoration: 'none', justifyContent: 'center' }}
+                  href={`https://wa.me/${detailModal.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                    `Hola ${detailModal.customer_name || 'cliente'}, te compartimos el detalle de tu compra #${detailModal.id?.slice(0, 8)} en FixmeTiendas por un total de $${Number(detailModal.total || 0).toFixed(2)}. ¡Gracias por tu preferencia!`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  💬 WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }function PlatformAdministration({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){const[tenants,setTenants]=React.useState<Any[]>([]),[selected,setSelected]=React.useState<Any|null>(null),[overview,setOverview]=React.useState<Any>({}),[users,setUsers]=React.useState<Any[]>([]),[inventory,setInventory]=React.useState<Any>({}),[name,setName]=React.useState(''),[ownerEmail,setOwnerEmail]=React.useState(''),[ownerPassword,setOwnerPassword]=React.useState('password'),[msg,setMsg]=React.useState('');const load=React.useCallback(()=>api('/api/platform/tenants').then(r=>r.ok?r.json():[]).then(setTenants),[api]);React.useEffect(()=>{load()},[load]);async function select(t:Any){setSelected(t);const [o,u,i]=await Promise.all([api(`/api/platform/tenants/${t.id}/overview`),api(`/api/platform/tenants/${t.id}/users`),api(`/api/platform/tenants/${t.id}/inventory`)]);setOverview(o.ok?await o.json():{});setUsers(u.ok?await u.json():[]);setInventory(i.ok?await i.json():{})}async function create(e:React.FormEvent){e.preventDefault();const r=await api('/api/platform/tenants',{method:'POST',body:JSON.stringify({name,ownerEmail,ownerPassword,plan:'STARTER',subscriptionStatus:'ACTIVE'})});if(r.ok){setName('');setOwnerEmail('');setOwnerPassword('password');setMsg('Empresa creada');load()}else setMsg('No se pudo crear la empresa')}async function changeStatus(status:string){if(!selected)return;const r=await api(`/api/platform/tenants/${selected.id}`,{method:'PATCH',body:JSON.stringify({subscriptionStatus:status})});if(r.ok){setSelected({...selected,subscription_status:status});setTenants(tenants.map(t=>t.id===selected.id?{...t,subscription_status:status}:t));setMsg('Estado actualizado')}}return <><section className="inventory-hero"><div><span className="eyebrow">ADMINISTRACIÓN GLOBAL</span><h2>Empresas y tiendas</h2><p>Supervisa suscripciones, usuarios e inventario sin mezclar datos.</p></div></section><div className="platform-layout"><section className="panel tenant-list"><div className="panel-head"><div><h3>Empresas registradas</h3><p className="catalog-toolbar-p">{tenants.length} empresas</p></div></div>{tenants.map(t=><button className={selected?.id===t.id?'tenant-row selected':'tenant-row'} onClick={()=>select(t)} key={t.id}><span className="tenant-avatar">{(t.name||'E')[0]}</span><span><b>{t.name}</b><small>{t.plan||'STARTER'} · {t.subscription_status||'ACTIVE'}</small></span><i>â€º</i></button>)}<form className="tenant-create" onSubmit={create}><input placeholder="Nombre de nueva empresa" value={name} onChange={e=>setName(e.target.value)} required/><input type="email" placeholder="Correo del manager" value={ownerEmail} onChange={e=>setOwnerEmail(e.target.value)} required/><input type="password" placeholder="Contraseña inicial (8+)" value={ownerPassword} onChange={e=>setOwnerPassword(e.target.value)} minLength={8} required/><button>ï¼‹ Crear empresa</button>{msg&&<small>{msg}</small>}</form></section>{selected?<section className="platform-detail"><div className="panel detail-heading"><span className="eyebrow">EMPRESA SELECCIONADA</span><h2>{selected.name}</h2><div className="detail-meta"><span>Plan: <b>{selected.plan}</b></span><span>Estado: <b className={selected.subscription_status==='ACTIVE'?'status-active':'status-paused'}>{selected.subscription_status}</b></span><select value={selected.subscription_status} onChange={e=>changeStatus(e.target.value)}><option value="ACTIVE">ACTIVA</option><option value="PAST_DUE">PAGO PENDIENTE</option><option value="SUSPENDED">SUSPENDIDA</option></select></div></div><div className="inventory-stats"><div><span>Usuarios</span><strong>{overview.users||0}</strong><small>en la empresa</small></div><div><span>Productos</span><strong>{overview.products||0}</strong><small>en inventario</small></div><div><span>Clientes</span><strong>{overview.customers||0}</strong><small>registrados</small></div><div><span>Órdenes</span><strong>{overview.orders||0}</strong><small>de servicio</small></div></div><section className="panel"><h3>Inventario de {selected.name}</h3><div className="table-wrap"><table><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Valor</th></tr></thead><tbody>{(inventory.items||[]).map((p:Any)=><tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.stock}</td><td>${(Number(p.stock||0)*Number(p.price||0)).toFixed(2)}</td></tr>)}</tbody></table></div></section><Table title={`Usuarios de ${selected.name}`} columns={['full_name','identification','email','phone','role']} rows={users} empty="Esta empresa aún no tiene usuarios." /></section>:<section className="panel empty platform-empty"><b>âŒ‚</b><p>Selecciona una empresa</p><small>Consulta su estado, inventario y usuarios sin cambiar de contexto.</small></section>}</div></>}
@@ -1370,29 +2117,93 @@ function Customers({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response
 
 function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [rows, setRows] = React.useState<Any[]>([]);
+  const [drivers, setDrivers] = React.useState<Any[]>([]);
   const [filterTab, setFilterTab] = React.useState<'ALL'|'PENDING'|'IN_TRANSIT'|'DELIVERED'>('ALL');
   const [search, setSearch] = React.useState('');
   const [courierModal, setCourierModal] = React.useState<Any|null>(null);
-  const [courierName, setCourierName] = React.useState('');
+  const [showDriverModal, setShowDriverModal] = React.useState(false);
+  const [newDriver, setNewDriver] = React.useState({ fullName: '', phone: '', vehicleType: 'MOTO' });
+  const [dispatchType, setDispatchType] = React.useState<'FLEET' | 'INDRIVE' | 'SERVIENTREGA'>('FLEET');
+  const [dispatchForm, setDispatchForm] = React.useState({ driverId: '', courier: '', trackingUrl: '', trackingNumber: '' });
   const [msg, setMsg] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(() => {
     api('/api/deliveries').then(r => r.ok ? r.json() : []).then(setRows);
+    api('/api/delivery-drivers').then(r => r.ok ? r.json() : []).then(setDrivers);
   }, [api]);
 
   React.useEffect(() => { load(); }, [load]);
 
-  async function updateStatus(id: string, status: string, courier?: string) {
+  async function createDriver(e: React.FormEvent) {
+    e.preventDefault();
     setBusy(true);
-    const r = await api(`/api/deliveries/${id}/status`, {
+    const r = await api('/api/delivery-drivers', {
+      method: 'POST',
+      body: JSON.stringify(newDriver)
+    });
+    setBusy(false);
+    if (r.ok) {
+      setMsg('Repartidor registrado exitosamente');
+      setNewDriver({ fullName: '', phone: '', vehicleType: 'MOTO' });
+      setShowDriverModal(false);
+      load();
+    } else {
+      setMsg('No se pudo registrar al repartidor');
+    }
+  }
+
+  async function startDispatch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!courierModal) return;
+    setBusy(true);
+
+    let finalCourier = '';
+    let driverId: string | null = null;
+    let trackingUrl: string | null = null;
+    let trackingNumber: string | null = null;
+
+    if (dispatchType === 'FLEET') {
+      const selectedDr = drivers.find(d => d.id === dispatchForm.driverId);
+      finalCourier = selectedDr ? selectedDr.fullName : (dispatchForm.courier.trim() || 'Motorizado Flota');
+      driverId = dispatchForm.driverId || null;
+    } else if (dispatchType === 'INDRIVE') {
+      finalCourier = dispatchForm.courier.trim() || 'InDrive';
+      trackingUrl = dispatchForm.trackingUrl.trim() || null;
+    } else if (dispatchType === 'SERVIENTREGA') {
+      finalCourier = dispatchForm.courier.trim() || 'Servientrega Nacional';
+      trackingNumber = dispatchForm.trackingNumber.trim() || null;
+    }
+
+    const r = await api(`/api/deliveries/${courierModal.id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, courier: courier || null })
+      body: JSON.stringify({
+        status: 'IN_TRANSIT',
+        courier: finalCourier,
+        driverId,
+        trackingUrl,
+        trackingNumber
+      })
     });
     setBusy(false);
     if (r.ok) {
       setCourierModal(null);
-      setMsg(`Estado actualizado a: ${status}`);
+      setMsg('¡Pedido despachado exitosamente en camino!');
+      load();
+    } else {
+      setMsg('Error al despachar el pedido');
+    }
+  }
+
+  async function markDelivered(id: string) {
+    setBusy(true);
+    const r = await api(`/api/deliveries/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DELIVERED' })
+    });
+    setBusy(false);
+    if (r.ok) {
+      setMsg('¡Entrega completada exitosamente!');
       load();
     }
   }
@@ -1411,7 +2222,7 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
     const q = search.toLowerCase().trim();
     const matchSearch = !q || [
       d.recipient_name, d.recipient_phone, d.customer_name, d.customer_phone,
-      d.address, d.courier, d.tracking_number, d.sale_id
+      d.address, d.courier, d.driver_name, d.tracking_number, d.tracking_url, d.sale_id
     ].some(v => v && String(v).toLowerCase().includes(q));
 
     return matchTab && matchSearch;
@@ -1422,10 +2233,19 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       <section className="inventory-hero">
         <div>
           <span className="eyebrow">LOGÍSTICA Y DESPACHOS A DOMICILIO</span>
-          <h2>Tablero de Entregas</h2>
-          <p>Gestiona los pedidos con entrega a domicilio generados en el Punto de Venta (Local e Internet).</p>
+          <h2>Tablero de Entregas & Courier</h2>
+          <p>Gestiona repartidores propios, enlaces en vivo de InDrive/Uber y números de guía de Servientrega.</p>
         </div>
-        <button className="primary-action" onClick={load}>Actualizar Entregas</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() => setShowDriverModal(true)}
+          >
+            🛵 Registrar Repartidor
+          </button>
+          <button className="primary-action" onClick={load}>Actualizar</button>
+        </div>
       </section>
 
       {/* DISPATCH KPIS */}
@@ -1446,9 +2266,9 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <span>✅ Entregadas con éxito al cliente</span>
         </div>
         <div className="finance-card">
-          <small>Total Envíos Registrados</small>
-          <strong>{rows.length}</strong>
-          <span>Historial total de pedidos</span>
+          <small>Repartidores Registrados</small>
+          <strong style={{ color: '#3157d5' }}>{drivers.length}</strong>
+          <span>🛵 Personal activo de flota</span>
         </div>
       </div>
 
@@ -1478,7 +2298,7 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <div className="search-box" style={{ minWidth: '260px' }}>
             <span>🔍</span>
             <input
-              placeholder="Buscar destinatario, dirección o courier..."
+              placeholder="Buscar destinatario, repartidor, guía o dirección..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -1486,39 +2306,339 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         </div>
       </div>
 
-      {/* ASSIGN COURIER MODAL */}
+      {/* ASSIGN COURIER / INDRIVE / SERVIENTREGA DISPATCH MODAL */}
       {courierModal && (
         <div className="modal-overlay" onClick={() => setCourierModal(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-head">
-              <h3>🚀 Despachar Pedido</h3>
+              <h3>🚀 Despachar Pedido #{courierModal.id?.slice(0, 8)}</h3>
               <button className="close-button" onClick={() => setCourierModal(null)}>✕</button>
             </div>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 14px' }}>
-              Asigna el repartidor o servicio de courier para iniciar la entrega hacia: <b>{courierModal.address}</b>
-            </p>
-            <label>Nombre del Repartidor / Courier
-              <input
-                placeholder="Ej. Juan Pérez, Servientrega, PedidosYa..."
-                value={courierName}
-                onChange={e => setCourierName(e.target.value)}
-                autoFocus
-              />
-            </label>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
-              <button type="button" className="secondary-action" style={{ flex: 1 }} onClick={() => setCourierModal(null)}>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="primary-action"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => updateStatus(courierModal.id, 'IN_TRANSIT', courierName || courierModal.courier)}
-              >
-                {busy ? 'Despachando...' : 'Iniciar En Camino'}
-              </button>
+
+            {/* RECIPIENT SUMMARY CARD */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                  👤 {courierModal.recipient_name || courierModal.customer_name || 'Consumidor'}
+                </strong>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#3157d5', background: '#eff6ff', padding: '3px 8px', borderRadius: '6px' }}>
+                  Flete: ${Number(courierModal.shipping_cost || 0).toFixed(2)}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>📍</span> <span>{courierModal.address}</span>
+              </div>
+              {(courierModal.recipient_phone || courierModal.customer_phone) && (
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  📞 {courierModal.recipient_phone || courierModal.customer_phone}
+                </div>
+              )}
             </div>
+
+            <form onSubmit={startDispatch}>
+              {/* DISPATCH MODE SEGMENTED CARDS */}
+              <div className="modal-form-group">
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
+                  Modalidad de Entrega:
+                </span>
+                <div className="dispatch-mode-grid">
+                  <div
+                    className={`dispatch-mode-card ${dispatchType === 'FLEET' ? 'active' : ''}`}
+                    onClick={() => {
+                      setDispatchType('FLEET');
+                      const sel = drivers.find(d => d.id === dispatchForm.driverId);
+                      setDispatchForm(prev => ({
+                        ...prev,
+                        courier: sel ? sel.fullName : (drivers[0]?.fullName || 'Motorizado Flota')
+                      }));
+                    }}
+                  >
+                    <span className="dispatch-mode-icon">🛵</span>
+                    <span className="dispatch-mode-title">Flota Propia</span>
+                    <span className="dispatch-mode-subtitle">Motorizado tienda</span>
+                  </div>
+
+                  <div
+                    className={`dispatch-mode-card ${dispatchType === 'INDRIVE' ? 'active' : ''}`}
+                    onClick={() => {
+                      setDispatchType('INDRIVE');
+                      setDispatchForm(prev => ({
+                        ...prev,
+                        courier: prev.courier && (prev.courier.includes('InDrive') || prev.courier.includes('Uber')) ? prev.courier : 'InDrive'
+                      }));
+                    }}
+                  >
+                    <span className="dispatch-mode-icon">🚗</span>
+                    <span className="dispatch-mode-title">InDrive / Uber</span>
+                    <span className="dispatch-mode-subtitle">Rastreo en vivo</span>
+                  </div>
+
+                  <div
+                    className={`dispatch-mode-card ${dispatchType === 'SERVIENTREGA' ? 'active' : ''}`}
+                    onClick={() => {
+                      setDispatchType('SERVIENTREGA');
+                      setDispatchForm(prev => ({
+                        ...prev,
+                        courier: prev.courier && (prev.courier.includes('Servientrega') || prev.courier.includes('Tramaco')) ? prev.courier : 'Servientrega'
+                      }));
+                    }}
+                  >
+                    <span className="dispatch-mode-icon">📦</span>
+                    <span className="dispatch-mode-title">Servientrega</span>
+                    <span className="dispatch-mode-subtitle">Guía nacional</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* CONDITIONAL CONTENT: FLEET */}
+              {dispatchType === 'FLEET' && (
+                <>
+                  <label>
+                    <span>Seleccionar Repartidor Registrado</span>
+                    <select
+                      value={dispatchForm.driverId}
+                      onChange={e => {
+                        const sel = drivers.find(d => d.id === e.target.value);
+                        setDispatchForm({
+                          ...dispatchForm,
+                          driverId: e.target.value,
+                          courier: sel ? sel.fullName : dispatchForm.courier
+                        });
+                      }}
+                    >
+                      <option value="">-- Elige un conductor de tu flota --</option>
+                      {drivers.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.vehicleType === 'MOTO' ? '🛵 Moto' : d.vehicleType === 'AUTO' ? '🚗 Auto' : '🚲 Bici'} · {d.fullName} ({d.phone || 'Sin tel'})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {(() => {
+                    const sel = drivers.find(d => d.id === dispatchForm.driverId);
+                    if (sel) {
+                      return (
+                        <div className="driver-selected-card">
+                          <div>
+                            <strong>{sel.fullName}</strong>
+                            <div style={{ fontSize: '11px', color: '#15803d', marginTop: '2px' }}>
+                              {sel.vehicleType === 'MOTO' ? '🛵 Motocicleta' : sel.vehicleType === 'AUTO' ? '🚗 Automóvil' : '🚲 Bicicleta'} · {sel.phone || 'Sin teléfono'}
+                            </div>
+                          </div>
+                          {sel.phone && (
+                            <a
+                              href={`tel:${sel.phone}`}
+                              style={{ fontSize: '11px', background: '#16a34a', color: '#fff', padding: '4px 10px', borderRadius: '6px', textDecoration: 'none', fontWeight: 700 }}
+                            >
+                              📞 Llamar
+                            </a>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="callout-box info">
+                        <span>💡</span>
+                        <div>
+                          <span>¿El repartidor no está en la lista? </span>
+                          <button
+                            type="button"
+                            style={{ background: 'transparent', border: 0, color: '#2563eb', fontWeight: 700, padding: 0, textDecoration: 'underline', cursor: 'pointer' }}
+                            onClick={() => {
+                              setCourierModal(null);
+                              setShowDriverModal(true);
+                            }}
+                          >
+                            + Registrar nuevo repartidor
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <label>
+                    <span>Nombre o Identificador del Courier / Repartidor</span>
+                    <input
+                      placeholder="Ej. Carlos Mendoza (Motorizado Express)"
+                      value={dispatchForm.courier}
+                      onChange={e => setDispatchForm({ ...dispatchForm, courier: e.target.value })}
+                    />
+                  </label>
+                </>
+              )}
+
+              {/* CONDITIONAL CONTENT: INDRIVE / UBER */}
+              {dispatchType === 'INDRIVE' && (
+                <>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Plataforma de Viaje:
+                    </span>
+                    <div className="preset-pills">
+                      {['InDrive', 'Uber Flash', 'Uber Direct', 'Didi Entrega', 'Cabify Envíos'].map(app => (
+                        <span
+                          key={app}
+                          className={`preset-pill ${dispatchForm.courier.includes(app) ? 'active' : ''}`}
+                          onClick={() => setDispatchForm({ ...dispatchForm, courier: app })}
+                        >
+                          {app}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label>
+                    <span>Conductor / Vehículo / Placa</span>
+                    <input
+                      placeholder="Ej. Conductor Mario · Chevrolet Spark Gris (ABC-1234)"
+                      value={dispatchForm.courier}
+                      onChange={e => setDispatchForm({ ...dispatchForm, courier: e.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    <span>🚗 Link de Seguimiento en Vivo (InDrive / Uber)</span>
+                    <input
+                      type="url"
+                      placeholder="https://indrive.com/track/... o https://trip.uber.com/..."
+                      value={dispatchForm.trackingUrl}
+                      onChange={e => setDispatchForm({ ...dispatchForm, trackingUrl: e.target.value })}
+                      required={dispatchType === 'INDRIVE'}
+                    />
+                  </label>
+
+                  <div className="callout-box success">
+                    <span>📍</span>
+                    <div>
+                      <strong>Rastreo en vivo:</strong> Abre tu app de InDrive o Uber, presiona <em>"Compartir mi viaje"</em> y pega el enlace aquí. El cliente podrá ver el mapa y el recorrido en tiempo real.
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* CONDITIONAL CONTENT: SERVIENTREGA / ENCOMIENDA */}
+              {dispatchType === 'SERVIENTREGA' && (
+                <>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Empresa de Encomienda:
+                    </span>
+                    <div className="preset-pills">
+                      {['Servientrega', 'Tramaco Express', 'LaarCourier', 'Cooperativa / Bus', 'Urbano'].map(comp => (
+                        <span
+                          key={comp}
+                          className={`preset-pill ${dispatchForm.courier.includes(comp) ? 'active' : ''}`}
+                          onClick={() => setDispatchForm({ ...dispatchForm, courier: comp })}
+                        >
+                          {comp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label>
+                    <span>Empresa de Transporte</span>
+                    <input
+                      placeholder="Ej. Servientrega, Tramaco Express, Cooperativa Loja..."
+                      value={dispatchForm.courier}
+                      onChange={e => setDispatchForm({ ...dispatchForm, courier: e.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    <span>📦 Número de Guía Nacional / Código de Rastreo *</span>
+                    <input
+                      placeholder="Ej. SER-98745231 o 001-9928172"
+                      style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', letterSpacing: '0.04em' }}
+                      value={dispatchForm.trackingNumber}
+                      onChange={e => setDispatchForm({ ...dispatchForm, trackingNumber: e.target.value })}
+                      required={dispatchType === 'SERVIENTREGA'}
+                    />
+                  </label>
+
+                  <div className="callout-box warning">
+                    <span>🏷️</span>
+                    <div>
+                      <strong>Número de Guía:</strong> Este código se incluirá en la notificación de WhatsApp para que el cliente lo ingrese directamente en el portal de rastreo del courier.
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-action" onClick={() => setCourierModal(null)}>
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="primary-action"
+                  disabled={busy}
+                >
+                  {busy ? 'Despachando...' : '✓ Iniciar Entrega y Despachar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE DRIVER MODAL */}
+      {showDriverModal && (
+        <div className="modal-overlay" onClick={() => setShowDriverModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-head">
+              <h3>🛵 Registrar Repartidor de la Empresa</h3>
+              <button className="close-button" onClick={() => setShowDriverModal(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 14px' }}>
+              Agrega conductores o motorizados de tu tienda para asignarlos fácilmente a los pedidos.
+            </p>
+
+            <form onSubmit={createDriver}>
+              <label>
+                <span>Nombre y Apellidos *</span>
+                <input
+                  placeholder="Ej. Carlos Mendoza"
+                  value={newDriver.fullName}
+                  onChange={e => setNewDriver({ ...newDriver, fullName: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </label>
+
+              <label>
+                <span>Teléfono Celular / WhatsApp *</span>
+                <input
+                  placeholder="Ej. 0987654321"
+                  value={newDriver.phone}
+                  onChange={e => setNewDriver({ ...newDriver, phone: e.target.value })}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Tipo de Vehículo</span>
+                <select
+                  value={newDriver.vehicleType}
+                  onChange={e => setNewDriver({ ...newDriver, vehicleType: e.target.value })}
+                >
+                  <option value="MOTO">🛵 Motocicleta</option>
+                  <option value="AUTO">🚗 Automóvil / Camioneta</option>
+                  <option value="BICICLETA">🚲 Bicicleta</option>
+                  <option value="EXTERNO">📦 Courier Externo Asociado</option>
+                </select>
+              </label>
+
+              <div className="modal-actions">
+                <button type="button" className="secondary-action" onClick={() => setShowDriverModal(false)}>
+                  Cancelar
+                </button>
+                <button className="primary-action" disabled={busy}>
+                  {busy ? 'Guardando...' : '✓ Guardar Repartidor'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1529,7 +2649,18 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           {filtered.map(d => {
             const cleanPhone = (d.recipient_phone || d.customer_phone || '').replace(/[^0-9]/g, '');
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.address || '')}`;
-            const waText = encodeURIComponent(`Hola ${d.recipient_name || d.customer_name || 'estimado/a cliente'}, te informamos sobre tu entrega en FixmeTiendas. Estado actual: ${d.status === 'IN_TRANSIT' ? '🚀 EN CAMINO hacia tu dirección' : d.status === 'DELIVERED' ? '✅ ENTREGADO' : '🛵 PREPARANDO DESPACHO'}. Dirección: ${d.address}`);
+            
+            let waMsg = `Hola ${d.recipient_name || d.customer_name || 'estimado/a cliente'}, te informamos sobre tu entrega en FixmeTiendas.\nEstado: ${d.status === 'IN_TRANSIT' ? '🚀 EN CAMINO hacia tu dirección' : d.status === 'DELIVERED' ? '✅ ENTREGADO' : '🛵 PREPARANDO DESPACHO'}.\nDirección: ${d.address}`;
+            if (d.driver_name || d.courier) {
+              waMsg += `\nRepartidor: ${d.driver_name || d.courier}`;
+            }
+            if (d.tracking_url) {
+              waMsg += `\nSigue la entrega en vivo aquí: ${d.tracking_url}`;
+            }
+            if (d.tracking_number) {
+              waMsg += `\nN° de Guía: ${d.tracking_number}`;
+            }
+            const waText = encodeURIComponent(waMsg);
 
             return (
               <article className="deliv-card" key={d.id}>
@@ -1604,13 +2735,38 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginTop: '2px' }}>
-                    <span>Repartidor: <b>{d.courier || 'Sin asignar'}</b></span>
+                  {/* COURIER / DRIVER / TRACKING LINKS */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '4px' }}>
+                    <span>
+                      Repartidor: <b>{d.driver_name || d.courier || 'Sin asignar'}</b>
+                    </span>
                     <span>Flete: <b>${Number(d.shipping_cost || 0).toFixed(2)}</b></span>
                   </div>
 
+                  {/* TRACKING URL OR GUIDE NUMBER BADGES */}
+                  {(d.tracking_url || d.tracking_number) && (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                      {d.tracking_url && (
+                        <a
+                          href={d.tracking_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-indrive"
+                          title="Abrir seguimiento en vivo"
+                        >
+                          🚗 En vivo InDrive / GPS
+                        </a>
+                      )}
+                      {d.tracking_number && (
+                        <span className="guide-pill">
+                          📦 Guía: {d.tracking_number}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {d.sale_total != null && (
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                       Ticket venta: <b>${Number(d.sale_total).toFixed(2)}</b> ({d.sale_channel === 'ONLINE' ? '🌐 Internet' : '🏪 Local'})
                     </div>
                   )}
@@ -1621,7 +2777,20 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                     <button
                       type="button"
                       className="btn-deliv-action btn-transit"
-                      onClick={() => { setCourierModal(d); setCourierName(d.courier || ''); }}
+                      onClick={() => {
+                        setCourierModal(d);
+                        const isIndrive = Boolean(d.tracking_url || (d.courier && /indrive|uber|didi/i.test(d.courier)));
+                        const isServi = Boolean(d.tracking_number || (d.courier && /servientrega|tramaco|laar|cooperativa/i.test(d.courier)));
+                        const initialType = isIndrive ? 'INDRIVE' : isServi ? 'SERVIENTREGA' : 'FLEET';
+                        setDispatchType(initialType);
+                        const selDr = drivers.find(dr => dr.id === d.driver_id);
+                        setDispatchForm({
+                          driverId: d.driver_id || '',
+                          courier: d.courier || (initialType === 'FLEET' ? (selDr?.fullName || drivers[0]?.fullName || 'Motorizado Flota') : initialType === 'INDRIVE' ? 'InDrive' : 'Servientrega'),
+                          trackingUrl: d.tracking_url || '',
+                          trackingNumber: d.tracking_number || ''
+                        });
+                      }}
                     >
                       🚀 Despachar / Iniciar Ruta
                     </button>
@@ -1630,7 +2799,7 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
                     <button
                       type="button"
                       className="btn-deliv-action btn-delivered"
-                      onClick={() => updateStatus(d.id, 'DELIVERED')}
+                      onClick={() => markDelivered(d.id)}
                     >
                       ✅ Marcar como Entregado
                     </button>
@@ -1658,8 +2827,10 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
 function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [r,setR]=React.useState<Any[]>([]);
   const [customers,setCustomers]=React.useState<Any[]>([]);
+  const [techs,setTechs]=React.useState<Any[]>([]);
   const [showCreate,setShowCreate]=React.useState(false);
   const [filterStatus,setFilterStatus]=React.useState('ALL');
+  const [filterTech,setFilterTech]=React.useState('ALL');
   const [search,setSearch]=React.useState('');
   const [msg,setMsg]=React.useState('');
   const [busy,setBusy]=React.useState(false);
@@ -1671,7 +2842,7 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [form,setForm]=React.useState({
     customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
     reportedFault:'',accessories:'',description:'',diagnosis:'',
-    quote:'',estimatedDelivery:''
+    quote:'',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
   });
 
   const [items,setItems]=React.useState<Array<{itemType:string,name:string,quantity:number,unitPrice:number}>>([]);
@@ -1679,6 +2850,7 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const load=React.useCallback(()=>{
     api('/api/work-orders').then(x=>x.ok?x.json():[]).then(setR);
     api('/api/customers').then(x=>x.ok?x.json():[]).then(setCustomers);
+    api('/api/work-orders/technicians').then(x=>x.ok?x.json():[]).then(setTechs);
   },[api]);
 
   React.useEffect(()=>{load()},[load]);
@@ -1728,17 +2900,19 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         ...form,
         branchId,
         quote:form.quote?Number(form.quote):0,
+        slaHours:Number(form.slaHours||48),
+        assignedTechnicianId:form.assignedTechnicianId||null,
         items:items.filter(it=>it.name.trim()!=='')
       })
     });
     setBusy(false);
     if(res.ok){
       const created=await res.json();
-      setMsg('Orden registrada exitosamente');
+      setMsg('Orden registrada y técnico asignado exitosamente');
       setForm({
         customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
         reportedFault:'',accessories:'',description:'',diagnosis:'',
-        quote:'',estimatedDelivery:''
+        quote:'',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
       });
       setItems([]);
       setShowCreate(false);
@@ -1784,6 +2958,8 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         quote:Number(editModal.quote||0),
         technicianNotes:editModal.technician_notes||editModal.technicianNotes,
         estimatedDelivery:editModal.estimated_delivery||editModal.estimatedDelivery,
+        assignedTechnicianId:editModal.assigned_technician_id||editModal.assignedTechnicianId||null,
+        slaHours:Number(editModal.sla_hours||editModal.slaHours||48),
         items:editItems.filter(it=>it.name.trim()!=='')
       })
     });
@@ -1813,6 +2989,29 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
     CANCELLED:'Cancelada'
   }[s]||s);
 
+  function getSlaInfo(o:Any){
+    if(o.status==='COMPLETED'){
+      return {label:'✅ SLA Cumplido a tiempo',cls:'sla-completed'};
+    }
+    if(o.status==='CANCELLED'||o.status==='REJECTED'){
+      return {label:o.status==='REJECTED'?'Cotización Rechazada':'Cancelada',cls:''};
+    }
+    if(!o.sla_deadline){
+      return {label:`⏱️ Meta ${o.sla_hours||48}h SLA`,cls:'sla-ontime'};
+    }
+    const diffHours=(new Date(o.sla_deadline).getTime()-Date.now())/(1000*60*60);
+    if(diffHours<0){
+      const passed=Math.abs(Math.round(diffHours));
+      return {label:`🚨 SLA Vencido hace ${passed}h`,cls:'sla-expired'};
+    }
+    if(diffHours<6){
+      const left=Math.max(1,Math.round(diffHours));
+      return {label:`⚠️ Urgente: Quedan ${left}h`,cls:'sla-warning'};
+    }
+    const left=Math.round(diffHours);
+    return {label:`⏱️ En tiempo (${left}h restantes · SLA ${o.sla_hours||48}h)`,cls:'sla-ontime'};
+  }
+
   const getFullUrl=(o:Any)=>{
     if(!o?.approval_url)return '';
     return window.location.origin+o.approval_url;
@@ -1837,21 +3036,24 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       filterStatus==='IN_PROGRESS'?['APPROVED','IN_PROGRESS'].includes(o.status):
       o.status===filterStatus
     );
+    const matchTech=!filterTech||filterTech==='ALL'||(
+      filterTech==='UNASSIGNED'?!o.assigned_technician_id:o.assigned_technician_id===filterTech
+    );
     const q=search.toLowerCase().trim();
     const matchSearch=!q||[
       o.order_number,o.customer_name,o.customer_phone,
       o.device_brand,o.device_model,o.serial_number,
-      o.reported_fault,o.description
+      o.reported_fault,o.description,o.technician_name
     ].some(v=>v&&String(v).toLowerCase().includes(q));
-    return matchStatus&&matchSearch;
+    return matchStatus&&matchTech&&matchSearch;
   });
 
   return <>
     <section className="inventory-hero">
       <div>
-        <span className="eyebrow">SERVICIO TÉCNICO Y TALLER</span>
-        <h2>Órdenes de Trabajo</h2>
-        <p>Controla el flujo de reparación, ítems de mano de obra/repuestos y seguimiento para el cliente.</p>
+        <span className="eyebrow">SERVICIO TÉCNICO Y TALLER ESPECIALIZADO</span>
+        <h2>Órdenes de Trabajo & SLA</h2>
+        <p>Asigna técnicos especializados, controla tiempos de entrega (SLA 24/48/72h) y desglose de mano de obra.</p>
       </div>
       <button className="primary-action" onClick={()=>setShowCreate(!showCreate)}>
         {showCreate?'✕ Cancelar':'＋ Nueva orden de servicio'}
@@ -1870,7 +3072,7 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         <div>
           <span className="eyebrow">RECEPCIÓN DE EQUIPO</span>
           <h3>Ingresar Nuevo Dispositivo a Taller</h3>
-          <p>Genera la ficha técnica, los ítems requeridos y el enlace de autorización para el cliente.</p>
+          <p>Genera la ficha técnica, asigna el técnico responsable, fija el SLA y genera el QR del cliente.</p>
         </div>
         <button className="close-button" onClick={()=>setShowCreate(false)}>✕</button>
       </div>
@@ -1879,16 +3081,16 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         <div className="form-section">
           <h4>Datos del Cliente y Equipo</h4>
           <div className="form-grid">
-            <label>Cliente
+            <label>Cliente *
               <select value={form.customerId} onChange={e=>setForm({...form,customerId:e.target.value})} required>
                 <option value="">Selecciona un cliente</option>
                 {customers.map(c=><option key={c.id} value={c.id}>{c.name} · {c.phone||c.email||'Sin contacto'}</option>)}
               </select>
             </label>
-            <label>Marca
+            <label>Marca *
               <input placeholder="Ej. Apple, Samsung, Lenovo, HP" value={form.deviceBrand} onChange={e=>setForm({...form,deviceBrand:e.target.value})} required/>
             </label>
-            <label>Modelo del equipo
+            <label>Modelo del equipo *
               <input placeholder="Ej. iPhone 13 Pro, Pavilion 15" value={form.deviceModel} onChange={e=>setForm({...form,deviceModel:e.target.value})} required/>
             </label>
             <label>N° Serie o IMEI
@@ -1898,19 +3100,69 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         </div>
 
         <div className="form-section" style={{marginTop:'16px'}}>
-          <h4>Detalles del Servicio</h4>
+          <h4>Asignación Técnica & Compromiso SLA</h4>
           <div className="form-grid">
-            <label>Falla reportada por el cliente
-              <input placeholder="Ej. Pantalla rota, recalentamiento, no enciende" value={form.reportedFault} onChange={e=>setForm({...form,reportedFault:e.target.value})} required/>
+            <label>👨‍🔧 Técnico Responsable Asignado
+              <select
+                value={form.assignedTechnicianId}
+                onChange={e=>setForm({...form,assignedTechnicianId:e.target.value})}
+              >
+                <option value="">-- Sin técnico asignado (Por asignar) --</option>
+                {techs.map(t=>(
+                  <option key={t.id} value={t.id}>
+                    👨‍🔧 {t.fullName} ({t.phone||'Sin tel'})
+                  </option>
+                ))}
+              </select>
             </label>
-            <label>Accesorios recibidos
-              <input placeholder="Ej. Funda, cargador original, sin chip" value={form.accessories} onChange={e=>setForm({...form,accessories:e.target.value})}/>
-            </label>
-            <label>Diagnóstico inicial (opcional)
-              <input placeholder="Ej. Requiere cambio de pantalla y pasta térmica" value={form.diagnosis} onChange={e=>setForm({...form,diagnosis:e.target.value})}/>
-            </label>
-            <label>Fecha estimada de entrega
+
+            <div>
+              <label style={{marginBottom:'6px',display:'block'}}>⏱️ Compromiso SLA de Entrega</label>
+              <div style={{display:'flex',gap:'6px',marginBottom:'6px'}}>
+                {[
+                  [24,'⚡ 24h Express'],
+                  [48,'⏱️ 48h Estándar'],
+                  [72,'🔬 72h Complejo']
+                ].map(([hrs,lbl])=>(
+                  <button
+                    key={hrs}
+                    type="button"
+                    className={`toggle-btn ${Number(form.slaHours)===hrs?'active':''}`}
+                    style={{fontSize:'11px',padding:'6px 10px'}}
+                    onClick={()=>setForm({...form,slaHours:Number(hrs)})}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="1"
+                placeholder="Horas SLA personalizadas"
+                value={form.slaHours}
+                onChange={e=>setForm({...form,slaHours:Number(e.target.value)})}
+                style={{fontSize:'12px'}}
+              />
+            </div>
+
+            <label>Fecha y hora estimada (opcional)
               <input type="datetime-local" value={form.estimatedDelivery} onChange={e=>setForm({...form,estimatedDelivery:e.target.value})}/>
+            </label>
+
+            <label>Accesorios recibidos
+              <input placeholder="Ej. Funda, cargador original, sin SIM" value={form.accessories} onChange={e=>setForm({...form,accessories:e.target.value})}/>
+            </label>
+          </div>
+        </div>
+
+        <div className="form-section" style={{marginTop:'16px'}}>
+          <h4>Falla y Diagnóstico Inicial</h4>
+          <div className="form-grid">
+            <label>Falla reportada por el cliente *
+              <input placeholder="Ej. Pantalla rota, sobrecalentamiento, no enciende..." value={form.reportedFault} onChange={e=>setForm({...form,reportedFault:e.target.value})} required/>
+            </label>
+            <label>Diagnóstico preliminar
+              <input placeholder="Ej. Requiere cambio de pantalla y mantenimiento térmico" value={form.diagnosis} onChange={e=>setForm({...form,diagnosis:e.target.value})}/>
             </label>
           </div>
         </div>
@@ -1968,9 +3220,25 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <h3>Órdenes Registradas</h3>
           <p>{filtered.length} órdenes encontradas</p>
         </div>
-        <div className="search-box">
-          <span>🔍</span>
-          <input placeholder="Buscar por orden, cliente, modelo o IMEI..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+          <select
+            value={filterTech}
+            onChange={e=>setFilterTech(e.target.value)}
+            style={{fontSize:'13px',padding:'8px 12px',borderRadius:'8px',border:'1px solid #cbd5e1'}}
+          >
+            <option value="ALL">👨‍🔧 Todos los técnicos ({r.length})</option>
+            {techs.map(t=>(
+              <option key={t.id} value={t.id}>
+                👨‍🔧 {t.fullName} ({r.filter(o=>o.assigned_technician_id===t.id).length})
+              </option>
+            ))}
+            <option value="UNASSIGNED">Sin técnico asignado ({r.filter(o=>!o.assigned_technician_id).length})</option>
+          </select>
+
+          <div className="search-box">
+            <span>🔍</span>
+            <input placeholder="Buscar orden, cliente, técnico, modelo o serie..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          </div>
         </div>
       </div>
 
@@ -1983,73 +3251,80 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       </div>
 
       {filtered.length?<div className="order-list">
-        {filtered.map(o=>(
-          <article className="order-card" key={o.id}>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
-                <span className="order-folio" style={{fontSize:'11px',padding:'3px 8px'}}>{o.order_number||'OT'}</span>
-                <span className={`status-badge status-${String(o.status).toLowerCase()}`}>{statusLabel(o.status)}</span>
-                <small style={{color:'#98a1b2'}}>{o.created_at?new Date(o.created_at).toLocaleDateString():''}</small>
+        {filtered.map(o=>{
+          const sla=getSlaInfo(o);
+          return (
+            <article className="order-card" key={o.id}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}}>
+                  <span className="order-folio" style={{fontSize:'11px',padding:'3px 8px'}}>{o.order_number||'OT'}</span>
+                  <span className={`status-badge status-${String(o.status).toLowerCase()}`}>{statusLabel(o.status)}</span>
+                  <span className={`sla-badge ${sla.cls}`}>{sla.label}</span>
+                  <span className="tech-chip">👨‍🔧 {o.technician_name||'Sin técnico'}</span>
+                  <small style={{color:'#98a1b2'}}>{o.created_at?new Date(o.created_at).toLocaleDateString():''}</small>
+                </div>
+
+                <strong>{o.device_brand||''} {o.device_model||o.description||'Dispositivo'}</strong>
+                <small style={{display:'block',marginTop:'2px'}}>
+                  👤 {o.customer_name||'Cliente'} {o.customer_phone?`· 📞 ${o.customer_phone}`:''} {o.serial_number?`· 🔢 Serie: ${o.serial_number}`:''}
+                </small>
+
+                <div className="order-card-meta" style={{marginTop:'8px'}}>
+                  <div>
+                    <small>Falla reportada</small>
+                    <strong>{o.reported_fault||o.description||'Sin detalle'}</strong>
+                  </div>
+                  <div>
+                    <small>Diagnóstico</small>
+                    <strong>{o.diagnosis||'Pendiente de evaluación'}</strong>
+                  </div>
+                  <div>
+                    <small>Cotización total</small>
+                    <strong style={{color:'#3157d5'}}>${Number(o.quote||0).toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                {o.items&&o.items.length>0&&(
+                  <div style={{marginTop:'8px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                    {o.items.map((it:Any,idx:number)=>(
+                      <span key={idx} className="order-folio" style={{fontSize:'10px',padding:'2px 7px',background:it.itemType==='LABOR'?'#e0e7ff':'#fef3c7',color:it.itemType==='LABOR'?'#3730a3':'#92400e'}}>
+                        {it.quantity}x {it.name} (${Number(it.subtotal||it.quantity*it.unitPrice||0).toFixed(2)})
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <strong>{o.device_brand||''} {o.device_model||o.description||'Dispositivo'}</strong>
-              <small>👤 {o.customer_name||'Cliente'} {o.customer_phone?`· 📞 ${o.customer_phone}`:''} {o.serial_number?`· 🔢 Serie: ${o.serial_number}`:''}</small>
+              <div className="order-actions">
+                <button className="btn-sm btn-primary-sm" onClick={()=>setQrModal(o)} title="Ver QR de seguimiento">
+                  📱 QR / Link
+                </button>
 
-              <div className="order-card-meta">
-                <div>
-                  <small>Falla reportada</small>
-                  <strong>{o.reported_fault||o.description||'Sin detalle'}</strong>
-                </div>
-                <div>
-                  <small>Diagnóstico</small>
-                  <strong>{o.diagnosis||'Pendiente de evaluación'}</strong>
-                </div>
-                <div>
-                  <small>Cotización total</small>
-                  <strong style={{color:'#3157d5'}}>${Number(o.quote||0).toFixed(2)}</strong>
-                </div>
+                <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer" title="Enviar enlace por WhatsApp">
+                  💬 WhatsApp
+                </a>
+
+                <button className="btn-sm btn-secondary-sm" onClick={()=>openEditModal(o)} title="Actualizar diagnóstico, técnico, ítems y precio">
+                  🛠️ Taller
+                </button>
+
+                <button className="btn-sm btn-secondary-sm" onClick={()=>setTicketModal(o)} title="Imprimir comprobante">
+                  🖨️ Ticket
+                </button>
+
+                <select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>
+                  <option value="OPEN">Abierta</option>
+                  <option value="DIAGNOSIS">En diagnóstico</option>
+                  <option value="QUOTED">Cotizada</option>
+                  <option value="APPROVED">Aprobada</option>
+                  <option value="IN_PROGRESS">En reparación</option>
+                  <option value="COMPLETED">Listo para retiro</option>
+                  <option value="CANCELLED">Cancelada</option>
+                </select>
               </div>
-
-              {o.items&&o.items.length>0&&(
-                <div style={{marginTop:'8px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
-                  {o.items.map((it:Any,idx:number)=>(
-                    <span key={idx} className="order-folio" style={{fontSize:'10px',padding:'2px 7px',background:it.itemType==='LABOR'?'#e0e7ff':'#fef3c7',color:it.itemType==='LABOR'?'#3730a3':'#92400e'}}>
-                      {it.quantity}x {it.name} (${Number(it.subtotal||it.quantity*it.unitPrice||0).toFixed(2)})
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="order-actions">
-              <button className="btn-sm btn-primary-sm" onClick={()=>setQrModal(o)} title="Ver QR de seguimiento">
-                📱 QR / Link
-              </button>
-
-              <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer" title="Enviar enlace por WhatsApp">
-                💬 WhatsApp
-              </a>
-
-              <button className="btn-sm btn-secondary-sm" onClick={()=>openEditModal(o)} title="Actualizar diagnóstico, ítems y precio">
-                🛠️ Taller
-              </button>
-
-              <button className="btn-sm btn-secondary-sm" onClick={()=>setTicketModal(o)} title="Imprimir comprobante">
-                🖨️ Ticket
-              </button>
-
-              <select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>
-                <option value="OPEN">Abierta</option>
-                <option value="DIAGNOSIS">En diagnóstico</option>
-                <option value="QUOTED">Cotizada</option>
-                <option value="APPROVED">Aprobada</option>
-                <option value="IN_PROGRESS">En reparación</option>
-                <option value="COMPLETED">Listo para retiro</option>
-                <option value="CANCELLED">Cancelada</option>
-              </select>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>:<div className="empty">
         <b>📋</b>
         <p>No hay órdenes de servicio en este criterio.</p>
@@ -2108,15 +3383,40 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       </div>
     </div>}
 
-    {/* MODAL ACTUALIZACIÓN TÉCNICA E ÍTEMS EN TALLER */}
+    {/* MODAL ACTUALIZACIÓN TÉCNICA, SLA E ÍTEMS EN TALLER */}
     {editModal&&<div className="modal-overlay" onClick={()=>setEditModal(null)}>
-      <div className="modal-card" style={{width:'min(620px,100%)'}} onClick={e=>e.stopPropagation()}>
+      <div className="modal-card" style={{width:'min(640px,100%)'}} onClick={e=>e.stopPropagation()}>
         <div className="modal-head">
           <h3>🛠️ Actualización Técnica · {editModal.order_number||'Orden'}</h3>
           <button className="close-button" onClick={()=>setEditModal(null)}>✕</button>
         </div>
 
         <form onSubmit={saveEditModal}>
+          <div className="form-grid" style={{gridTemplateColumns:'1fr 1fr',marginBottom:'12px'}}>
+            <label>👨‍🔧 Técnico Responsable
+              <select
+                value={editModal.assigned_technician_id||editModal.assignedTechnicianId||''}
+                onChange={e=>setEditModal({...editModal,assigned_technician_id:e.target.value})}
+              >
+                <option value="">-- Sin técnico asignado --</option>
+                {techs.map(t=>(
+                  <option key={t.id} value={t.id}>
+                    👨‍🔧 {t.fullName} ({t.phone||'Sin tel'})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>⏱️ Horas SLA Comprometidas
+              <input
+                type="number"
+                min="1"
+                value={editModal.sla_hours||editModal.slaHours||48}
+                onChange={e=>setEditModal({...editModal,sla_hours:Number(e.target.value)})}
+              />
+            </label>
+          </div>
+
           <div className="form-grid" style={{gridTemplateColumns:'1fr'}}>
             <label>Diagnóstico técnico
               <textarea
@@ -2219,6 +3519,8 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <div>Fecha: {ticketModal.created_at?new Date(ticketModal.created_at).toLocaleString():''}</div>
           <div>Cliente: {ticketModal.customer_name||'Cliente'}</div>
           <div>Teléfono: {ticketModal.customer_phone||'N/A'}</div>
+          <div>Técnico Asignado: {ticketModal.technician_name||'Taller General'}</div>
+          <div>SLA Comprometido: {ticketModal.sla_hours||48} Horas</div>
           <div className="ticket-divider"></div>
           <div><strong>EQUIPO:</strong> {ticketModal.device_brand||''} {ticketModal.device_model||ticketModal.description}</div>
           <div><strong>SERIE/IMEI:</strong> {ticketModal.serial_number||'N/A'}</div>

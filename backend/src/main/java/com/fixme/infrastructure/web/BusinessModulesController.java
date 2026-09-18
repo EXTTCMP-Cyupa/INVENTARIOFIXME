@@ -121,6 +121,45 @@ public class BusinessModulesController {
     return ResponseEntity.noContent().build();
   }
 
+  // --- DELIVERY DRIVERS ---
+  @GetMapping("/api/delivery-drivers")
+  @PreAuthorize("isAuthenticated()")
+  public List<Map<String, Object>> deliveryDrivers(@AuthenticationPrincipal Jwt j) {
+    UUID t = tenant(j);
+    ctx(t);
+    return db.queryForList("SELECT id, tenant_id, name, name AS \"fullName\", phone, vehicle_type AS \"vehicleType\", vehicle_type, external_company, active, notes, created_at FROM delivery_drivers WHERE tenant_id=? ORDER BY active DESC, name ASC", t);
+  }
+
+  @PostMapping("/api/delivery-drivers")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
+  public ResponseEntity<Map<String, Object>> createDeliveryDriver(@AuthenticationPrincipal Jwt j, @RequestBody Map<String, Object> b) {
+    UUID t = tenant(j);
+    Object nameVal = b.get("name") != null ? b.get("name") : b.get("fullName");
+    if (nameVal == null || String.valueOf(nameVal).isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El nombre del repartidor es requerido");
+    }
+    ctx(t);
+    UUID id = UUID.randomUUID();
+    Object vehicleVal = b.get("vehicle_type") != null ? b.get("vehicle_type") : b.getOrDefault("vehicleType", "MOTO");
+    db.update(
+        "INSERT INTO delivery_drivers(id, tenant_id, name, phone, vehicle_type, external_company, notes) VALUES(?,?,?,?,?,?,?)",
+        id, t, nameVal, b.get("phone"), vehicleVal, b.get("external_company"), b.get("notes")
+    );
+    return ResponseEntity.status(201).body(db.queryForMap("SELECT id, tenant_id, name, name AS \"fullName\", phone, vehicle_type AS \"vehicleType\", vehicle_type, external_company, active, notes, created_at FROM delivery_drivers WHERE id=?", id));
+  }
+
+  @PatchMapping("/api/delivery-drivers/{id}")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
+  public Map<String, Object> updateDeliveryDriver(@PathVariable String id, @AuthenticationPrincipal Jwt j, @RequestBody Map<String, Object> b) {
+    UUID t = tenant(j);
+    ctx(t);
+    db.update(
+        "UPDATE delivery_drivers SET name=COALESCE(?,name), phone=COALESCE(?,phone), vehicle_type=COALESCE(?,vehicle_type), external_company=COALESCE(?,external_company), active=COALESCE(?,active), notes=COALESCE(?,notes), updated_at=now() WHERE id=? AND tenant_id=?",
+        b.get("name"), b.get("phone"), b.get("vehicle_type"), b.get("external_company"), b.get("active"), b.get("notes"), id(id), t
+    );
+    return db.queryForMap("SELECT * FROM delivery_drivers WHERE id=?", id(id));
+  }
+
   // --- DELIVERIES ---
   @GetMapping("/api/deliveries")
   @PreAuthorize("isAuthenticated()")
@@ -131,12 +170,14 @@ public class BusinessModulesController {
     String sql = """
         SELECT d.id, d.tenant_id, d.sale_id, d.customer_id, d.branch_id, d.status,
                d.courier, d.address, d.recipient_name, d.recipient_phone, d.delivery_notes,
-               d.shipping_cost, d.tracking_number, d.created_at, d.updated_at,
+               d.shipping_cost, d.tracking_number, d.tracking_url, d.driver_id, d.created_at, d.updated_at,
                s.total AS sale_total, s.channel AS sale_channel,
-               c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email
+               c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+               drv.name AS driver_name, drv.phone AS driver_phone, drv.vehicle_type AS driver_vehicle, drv.external_company AS driver_company
         FROM deliveries d
         LEFT JOIN sales s ON s.id = d.sale_id
         LEFT JOIN customers c ON c.id = d.customer_id
+        LEFT JOIN delivery_drivers drv ON drv.id = d.driver_id
         WHERE d.tenant_id = ?
         """ + (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status) ? " AND d.status = ? " : "") + """
         ORDER BY d.created_at DESC
@@ -154,10 +195,10 @@ public class BusinessModulesController {
     required(b, "address");
     ctx(t);
     UUID x = UUID.randomUUID();
-    db.update("insert into deliveries(id,tenant_id,sale_id,customer_id,branch_id,address,courier,latitude,longitude,evidence_url,evidence_metadata) values(?,?,?,?,?,?,?,?,?,?,?::jsonb)",
+    db.update("insert into deliveries(id,tenant_id,sale_id,customer_id,branch_id,address,courier,latitude,longitude,evidence_url,evidence_metadata,tracking_number,tracking_url,driver_id) values(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?)",
         x, t, uuidOrNull(b.get("saleId")), uuidOrNull(b.get("customerId")), uuidOrNull(b.get("branchId")),
         b.get("address"), b.get("courier"), b.get("latitude"), b.get("longitude"), b.get("evidenceUrl"),
-        b.getOrDefault("evidenceMetadata", "{}"));
+        b.getOrDefault("evidenceMetadata", "{}"), b.get("trackingNumber"), b.get("trackingUrl"), uuidOrNull(b.get("driverId")));
     return ResponseEntity.status(201).body(db.queryForMap("select * from deliveries where id=?", x));
   }
 
@@ -168,21 +209,35 @@ public class BusinessModulesController {
     modules.require(t, "DELIVERIES");
     required(b, "status");
     ctx(t);
-    db.update("update deliveries set status=?,courier=coalesce(?,courier),updated_at=now() where id=? and tenant_id=?",
-        b.get("status"), b.get("courier"), id(id), t);
+    db.update("update deliveries set status=?,courier=coalesce(?,courier),tracking_number=coalesce(?,tracking_number),tracking_url=coalesce(?,tracking_url),driver_id=coalesce(?,driver_id),updated_at=now() where id=? and tenant_id=?",
+        b.get("status"), b.get("courier"), b.get("trackingNumber"), b.get("trackingUrl"), uuidOrNull(b.get("driverId")), id(id), t);
     return db.queryForMap("select * from deliveries where id=?", id(id));
   }
 
-  // --- WORK ORDERS (Hexagonal Service Driven with Items) ---
+  // --- WORK ORDERS (Hexagonal Service Driven with Items & Technicians) ---
+  @GetMapping("/api/work-orders/technicians")
+  @PreAuthorize("isAuthenticated()")
+  public List<Map<String, Object>> technicians(@AuthenticationPrincipal Jwt j) {
+    UUID t = tenant(j);
+    ctx(t);
+    return db.queryForList("""
+        SELECT id, email, full_name, full_name AS "fullName", phone, role
+        FROM app_users
+        WHERE tenant_id = ? AND role IN ('TECHNICIAN', 'MANAGER', 'SELLER', 'TENANT_ADMIN')
+        ORDER BY (role = 'TECHNICIAN') DESC, full_name ASC
+        """, t);
+  }
+
   @GetMapping("/api/work-orders")
   @PreAuthorize("isAuthenticated()")
   public List<Map<String, Object>> orders(
       @AuthenticationPrincipal Jwt j,
       @RequestParam(required = false) String status,
-      @RequestParam(required = false) String search
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) UUID technicianId
   ) {
     UUID t = tenant(j);
-    return workOrderService.listOrders(t, status, search);
+    return workOrderService.listOrders(t, status, search, technicianId);
   }
 
   @PostMapping("/api/work-orders")
@@ -199,6 +254,8 @@ public class BusinessModulesController {
     }
 
     List<WorkOrderService.OrderItemInput> items = parseItems(b.get("items"));
+    UUID techId = uuidOrNull(b.get("assignedTechnicianId"));
+    Integer sla = b.get("slaHours") != null ? Integer.parseInt(b.get("slaHours").toString()) : 48;
 
     WorkOrderService.CreateOrderCommand cmd = new WorkOrderService.CreateOrderCommand(
         id(b.get("customerId").toString()),
@@ -212,6 +269,8 @@ public class BusinessModulesController {
         (String) b.get("diagnosis"),
         decimal(b.get("quote")),
         estDelivery,
+        techId,
+        sla,
         items
     );
 
@@ -239,6 +298,8 @@ public class BusinessModulesController {
     }
 
     List<WorkOrderService.OrderItemInput> items = b.containsKey("items") ? parseItems(b.get("items")) : null;
+    UUID techId = uuidOrNull(b.get("assignedTechnicianId"));
+    Integer sla = b.get("slaHours") != null ? Integer.parseInt(b.get("slaHours").toString()) : null;
 
     return workOrderService.updateTechnicalDetails(
         t, id(id),
@@ -246,6 +307,8 @@ public class BusinessModulesController {
         decimal(b.get("quote")),
         (String) b.get("technicianNotes"),
         estDelivery,
+        techId,
+        sla,
         items
     );
   }

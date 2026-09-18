@@ -99,6 +99,54 @@ public class SaleController {
     return jdbc.queryForList(sql, t, branchId, branchId);
   }
 
+  @GetMapping("/{id}")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER','SCOPE_ACCOUNTANT')")
+  public Map<String, Object> getById(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+    UUID t = tenant(jwt);
+    jdbc.queryForObject("select set_config('app.tenant_id',?,true)", String.class, t.toString());
+
+    String sql = """
+        SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
+               s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
+               (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
+               (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit,
+               COALESCE(NULLIF(u.full_name, ''), u.email) AS seller,
+               COALESCE(NULLIF(u.full_name, ''), u.email) AS seller_name,
+               c.name AS customer, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+               d.id AS delivery_id, d.status AS delivery_status, d.courier, d.address AS delivery_address,
+               d.recipient_name, d.recipient_phone, d.tracking_number, d.tracking_url
+        FROM sales s
+        JOIN app_users u ON u.id = s.user_id
+        LEFT JOIN customers c ON c.id = s.customer_id
+        LEFT JOIN deliveries d ON d.sale_id = s.id
+        WHERE s.tenant_id = ? AND s.id = ?
+        """;
+
+    var sale = jdbc.queryForMap(sql, t, id);
+
+    var items = jdbc.queryForList("""
+        SELECT si.id, si.product_id, si.quantity, si.unit_price, si.unit_price AS price, si.cost_price,
+               si.line_total, si.line_total AS subtotal,
+               (si.quantity * si.cost_price) AS total_cost,
+               (si.line_total - (si.quantity * si.cost_price)) AS gross_profit,
+               p.name AS product_name, p.sku AS product_sku
+        FROM sale_items si
+        JOIN products p ON p.id = si.product_id
+        WHERE si.tenant_id = ? AND si.sale_id = ?
+        """, t, id);
+
+    var payments = jdbc.queryForList("""
+        SELECT id, payment_method, amount
+        FROM payments
+        WHERE tenant_id = ? AND sale_id = ?
+        """, t, id);
+
+    Map<String, Object> out = new HashMap<>(sale);
+    out.put("items", items);
+    out.put("payments", payments);
+    return out;
+  }
+
   private UUID tenant(Jwt j) {
     return UUID.fromString(j.getClaimAsString("tenant_id"));
   }

@@ -12,7 +12,7 @@ public interface WorkOrderPort {
   void update(WorkOrder order);
   Optional<WorkOrder> findById(UUID tenantId, UUID orderId);
   Optional<WorkOrder> findByTokenHash(UUID tenantId, String tokenHash);
-  List<Map<String, Object>> listEnriched(UUID tenantId, String statusFilter, String search);
+  List<Map<String, Object>> listEnriched(UUID tenantId, String statusFilter, String search, UUID technicianId);
   Optional<Map<String, Object>> findPublicTracking(UUID tenantId, String tokenHash);
   String generateNextOrderNumber(UUID tenantId);
   List<WorkOrderItem> findItemsByOrderId(UUID tenantId, UUID orderId);

@@ -38,6 +38,8 @@ public class WorkOrderService {
       String diagnosis,
       BigDecimal quote,
       OffsetDateTime estimatedDelivery,
+      UUID assignedTechnicianId,
+      Integer slaHours,
       List<OrderItemInput> items
   ) {}
 
@@ -79,6 +81,10 @@ public class WorkOrderService {
       }
     }
 
+    int hours = cmd.slaHours() != null && cmd.slaHours() > 0 ? cmd.slaHours() : 48;
+    OffsetDateTime now = OffsetDateTime.now();
+    OffsetDateTime deadline = now.plusHours(hours);
+
     WorkOrder order = new WorkOrder(
         orderId,
         tenantId,
@@ -102,17 +108,20 @@ public class WorkOrderService {
         null,
         null,
         cmd.estimatedDelivery(),
-        OffsetDateTime.now(),
-        OffsetDateTime.now()
+        cmd.assignedTechnicianId(),
+        hours,
+        deadline,
+        now,
+        now
     );
 
     order.setItems(orderItems);
     return port.save(order);
   }
 
-  public List<Map<String, Object>> listOrders(UUID tenantId, String status, String search) {
+  public List<Map<String, Object>> listOrders(UUID tenantId, String status, String search, UUID technicianId) {
     modules.require(tenantId, "WORK_ORDERS");
-    return port.listEnriched(tenantId, status, search);
+    return port.listEnriched(tenantId, status, search, technicianId);
   }
 
   public WorkOrder updateStatus(UUID tenantId, UUID orderId, String newStatus, String techNotes) {
@@ -126,7 +135,7 @@ public class WorkOrderService {
 
   public WorkOrder updateTechnicalDetails(
       UUID tenantId, UUID orderId, String diagnosis, BigDecimal quote, String techNotes,
-      OffsetDateTime estDelivery, List<OrderItemInput> items
+      OffsetDateTime estDelivery, UUID assignedTechnicianId, Integer slaHours, List<OrderItemInput> items
   ) {
     modules.require(tenantId, "WORK_ORDERS");
     WorkOrder order = port.findById(tenantId, orderId)
@@ -151,59 +160,94 @@ public class WorkOrderService {
       quote = total;
     }
 
-    order.updateDiagnosisAndQuote(diagnosis, quote, techNotes, estDelivery);
+    order.updateTechnicalDetails(diagnosis, quote, techNotes, estDelivery, assignedTechnicianId, slaHours);
     port.update(order);
     return order;
   }
 
-  public Map<String, Object> getPublicTracking(String rawToken) {
-    String[] parts = parseToken(rawToken);
-    UUID tenantId = UUID.fromString(parts[0]);
-    String hash = sha256(rawToken);
-
-    return port.findPublicTracking(tenantId, hash)
-        .orElseThrow(() -> new NoSuchElementException("Orden de servicio no encontrada o token inválido"));
+  public Optional<WorkOrder> findById(UUID tenantId, UUID orderId) {
+    modules.require(tenantId, "WORK_ORDERS");
+    return port.findById(tenantId, orderId);
   }
 
-  public Map<String, Object> respondToQuote(String rawToken, boolean accepted, String comments) {
-    String[] parts = parseToken(rawToken);
-    UUID tenantId = UUID.fromString(parts[0]);
-    String hash = sha256(rawToken);
+  public Optional<Map<String, Object>> getPublicTracking(UUID tenantId, String token) {
+    String tokenHash = sha256(token);
+    return port.findPublicTracking(tenantId, tokenHash);
+  }
 
-    WorkOrder order = port.findByTokenHash(tenantId, hash)
-        .orElseThrow(() -> new NoSuchElementException("Orden no encontrada o token inválido"));
-
-    if (accepted) {
-      order.approve(comments != null ? comments.trim() : null);
-    } else {
-      order.reject(comments != null ? comments.trim() : "Rechazado por el cliente");
+  public Map<String, Object> getPublicTracking(String rawToken) {
+    if (rawToken == null || rawToken.isBlank()) {
+      throw new IllegalArgumentException("Token de seguimiento requerido");
     }
+    UUID tenantId;
+    if (rawToken.contains(".")) {
+      try {
+        tenantId = UUID.fromString(rawToken.split("\\.")[0]);
+      } catch (Exception e) {
+        throw new IllegalArgumentException("Token de seguimiento inválido");
+      }
+    } else {
+      throw new IllegalArgumentException("Formato de token no reconocido");
+    }
+    String tokenHash = sha256(rawToken);
+    return port.findPublicTracking(tenantId, tokenHash)
+        .orElseThrow(() -> new IllegalArgumentException("Orden no encontrada o token expirado"));
+  }
 
-    port.update(order);
-
+  public Map<String, Object> respondToQuote(String rawToken, boolean approved, String notes) {
+    if (rawToken == null || rawToken.isBlank()) {
+      throw new IllegalArgumentException("Token requerido");
+    }
+    UUID tenantId;
+    if (rawToken.contains(".")) {
+      try {
+        tenantId = UUID.fromString(rawToken.split("\\.")[0]);
+      } catch (Exception e) {
+        throw new IllegalArgumentException("Token inválido");
+      }
+    } else {
+      throw new IllegalArgumentException("Formato de token no reconocido");
+    }
+    WorkOrder order = approved ? approveByCustomer(tenantId, rawToken, notes) : rejectByCustomer(tenantId, rawToken, notes);
     return Map.of(
         "success", true,
         "status", order.getStatus(),
-        "message", accepted ? "¡Cotización aprobada con éxito!" : "Has rechazado la cotización."
+        "orderNumber", order.getOrderNumber() != null ? order.getOrderNumber() : "",
+        "message", approved ? "Presupuesto aprobado exitosamente" : "Presupuesto rechazado"
     );
   }
 
-  public static String sha256(String value) {
-    try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-    } catch (Exception e) {
-      throw new IllegalStateException("Error al calcular hash", e);
-    }
+  public WorkOrder approveByCustomer(UUID tenantId, String token, String clientNotes) {
+    String tokenHash = sha256(token);
+    WorkOrder order = port.findByTokenHash(tenantId, tokenHash)
+        .orElseThrow(() -> new IllegalArgumentException("Token de aprobación no válido o expirado"));
+    order.approve(clientNotes);
+    port.update(order);
+    return order;
   }
 
-  private String[] parseToken(String rawToken) {
-    if (rawToken == null || !rawToken.contains(".")) {
-      throw new IllegalArgumentException("Formato de token de seguimiento inválido");
+  public WorkOrder rejectByCustomer(UUID tenantId, String token, String reason) {
+    String tokenHash = sha256(token);
+    WorkOrder order = port.findByTokenHash(tenantId, tokenHash)
+        .orElseThrow(() -> new IllegalArgumentException("Token de aprobación no válido o expirado"));
+    order.reject(reason);
+    port.update(order);
+    return order;
+  }
+
+  private String sha256(String base) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(base.getBytes(StandardCharsets.UTF_8));
+      StringBuilder hexString = new StringBuilder();
+      for (byte b : hash) {
+        String hex = Integer.toHexString(0xff & b);
+        if (hex.length() == 1) hexString.append('0');
+        hexString.append(hex);
+      }
+      return hexString.toString();
+    } catch (Exception ex) {
+      throw new RuntimeException("Error calculando SHA-256", ex);
     }
-    String[] parts = rawToken.split("\\.", 2);
-    if (parts.length != 2) {
-      throw new IllegalArgumentException("Token inválido");
-    }
-    return parts;
   }
 }

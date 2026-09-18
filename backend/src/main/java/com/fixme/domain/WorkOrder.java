@@ -8,7 +8,7 @@ public class WorkOrder {
   private final UUID id;
   private final UUID tenantId;
   private final UUID customerId;
-  private final UUID branchId;
+  private UUID branchId;
   private String orderNumber;
   private String deviceBrand;
   private String deviceModel;
@@ -27,6 +27,9 @@ public class WorkOrder {
   private String clientNotes;
   private String rejectionReason;
   private OffsetDateTime estimatedDelivery;
+  private UUID assignedTechnicianId;
+  private int slaHours = 48;
+  private OffsetDateTime slaDeadline;
   private final OffsetDateTime createdAt;
   private OffsetDateTime updatedAt;
   private List<WorkOrderItem> items = new ArrayList<>();
@@ -42,6 +45,22 @@ public class WorkOrder {
       String status, String approvalTokenHash, OffsetDateTime approvalExpiresAt,
       OffsetDateTime approvedAt, String approvalUrl, String technicianNotes,
       String clientNotes, String rejectionReason, OffsetDateTime estimatedDelivery,
+      OffsetDateTime createdAt, OffsetDateTime updatedAt
+  ) {
+    this(id, tenantId, customerId, branchId, orderNumber, deviceBrand, deviceModel, serialNumber,
+         reportedFault, accessories, description, diagnosis, quote, status, approvalTokenHash,
+         approvalExpiresAt, approvedAt, approvalUrl, technicianNotes, clientNotes, rejectionReason,
+         estimatedDelivery, null, 48, null, createdAt, updatedAt);
+  }
+
+  public WorkOrder(
+      UUID id, UUID tenantId, UUID customerId, UUID branchId, String orderNumber,
+      String deviceBrand, String deviceModel, String serialNumber, String reportedFault,
+      String accessories, String description, String diagnosis, BigDecimal quote,
+      String status, String approvalTokenHash, OffsetDateTime approvalExpiresAt,
+      OffsetDateTime approvedAt, String approvalUrl, String technicianNotes,
+      String clientNotes, String rejectionReason, OffsetDateTime estimatedDelivery,
+      UUID assignedTechnicianId, Integer slaHours, OffsetDateTime slaDeadline,
       OffsetDateTime createdAt, OffsetDateTime updatedAt
   ) {
     this.id = Objects.requireNonNull(id, "ID es requerido");
@@ -66,7 +85,10 @@ public class WorkOrder {
     this.clientNotes = clientNotes;
     this.rejectionReason = rejectionReason;
     this.estimatedDelivery = estimatedDelivery;
+    this.assignedTechnicianId = assignedTechnicianId;
+    this.slaHours = slaHours != null && slaHours > 0 ? slaHours : 48;
     this.createdAt = createdAt != null ? createdAt : OffsetDateTime.now();
+    this.slaDeadline = slaDeadline != null ? slaDeadline : this.createdAt.plusHours(this.slaHours);
     this.updatedAt = updatedAt != null ? updatedAt : OffsetDateTime.now();
   }
 
@@ -75,19 +97,19 @@ public class WorkOrder {
         && Set.of("OPEN", "DIAGNOSIS", "QUOTED").contains(status);
   }
 
-  public void approve(String clientComments) {
+  public void approve(String clientNotes) {
     if (!isApprovalActive()) {
-      throw new IllegalStateException("La cotización no está disponible para aprobación (estado actual: " + status + ")");
+      throw new IllegalStateException("La cotización no está disponible para aprobación o ha expirado");
     }
     this.status = "APPROVED";
     this.approvedAt = OffsetDateTime.now();
-    this.clientNotes = clientComments;
+    this.clientNotes = clientNotes;
     this.updatedAt = OffsetDateTime.now();
   }
 
   public void reject(String reason) {
     if (!isApprovalActive()) {
-      throw new IllegalStateException("La cotización no está activa para responder (estado actual: " + status + ")");
+      throw new IllegalStateException("La cotización no está disponible para rechazo o ha expirado");
     }
     this.status = "REJECTED";
     this.rejectionReason = reason;
@@ -95,18 +117,23 @@ public class WorkOrder {
   }
 
   public void updateStatus(String newStatus, String techNotes) {
-    if (!VALID_STATUSES.contains(newStatus)) {
-      throw new IllegalArgumentException("Estado inválido: " + newStatus);
+    if (newStatus != null && !VALID_STATUSES.contains(newStatus)) {
+      throw new IllegalArgumentException("Estado no válido: " + newStatus);
     }
-    this.status = newStatus;
-    if (techNotes != null && !techNotes.isBlank()) {
+    if (newStatus != null) {
+      this.status = newStatus;
+    }
+    if (techNotes != null) {
       this.technicianNotes = techNotes;
     }
     this.updatedAt = OffsetDateTime.now();
   }
 
-  public void updateDiagnosisAndQuote(String diagnosis, BigDecimal quote, String techNotes, OffsetDateTime estDelivery) {
-    this.diagnosis = diagnosis;
+  public void updateTechnicalDetails(
+      String diagnosis, BigDecimal quote, String techNotes, OffsetDateTime estDelivery,
+      UUID technicianId, Integer slaHours
+  ) {
+    if (diagnosis != null) this.diagnosis = diagnosis;
     if (quote != null) {
       if (quote.compareTo(BigDecimal.ZERO) < 0) {
         throw new IllegalArgumentException("La cotización no puede ser negativa");
@@ -118,6 +145,11 @@ public class WorkOrder {
     }
     if (techNotes != null) this.technicianNotes = techNotes;
     if (estDelivery != null) this.estimatedDelivery = estDelivery;
+    if (technicianId != null) this.assignedTechnicianId = technicianId;
+    if (slaHours != null && slaHours > 0) {
+      this.slaHours = slaHours;
+      this.slaDeadline = this.createdAt.plusHours(this.slaHours);
+    }
     this.updatedAt = OffsetDateTime.now();
   }
 
@@ -142,7 +174,7 @@ public class WorkOrder {
     this.updatedAt = OffsetDateTime.now();
   }
 
-  // Getters
+  // Getters & Setters
   public UUID getId() { return id; }
   public UUID getTenantId() { return tenantId; }
   public UUID getCustomerId() { return customerId; }
@@ -166,6 +198,12 @@ public class WorkOrder {
   public String getClientNotes() { return clientNotes; }
   public String getRejectionReason() { return rejectionReason; }
   public OffsetDateTime getEstimatedDelivery() { return estimatedDelivery; }
+  public UUID getAssignedTechnicianId() { return assignedTechnicianId; }
+  public void setAssignedTechnicianId(UUID id) { this.assignedTechnicianId = id; }
+  public int getSlaHours() { return slaHours; }
+  public void setSlaHours(int hours) { this.slaHours = hours; }
+  public OffsetDateTime getSlaDeadline() { return slaDeadline; }
+  public void setSlaDeadline(OffsetDateTime deadline) { this.slaDeadline = deadline; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public OffsetDateTime getUpdatedAt() { return updatedAt; }
 }
