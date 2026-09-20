@@ -4,6 +4,8 @@ import com.fixme.application.WorkOrderPort;
 import com.fixme.domain.WorkOrder;
 import com.fixme.domain.WorkOrderItem;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -271,6 +273,76 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
     row.put("items", itemsList);
 
     return Optional.of(row);
+  }
+
+  @Override
+  public Optional<Map<String, Object>> findPublicTrackingByCode(String code) {
+    if (code == null || code.isBlank()) return Optional.empty();
+    String c = code.trim();
+    String sql = """
+        SELECT w.id, w.tenant_id, w.order_number, w.device_brand, w.device_model, w.serial_number,
+               w.reported_fault, w.accessories, w.description, w.diagnosis, w.quote,
+               w.status, w.approval_expires_at, w.approved_at, w.client_notes,
+               w.rejection_reason, w.estimated_delivery, w.created_at, w.updated_at,
+               w.approval_url,
+               c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+               b.name AS branch_name, COALESCE(t.address, '') AS branch_address, COALESCE(t.phone, '') AS branch_phone,
+               t.name AS store_name
+        FROM work_orders w
+        JOIN tenants t ON t.id = w.tenant_id
+        JOIN customers c ON c.id = w.customer_id
+        LEFT JOIN branches b ON b.id = w.branch_id
+        WHERE """;
+
+    List<Map<String, Object>> list;
+    if (c.matches("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) {
+      list = db.queryForList(sql + " w.id = ?", UUID.fromString(c));
+    } else if (c.contains(".")) {
+      String[] parts = c.split("\\.");
+      try {
+        UUID tId = UUID.fromString(parts[0]);
+        String tokenHash = hashString(c);
+        list = db.queryForList(sql + " w.tenant_id = ? AND w.approval_token_hash = ?", tId, tokenHash);
+      } catch (Exception e) {
+        list = Collections.emptyList();
+      }
+    } else {
+      list = db.queryForList(sql + " (lower(w.order_number) = lower(?) OR lower(w.order_number) = lower(?)) ORDER BY w.created_at DESC LIMIT 1", c, "OT-" + c);
+    }
+
+    if (list.isEmpty()) return Optional.empty();
+
+    Map<String, Object> row = new LinkedHashMap<>(list.get(0));
+    UUID tenantId = row.get("tenant_id") instanceof UUID u ? u : UUID.fromString(String.valueOf(row.get("tenant_id")));
+    UUID orderId = row.get("id") instanceof UUID u ? u : UUID.fromString(String.valueOf(row.get("id")));
+    List<WorkOrderItem> items = findItemsByOrderId(tenantId, orderId);
+    List<Map<String, Object>> itemsList = items.stream().map(i -> Map.<String, Object>of(
+        "id", i.getId(),
+        "itemType", i.getItemType() != null ? i.getItemType() : "PART",
+        "name", i.getName(),
+        "quantity", i.getQuantity(),
+        "unitPrice", i.getUnitPrice(),
+        "subtotal", i.getSubtotal()
+    )).toList();
+    row.put("items", itemsList);
+
+    return Optional.of(row);
+  }
+
+  private String hashString(String base) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(base.getBytes(StandardCharsets.UTF_8));
+      StringBuilder hexString = new StringBuilder();
+      for (byte b : hash) {
+        String hex = Integer.toHexString(0xff & b);
+        if (hex.length() == 1) hexString.append('0');
+        hexString.append(hex);
+      }
+      return hexString.toString();
+    } catch (Exception ex) {
+      throw new RuntimeException("Error calculando SHA-256", ex);
+    }
   }
 
   @Override

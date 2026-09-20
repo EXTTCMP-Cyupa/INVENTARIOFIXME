@@ -194,6 +194,37 @@ public class WorkOrderService {
         .orElseThrow(() -> new IllegalArgumentException("Orden no encontrada o token expirado"));
   }
 
+  public Map<String, Object> getPublicTrackingByCode(String code) {
+    if (code == null || code.isBlank()) {
+      throw new IllegalArgumentException("Código o token de orden requerido");
+    }
+    return port.findPublicTrackingByCode(code)
+        .orElseThrow(() -> new IllegalArgumentException("Orden no encontrada: " + code));
+  }
+
+  public Map<String, Object> respondToQuoteByCode(String code, boolean approved, String notes) {
+    Map<String, Object> orderData = getPublicTrackingByCode(code);
+    UUID tenantId = orderData.get("tenant_id") instanceof UUID u ? u : UUID.fromString(String.valueOf(orderData.get("tenant_id")));
+    UUID orderId = orderData.get("id") instanceof UUID u ? u : UUID.fromString(String.valueOf(orderData.get("id")));
+
+    WorkOrder order = port.findById(tenantId, orderId)
+        .orElseThrow(() -> new IllegalArgumentException("Orden no encontrada"));
+
+    if (approved) {
+      order.approve(notes);
+    } else {
+      order.reject(notes);
+    }
+    port.update(order);
+
+    return Map.of(
+        "success", true,
+        "status", order.getStatus(),
+        "orderNumber", order.getOrderNumber() != null ? order.getOrderNumber() : "",
+        "message", approved ? "Presupuesto aprobado exitosamente" : "Presupuesto rechazado"
+    );
+  }
+
   public Map<String, Object> respondToQuote(String rawToken, boolean approved, String notes) {
     if (rawToken == null || rawToken.isBlank()) {
       throw new IllegalArgumentException("Token requerido");

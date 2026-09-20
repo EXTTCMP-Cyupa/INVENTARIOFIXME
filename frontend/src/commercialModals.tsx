@@ -403,6 +403,72 @@ export function CorteZModal({
             </div>
           )}
 
+          {/* DÓNDE ESTÁ EL DINERO - CONCILIACIÓN MULTICANAL */}
+          {summary.paymentsSummary && (
+            <div>
+              <div className="thermal-divider" />
+              <div className="thermal-sub" style={{ fontWeight: 800 }}>¿DÓNDE ESTÁ EL DINERO? (CONCILIACIÓN)</div>
+              <div className="thermal-row">
+                <span>💵 En Gaveta (Efectivo Contado):</span>
+                <strong>${counted.toFixed(2)}</strong>
+              </div>
+              <div className="thermal-row">
+                <span>🏦 En Banco (Transferencias):</span>
+                <strong>${Number(summary.paymentsSummary.transfer || 0).toFixed(2)}</strong>
+              </div>
+              <div className="thermal-row">
+                <span>💳 En POS/Datafast (Tarjetas):</span>
+                <strong>${Number(summary.paymentsSummary.card || 0).toFixed(2)}</strong>
+              </div>
+              {Number(summary.paymentsSummary.other || 0) > 0 && (
+                <div className="thermal-row">
+                  <span>📱 Otros Canales / Mixto:</span>
+                  <span>${Number(summary.paymentsSummary.other).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="thermal-row" style={{ fontWeight: 800, borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '4px' }}>
+                <span>TOTAL RECAUDADO EN EL DÍA:</span>
+                <span>${(counted + Number(summary.paymentsSummary.transfer || 0) + Number(summary.paymentsSummary.card || 0) + Number(summary.paymentsSummary.other || 0)).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* DESGLOSE FISCAL SRI */}
+          {summary.fiscalSummary && (
+            <div>
+              <div className="thermal-divider" />
+              <div className="thermal-sub" style={{ fontWeight: 800 }}>DESGLOSE FISCAL POR COMPROBANTE</div>
+              <div className="thermal-row">
+                <span>🧾 Tickets de Venta Internos:</span>
+                <span>{summary.fiscalSummary.ticketSalesCount || 0} comp. (${Number(summary.fiscalSummary.ticketSalesAmount || 0).toFixed(2)})</span>
+              </div>
+              <div className="thermal-row">
+                <span>🏛️ Facturas Electrónicas SRI:</span>
+                <span>{summary.fiscalSummary.sriSalesCount || 0} fac. (${Number(summary.fiscalSummary.sriSalesAmount || 0).toFixed(2)})</span>
+              </div>
+              {Number(summary.fiscalSummary.sriSalesCount || 0) > 0 && (
+                <div style={{ paddingLeft: '8px', fontSize: '10px', color: '#334155' }}>
+                  <div className="thermal-row" style={{ margin: '1px 0' }}>
+                    <span>• Subtotal 15% (con IVA):</span>
+                    <span>${Number(summary.fiscalSummary.sriSubtotal15 || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="thermal-row" style={{ margin: '1px 0' }}>
+                    <span>• Subtotal 0% (sin IVA):</span>
+                    <span>${Number(summary.fiscalSummary.sriSubtotal0 || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="thermal-row" style={{ margin: '1px 0', fontWeight: 700 }}>
+                    <span>• IVA 15% SRI Liquidado:</span>
+                    <span>${Number(summary.fiscalSummary.sriIva15 || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+              <div className="thermal-row" style={{ fontWeight: 800, marginTop: '4px' }}>
+                <span>Total Ventas Turno:</span>
+                <span>${Number(summary.fiscalSummary.totalSalesAmount || 0).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
           <div className="thermal-divider" />
           <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '10px' }}>
             <div style={{ borderTop: '1px solid #000', width: '70%', margin: '0 auto 4px' }} />
@@ -451,7 +517,7 @@ export function WorkOrderReceiptModal({
 }) {
   const storeName = tenantName || localStorage.tenantName || 'Fixme Tienda';
   const orderNum = order.orderNumber || order.order_number || order.id?.slice(0, 8).toUpperCase();
-  const trackingUrl = `${window.location.origin}/#tracking/${orderNum}`;
+  const trackingUrl = `${window.location.origin}/#order/${order.orderNumber || order.order_number || order.id || orderNum}`;
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -525,8 +591,15 @@ export function WorkOrderReceiptModal({
 
           <div className="thermal-divider" />
           <div className="thermal-center" style={{ margin: '8px 0' }}>
-            <div style={{ fontSize: '10px', marginBottom: '4px' }}>Rastreo en vivo por celular:</div>
-            <div style={{ fontSize: '9px', fontWeight: 700, wordBreak: 'break-all' }}>{trackingUrl}</div>
+            <div style={{ fontSize: '10px', marginBottom: '4px', fontWeight: 700 }}>
+              Rastreo en vivo por celular & aprobación de presupuesto:
+            </div>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(trackingUrl)}`}
+              alt="QR Seguimiento"
+              style={{ width: '105px', height: '105px', margin: '4px auto', display: 'block' }}
+            />
+            <div style={{ fontSize: '8px', color: '#64748b', wordBreak: 'break-all', marginTop: '2px' }}>{trackingUrl}</div>
           </div>
 
           <div style={{ marginTop: '25px', textAlign: 'center', fontSize: '10px' }}>

@@ -138,15 +138,15 @@ public class JwtTokenIssuer implements TokenIssuer {
       case "SUPER_ADMIN", "TENANT_ADMIN" ->
           List.of("platform-overview", "platform-companies", "platform-rates", "platform-payments");
       case "MANAGER" ->
-          List.of("home", "cash", "pos", "sales", "administration", "products", "customers", "deliveries", "work-orders", "my-work", "warranties", "reports");
+          List.of("home", "cash", "pos", "sales", "quotes", "administration", "products", "customers", "deliveries", "work-orders", "my-work", "warranties", "reports");
       case "SELLER" ->
-          List.of("home", "cash", "pos", "sales", "products", "customers", "work-orders", "warranties");
+          List.of("home", "cash", "pos", "sales", "quotes", "products", "customers", "work-orders", "warranties");
       case "TECHNICIAN" ->
           List.of("home", "customers", "work-orders", "my-work", "warranties");
       case "DELIVERY" ->
           List.of("home", "customers", "deliveries");
       case "ACCOUNTANT" ->
-          List.of("home", "cash", "sales", "reports");
+          List.of("home", "cash", "sales", "quotes", "reports");
       default ->
           List.of("home");
     };

@@ -13,6 +13,9 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('ALL');
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
+  const [ncInvoice, setNcInvoice] = React.useState<any | null>(null);
+  const [ncReason, setNcReason] = React.useState('Devolución de mercadería / Anulación');
+  const [ncSubmitting, setNcSubmitting] = React.useState(false);
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -25,6 +28,29 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
   React.useEffect(() => {
     load();
   }, [load]);
+
+  async function handleIssueCreditNote() {
+    if (!ncInvoice || ncSubmitting) return;
+    setNcSubmitting(true);
+    try {
+      const res = await api(`/api/sri/credit-notes/from-invoice/${ncInvoice.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: ncReason.trim() })
+      });
+      if (res.ok) {
+        if (notify) notify(`✓ Nota de Crédito emitida exitosamente para ${ncInvoice.numero_completo}`);
+        setNcInvoice(null);
+        load();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.message || 'Error al emitir la Nota de Crédito.');
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setNcSubmitting(false);
+    }
+  }
 
   function copyKey(k: string) {
     navigator.clipboard.writeText(k);
@@ -150,7 +176,8 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
             <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', textAlign: 'left', position: 'sticky', top: 0, zIndex: 2 }}>
-                  <th style={{ padding: '8px 10px' }}>N° Factura</th>
+                  <th style={{ padding: '8px 10px' }}>Tipo</th>
+                  <th style={{ padding: '8px 10px' }}>N° Comprobante</th>
                   <th style={{ padding: '8px 10px' }}>Fecha</th>
                   <th style={{ padding: '8px 10px' }}>Cliente</th>
                   <th style={{ padding: '8px 10px' }}>Subtotal</th>
@@ -163,8 +190,22 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
               <tbody>
                 {filtered.map(inv => {
                   const isAuth = inv.estado_sri === 'AUTORIZADA';
+                  const isNC = inv.tipo_documento === '04';
                   return (
-                    <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9', background: isNC ? '#faf5ff' : 'transparent' }}>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          background: isNC ? '#f3e8ff' : '#eff6ff',
+                          color: isNC ? '#7e22ce' : '#2563eb'
+                        }}>
+                          {isNC ? '↩️ NOTA CRÉDITO' : '🏛️ FACTURA'}
+                        </span>
+                      </td>
                       <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
                         {inv.numero_completo}
                       </td>
@@ -181,7 +222,7 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
                       <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: '#2563eb' }}>
                         ${Number(inv.iva_15 || 0).toFixed(2)}
                       </td>
-                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', fontWeight: 800, color: '#047857' }}>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', fontWeight: 800, color: isNC ? '#b91c1c' : '#047857' }}>
                         ${Number(inv.importe_total || 0).toFixed(2)}
                       </td>
                       <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
@@ -218,15 +259,26 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
                           >
                             📥 XML
                           </button>
+                          {!isNC && isAuth && (
+                            <button
+                              type="button"
+                              className="secondary-action"
+                              style={{ padding: '4px 8px', fontSize: '11px', background: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5', fontWeight: 700 }}
+                              onClick={() => setNcInvoice(inv)}
+                              title="Emitir Nota de Crédito oficial (Devolución / Anulación)"
+                            >
+                              ↩️ NC
+                            </button>
+                          )}
                           {inv.clave_acceso && (
                             <button
                               type="button"
                               className="secondary-action"
                               style={{ padding: '4px 8px', fontSize: '11px' }}
                               onClick={() => copyKey(inv.clave_acceso)}
-                              title={`Clave: ${inv.clave_acceso}`}
+                              title="Copiar Clave de Acceso (49 dígitos)"
                             >
-                              {copiedKey === inv.clave_acceso ? '✓ Copiada' : '📋 Clave'}
+                              {copiedKey === inv.clave_acceso ? '✓ Copiada' : '🔑 Clave'}
                             </button>
                           )}
                         </div>
@@ -239,7 +291,61 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
           )}
         </div>
 
-        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+        {/* MODAL ISSUE CREDIT NOTE */}
+        {ncInvoice && (
+          <div className="modal-overlay" onClick={() => setNcInvoice(null)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+              <div className="modal-head">
+                <h3>↩️ Emitir Nota de Crédito Electrónica</h3>
+                <button className="close-button" onClick={() => setNcInvoice(null)}>✕</button>
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+                <div><strong>Factura a modificar:</strong> {ncInvoice.numero_completo}</div>
+                <div><strong>Cliente:</strong> {ncInvoice.cliente_razon_social} ({ncInvoice.cliente_identificacion})</div>
+                <div style={{ marginTop: 4 }}><strong>Valor Total a Devolver:</strong> <span style={{ color: '#dc2626', fontWeight: 800 }}>${Number(ncInvoice.importe_total).toFixed(2)}</span></div>
+              </div>
+
+              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+                Se emitirá una Nota de Crédito oficial tipo 04 autorizada por el SRI que anulará el valor contable y tributario de la factura.
+              </p>
+
+              <label style={{ display: 'block', marginBottom: 16 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Motivo de la Nota de Crédito:</span>
+                <input
+                  className="input-field"
+                  value={ncReason}
+                  onChange={e => setNcReason(e.target.value)}
+                  placeholder="Ej. Devolución de producto / Error de facturación..."
+                  style={{ width: '100%', fontSize: 13 }}
+                  required
+                />
+              </label>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={handleIssueCreditNote}
+                  disabled={ncSubmitting}
+                  style={{ flex: 1, background: '#dc2626', borderColor: '#b91c1c', justifyContent: 'center' }}
+                >
+                  {ncSubmitting ? 'Emitiendo en SRI...' : '✓ Emitir Nota de Crédito'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setNcInvoice(null)}
+                  disabled={ncSubmitting}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
           <button type="button" className="secondary-action" onClick={onClose} style={{ padding: '8px 20px', fontWeight: 600 }}>
             Cerrar
           </button>

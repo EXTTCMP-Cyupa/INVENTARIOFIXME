@@ -878,3 +878,494 @@ export function CatalogShareModal({ tenantId, storeName, onClose, notify }: { te
   );
 }
 
+// =========================================================================
+// 4. PUBLIC WORK ORDER TRACKING & QUOTE APPROVAL PORTAL
+// =========================================================================
+export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: string; onBack?: () => void; isLogged?: boolean }) {
+  const [data, setData] = React.useState<Any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [actionLoading, setActionLoading] = React.useState(false);
+  const [actionSuccess, setActionSuccess] = React.useState('');
+  const [clientNotes, setClientNotes] = React.useState('');
+  const [rejectReason, setRejectReason] = React.useState('');
+  const [showRejectModal, setShowRejectModal] = React.useState(false);
+  const [showApproveModal, setShowApproveModal] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    fetch(`/api/public/work-orders/${encodeURIComponent(code)}`)
+      .then(async r => {
+        if (r.ok) return r.json();
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.message || 'Orden de servicio no encontrada');
+      })
+      .then(d => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(e => {
+        setError(e.message || 'No se pudo cargar el seguimiento de la orden');
+        setLoading(false);
+      });
+  }, [code]);
+
+  React.useEffect(() => {
+    load();
+    const interval = setInterval(load, 20000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  async function handleApprove() {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/public/work-orders/${encodeURIComponent(code)}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comments: clientNotes.trim() })
+      });
+      if (res.ok) {
+        setShowApproveModal(false);
+        setActionSuccess('¡Presupuesto aprobado exitosamente! El taller comenzará la reparación de inmediato.');
+        load();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.message || 'No se pudo registrar la aprobación.');
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!rejectReason.trim()) {
+      alert('Por favor indica un motivo para el rechazo.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/public/work-orders/${encodeURIComponent(code)}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: rejectReason.trim() })
+      });
+      if (res.ok) {
+        setShowRejectModal(false);
+        setActionSuccess('Presupuesto rechazado. Puedes retirar tu equipo en el taller según las condiciones acordadas.');
+        load();
+      } else {
+        const err = await res.json().catch(() => null);
+        alert(err?.message || 'No se pudo registrar el rechazo.');
+      }
+    } catch (e: any) {
+      alert('Error de conexión: ' + e.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+          <h3 style={{ margin: 0, color: '#334155' }}>Consultando estado de reparación...</h3>
+          <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>Conectando con el taller en tiempo real</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', padding: 20, fontFamily: 'sans-serif' }}>
+        <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
+          <h2 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 20 }}>Orden no encontrada</h2>
+          <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 20px' }}>
+            {error || 'El código o enlace ingresado no corresponde a ninguna orden activa.'}
+          </p>
+          {onBack && (
+            <button type="button" onClick={onBack} className="primary-action" style={{ width: '100%' }}>
+              ← Volver al Sistema
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const status = (data.status || 'OPEN').toUpperCase();
+  const quoteVal = Number(data.quote || 0);
+
+  // Status mapping
+  const isQuoted = ['QUOTED', 'PRESUPUESTADO'].includes(status);
+  const isApproved = ['APPROVED', 'APROBADO'].includes(status);
+  const isRepairing = ['IN_PROGRESS', 'EN_REPARACION', 'EN_PROCESO', 'WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(status);
+  const isReady = ['COMPLETED', 'LISTO_ENTREGA', 'LISTO'].includes(status);
+  const isDelivered = ['DELIVERED', 'ENTREGADO'].includes(status);
+  const isRejected = ['REJECTED', 'RECHAZADO'].includes(status);
+
+  // Can the client approve?
+  const canApprove = (isQuoted || ['OPEN', 'RECIBIDO', 'DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status)) && quoteVal > 0;
+
+  // Step resolution
+  let step = 1;
+  if (isQuoted) step = 2;
+  else if (isApproved || isRepairing) step = 3;
+  else if (isReady) step = 4;
+  else if (isDelivered) step = 5;
+
+  const storeName = data.store_name || 'Fixme Taller';
+  const branchName = data.branch_name || 'Servicio Técnico';
+  const branchPhone = data.branch_phone || data.customer_phone || '';
+  const orderNum = data.order_number || ('OT-' + data.id?.slice(0, 6).toUpperCase());
+  const deviceTitle = `${data.device_brand || ''} ${data.device_model || data.description || 'Equipo'}`.trim();
+
+  const waNumber = branchPhone.replace(/[^0-9]/g, '');
+  const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`¡Hola ${storeName}! Quisiera consultar sobre el avance de mi orden #${orderNum} (${deviceTitle}).`)}` : '';
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: 40 }}>
+      {/* Mobile Top Navbar */}
+      <div style={{ background: '#0f172a', color: '#fff', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Rastreo de Reparación</div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>{storeName}</div>
+        </div>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{ background: '#334155', border: 0, color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+          >
+            ← Volver
+          </button>
+        )}
+      </div>
+
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '16px' }}>
+        {/* Order Header Card */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <span style={{ display: 'inline-block', background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: 6, fontSize: 12, fontWeight: 800 }}>
+                {orderNum}
+              </span>
+              <h2 style={{ margin: '8px 0 2px', fontSize: 18, color: '#0f172a' }}>{deviceTitle}</h2>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                Cliente: <strong>{data.customer_name || 'Cliente'}</strong>
+              </div>
+            </div>
+
+            {/* Status Pill */}
+            <div style={{ textAlign: 'right' }}>
+              <span style={{
+                display: 'inline-block',
+                padding: '4px 10px',
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 800,
+                background: isReady ? '#dcfce7' : isApproved || isRepairing ? '#dbeafe' : isQuoted ? '#fef3c7' : isRejected ? '#fee2e2' : '#f1f5f9',
+                color: isReady ? '#15803d' : isApproved || isRepairing ? '#1d4ed8' : isQuoted ? '#b45309' : isRejected ? '#b91c1c' : '#475569'
+              }}>
+                {isReady ? '✅ LISTO PARA RETIRO' : isRepairing ? '⚙️ EN REPARACIÓN' : isApproved ? '👍 PRESUPUESTO APROBADO' : isQuoted ? '💰 PRESUPUESTO LISTO' : isRejected ? '❌ RECHAZADO' : '🔍 EN DIAGNÓSTICO'}
+              </span>
+              {data.estimated_delivery && (
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Entrega est.: {new Date(data.estimated_delivery).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Stepper */}
+          <div style={{ marginTop: 20, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, textAlign: 'center' }}>
+              {[
+                { s: 1, label: 'Diagnóstico', icon: '🔍' },
+                { s: 2, label: 'Presupuesto', icon: '💰' },
+                { s: 3, label: 'Reparación', icon: '⚙️' },
+                { s: 4, label: 'Listo', icon: '📦' },
+                { s: 5, label: 'Entregado', icon: '🤝' },
+              ].map(st => {
+                const isPassed = step >= st.s;
+                const isCurrent = step === st.s;
+                return (
+                  <div key={st.s}>
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      margin: '0 auto 6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 14,
+                      background: isCurrent ? '#2563eb' : isPassed ? '#10b981' : '#e2e8f0',
+                      color: isCurrent || isPassed ? '#fff' : '#94a3b8',
+                      boxShadow: isCurrent ? '0 0 0 3px #bfdbfe' : 'none',
+                      transition: 'all 0.3s'
+                    }}>
+                      {isCurrent ? st.icon : isPassed ? '✓' : st.icon}
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: isCurrent ? 800 : 500, color: isCurrent ? '#1d4ed8' : isPassed ? '#0f172a' : '#94a3b8' }}>
+                      {st.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Action Success Alert */}
+        {actionSuccess && (
+          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '12px 16px', borderRadius: 12, marginBottom: 14, fontSize: 13 }}>
+            <strong>✓ Notificación del Taller:</strong> {actionSuccess}
+          </div>
+        )}
+
+        {/* Quotation & Approval Section */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>💰</span> Presupuesto & Cotización
+          </h3>
+
+          {/* Diagnosis Note */}
+          <div style={{ background: '#f8fafc', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: '0 8px 8px 0', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase' }}>Diagnóstico del Técnico:</div>
+            <div style={{ fontSize: 13, color: '#334155', marginTop: 3 }}>
+              {data.diagnosis || 'Diagnóstico técnico en proceso en banco de trabajo.'}
+            </div>
+          </div>
+
+          {/* Quotation Items Table */}
+          {Array.isArray(data.items) && data.items.length > 0 ? (
+            <div style={{ marginBottom: 14 }}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 0' }}>Concepto</th>
+                    <th style={{ padding: '6px 0', textAlign: 'center' }}>Cant.</th>
+                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((it: Any, idx: number) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '8px 0' }}>
+                        <span style={{ fontSize: 11, marginRight: 4 }}>{it.itemType === 'LABOR' ? '🛠️' : '📦'}</span>
+                        <strong>{it.name}</strong>
+                      </td>
+                      <td style={{ padding: '8px 0', textAlign: 'center', color: '#64748b' }}>{Number(it.quantity)}</td>
+                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>${Number(it.subtotal).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {/* Total Banner */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '12px 16px', borderRadius: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 700 }}>TOTAL PRESUPUESTADO:</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Incluye repuestos y mano de obra garantizada</div>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#1d4ed8' }}>
+              ${quoteVal.toFixed(2)}
+            </div>
+          </div>
+
+          {/* Interactive Approval Buttons */}
+          {canApprove && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: '#475569', textAlign: 'center', marginBottom: 10 }}>
+                ¿Deseas autorizar la reparación por este valor?
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => setShowApproveModal(true)}
+                  style={{ background: '#10b981', borderColor: '#059669', padding: '12px 8px', fontSize: 13, justifyContent: 'center' }}
+                >
+                  ✅ Aprobar Presupuesto
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setShowRejectModal(true)}
+                  style={{ color: '#dc2626', borderColor: '#fca5a5', background: '#fff5f5', padding: '12px 8px', fontSize: 13 }}
+                >
+                  ❌ Rechazar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isApproved && (
+            <div style={{ marginTop: 14, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', textAlign: 'center', fontSize: 12, color: '#166534' }}>
+              👍 <strong>Presupuesto Aprobado:</strong> El equipo se encuentra en fase de reparación técnica.
+              {data.client_notes && <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>Notas: "{data.client_notes}"</div>}
+            </div>
+          )}
+
+          {isRejected && (
+            <div style={{ marginTop: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', textAlign: 'center', fontSize: 12, color: '#991b1b' }}>
+              ❌ <strong>Presupuesto Rechazado:</strong> Equipo listo para retiro en recepción.
+              {data.rejection_reason && <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Motivo: "{data.rejection_reason}"</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Equipment Technical Details Card */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>📱</span> Datos del Equipo Recibido
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+            <div>
+              <span style={{ color: '#64748b', display: 'block' }}>Marca y Modelo:</span>
+              <strong style={{ color: '#0f172a' }}>{deviceTitle}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#64748b', display: 'block' }}>N° Serie o IMEI:</span>
+              <strong style={{ color: '#0f172a' }}>{data.serial_number || 'No especificado'}</strong>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <span style={{ color: '#64748b', display: 'block' }}>Falla Reportada:</span>
+              <strong style={{ color: '#0f172a' }}>{data.reported_fault || data.description || 'Revisión técnica'}</strong>
+            </div>
+            {data.accessories && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ color: '#64748b', display: 'block' }}>Accesorios recibidos:</span>
+                <span style={{ color: '#334155' }}>{data.accessories}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* WhatsApp & Contact Workshop Card */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', textAlign: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>¿Tienes dudas sobre tu equipo?</div>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 12px' }}>
+            Habla directamente con el taller de <strong>{storeName}</strong> ({branchName}).
+          </p>
+          {waUrl ? (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="whatsapp-action-pill"
+              style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 13 }}
+            >
+              💬 Chatear por WhatsApp con el Taller
+            </a>
+          ) : (
+            <div style={{ fontSize: 12, color: '#64748b' }}>Teléfono del taller: {branchPhone || 'Acércate a recepción'}</div>
+          )}
+        </div>
+
+        {/* Live Refresh Note */}
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', marginTop: 16 }}>
+          <span>🔄 Esta página se actualiza automáticamente cada 20 segundos</span>
+        </div>
+      </div>
+
+      {/* MODAL APPROVE */}
+      {showApproveModal && (
+        <div className="modal-overlay" onClick={() => setShowApproveModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-head">
+              <h3>✅ Confirmar Aprobación</h3>
+              <button className="close-button" onClick={() => setShowApproveModal(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px' }}>
+              Estás autorizando al taller a proceder con la reparación de tu <strong>{deviceTitle}</strong> por el valor de <strong>${quoteVal.toFixed(2)}</strong>.
+            </p>
+            <label style={{ display: 'block', marginBottom: 16 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Instrucciones adicionales (opcional):</span>
+              <textarea
+                className="input-field"
+                rows={2}
+                placeholder="Ej. Por favor respaldar fotos antes de cambiar la pantalla..."
+                value={clientNotes}
+                onChange={e => setClientNotes(e.target.value)}
+                style={{ width: '100%', fontSize: 13 }}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={handleApprove}
+                disabled={actionLoading}
+                style={{ flex: 1, background: '#10b981', justifyContent: 'center' }}
+              >
+                {actionLoading ? 'Procesando...' : 'Sí, Aprobar Reparación'}
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => setShowApproveModal(false)}
+                disabled={actionLoading}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REJECT */}
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-head">
+              <h3>❌ Rechazar Presupuesto</h3>
+              <button className="close-button" onClick={() => setShowRejectModal(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px' }}>
+              Indícanos el motivo por el cual no deseas proceder con la reparación:
+            </p>
+            <label style={{ display: 'block', marginBottom: 16 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Motivo de rechazo *</span>
+              <textarea
+                className="input-field"
+                rows={3}
+                placeholder="Ej. El costo supera mi presupuesto / Prefiero comprar un equipo nuevo..."
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                required
+                style={{ width: '100%', fontSize: 13 }}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={handleReject}
+                disabled={actionLoading}
+                style={{ flex: 1, background: '#ef4444', borderColor: '#dc2626', justifyContent: 'center' }}
+              >
+                {actionLoading ? 'Procesando...' : 'Confirmar Rechazo'}
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => setShowRejectModal(false)}
+                disabled={actionLoading}
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+

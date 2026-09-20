@@ -515,11 +515,32 @@ public class BusinessModulesController {
     );
   }
 
-  // --- PUBLIC CLIENT TRACKING & QUOTE APPROVAL PORTAL ---
-
   @GetMapping("/api/public/work-orders/tracking")
   public ResponseEntity<Map<String, Object>> publicTrackingApi(@RequestParam String token) {
     return ResponseEntity.ok(workOrderService.getPublicTracking(token));
+  }
+
+  @GetMapping("/api/public/work-orders/{code}")
+  public ResponseEntity<Map<String, Object>> publicWorkOrderByCode(@PathVariable String code) {
+    return ResponseEntity.ok(workOrderService.getPublicTrackingByCode(code));
+  }
+
+  @PostMapping("/api/public/work-orders/{code}/approve")
+  public ResponseEntity<?> publicApproveByCode(
+      @PathVariable String code,
+      @RequestBody(required = false) Map<String, Object> body
+  ) {
+    String comments = body != null && body.get("comments") != null ? String.valueOf(body.get("comments")) : "";
+    return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, true, comments));
+  }
+
+  @PostMapping("/api/public/work-orders/{code}/reject")
+  public ResponseEntity<?> publicRejectByCode(
+      @PathVariable String code,
+      @RequestBody(required = false) Map<String, Object> body
+  ) {
+    String reason = body != null && body.get("reason") != null ? String.valueOf(body.get("reason")) : "Rechazado por el cliente";
+    return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, false, reason));
   }
 
   @GetMapping(value = {"/api/public/work-orders/approve", "/public/work-orders/approve", "/api/auth/work-orders/approve"}, produces = MediaType.TEXT_HTML_VALUE)

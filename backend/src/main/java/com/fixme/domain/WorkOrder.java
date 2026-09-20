@@ -95,7 +95,7 @@ public class WorkOrder {
 
   public boolean isApprovalActive() {
     return (approvalExpiresAt == null || approvalExpiresAt.isAfter(OffsetDateTime.now()))
-        && Set.of("OPEN", "DIAGNOSIS", "QUOTED").contains(status);
+        && Set.of("OPEN", "DIAGNOSIS", "QUOTED", "RECIBIDO", "EN_DIAGNOSTICO").contains(status);
   }
 
   public void approve(String clientNotes) {

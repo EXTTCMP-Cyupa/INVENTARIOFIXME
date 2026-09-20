@@ -138,13 +138,27 @@ public class PlatformAdministrationController {
     // Initial default role permissions for the new store
     db.update("""
         insert into role_permissions(id, tenant_id, role, permissions, updated_at) values
-        (uuid_generate_v4(), ?, 'MANAGER', ARRAY['home','cash','pos','sales','administration','products','customers','deliveries','work-orders','my-work','warranties','reports'], now()),
+        (uuid_generate_v4(), ?, 'MANAGER', ARRAY['home','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','my-work','warranties','reports'], now()),
         (uuid_generate_v4(), ?, 'TECHNICIAN', ARRAY['home','my-work','work-orders','warranties','customers'], now()),
-        (uuid_generate_v4(), ?, 'SELLER', ARRAY['home','cash','pos','sales','products','customers','work-orders','warranties'], now()),
+        (uuid_generate_v4(), ?, 'SELLER', ARRAY['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'], now()),
         (uuid_generate_v4(), ?, 'DELIVERY', ARRAY['home','customers','deliveries'], now()),
-        (uuid_generate_v4(), ?, 'ACCOUNTANT', ARRAY['home','cash','sales','reports'], now())
+        (uuid_generate_v4(), ?, 'ACCOUNTANT', ARRAY['home','cash','sales','quotes','reports'], now())
         on conflict(tenant_id, role) do nothing
         """, id, id, id, id, id);
+
+    // Initial default tenant modules
+    db.update("""
+        insert into tenant_modules(tenant_id, module_key, enabled) values
+        (?, 'INVENTORY', true),
+        (?, 'POS', true),
+        (?, 'DELIVERIES', true),
+        (?, 'WORK_ORDERS', true),
+        (?, 'CUSTOMERS', true),
+        (?, 'REPORTS', true),
+        (?, 'CASH_REGISTER', true),
+        (?, 'QUOTES', true)
+        on conflict do nothing
+        """, id, id, id, id, id, id, id, id);
 
     audit(jwt, id, "TENANT_CREATED", Map.of("name", name, "plan", plan, "monthlyFee", monthlyFee, "owner", ownerEmail));
     return db.queryForMap("select id, name, business_type, plan, subscription_status, monthly_fee, billing_cycle, discount_percent, next_billing_date from tenants where id = ?", id);

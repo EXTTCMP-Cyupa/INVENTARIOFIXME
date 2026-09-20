@@ -1,12 +1,13 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
-import { PublicCatalog, PublicDeliveryTracking, CatalogShareModal } from './publicModules';
+import { PublicCatalog, PublicDeliveryTracking, PublicWorkOrderTracking, CatalogShareModal } from './publicModules';
+import { QuotesPage, PublicQuoteView } from './quotesModule';
 import { SriRideModal } from './sriRideModal';
 import { SriInvoicesListModal } from './sriInvoicesListModal';
 import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
 import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptModal, BarcodeTagsModal, CsvImportModal, TechnicianWorkbenchModal } from './commercialModals';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
-const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
+const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
 function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.trim(),password})});if(r.ok){const data=await r.json();if(data.tenantId){tenantId=data.tenantId;localStorage.tenantId=data.tenantId;}if(data.branchId){branchId=data.branchId;localStorage.branchId=data.branchId;}if(data.tenantName){localStorage.tenantName=data.tenantName;}if(data.fullName){localStorage.fullName=data.fullName;}onLogin(data.accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="ejemplo@correo.com"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
@@ -19,6 +20,31 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
   const [showDepositModal, setShowDepositModal] = React.useState(false);
   const [showCloseModal, setShowCloseModal] = React.useState(false);
   const [corteZSummary, setCorteZSummary] = React.useState<Any|null>(null);
+  const [useDenom, setUseDenom] = React.useState(false);
+  const [denoms, setDenoms] = React.useState<Record<string, number>>({
+    b100: 0, b50: 0, b20: 0, b10: 0, b5: 0, b1: 0,
+    c100: 0, c50: 0, c25: 0, c10: 0, c5: 0, c1: 0
+  });
+
+  const updateDenom = (k: string, v: number) => {
+    const next = { ...denoms, [k]: Math.max(0, v) };
+    setDenoms(next);
+    const tot = (
+      (next.b100 || 0) * 100 +
+      (next.b50 || 0) * 50 +
+      (next.b20 || 0) * 20 +
+      (next.b10 || 0) * 10 +
+      (next.b5 || 0) * 5 +
+      (next.b1 || 0) * 1 +
+      (next.c100 || 0) * 1.00 +
+      (next.c50 || 0) * 0.50 +
+      (next.c25 || 0) * 0.25 +
+      (next.c10 || 0) * 0.10 +
+      (next.c5 || 0) * 0.05 +
+      (next.c1 || 0) * 0.01
+    );
+    setCloseForm(f => ({ ...f, countedCash: tot.toFixed(2) }));
+  };
 
   // Forms
   const [movement, setMovement] = React.useState({ type: 'CASH_IN', paymentMethod: 'CASH', amount: '', reason: '' });
@@ -81,14 +107,15 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
       body: JSON.stringify({
         counted: {
           CASH: counted,
-          CARD: Number(s && s.expected && s.expected.CARD || 0),
-          TRANSFER: Number(s && s.expected && s.expected.TRANSFER || 0)
+          CARD: Number(s && s.paymentsSummary && s.paymentsSummary.card || s && s.expected && s.expected.CARD || 0),
+          TRANSFER: Number(s && s.paymentsSummary && s.paymentsSummary.transfer || s && s.expected && s.expected.TRANSFER || 0)
         },
         depositDestination: closeForm.depositDestination,
         depositReference: closeForm.depositReference,
         depositAmount: Number(closeForm.depositAmount || 0),
         nextDayFund: Number(closeForm.nextDayFund || 0),
-        notes: closeForm.notes
+        notes: closeForm.notes,
+        countedBreakdown: denoms
       })
     });
     if (r.ok) {
@@ -106,7 +133,9 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
         depositAmount: Number(closeForm.depositAmount || 0),
         depositDestination: closeForm.depositDestination,
         depositReference: closeForm.depositReference,
-        nextDayFund: Number(closeForm.nextDayFund || 0)
+        nextDayFund: Number(closeForm.nextDayFund || 0),
+        paymentsSummary: s?.paymentsSummary,
+        fiscalSummary: s?.fiscalSummary
       });
       load();
     }
@@ -150,7 +179,9 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                   depositAmount: 0,
                   depositDestination: 'Banco',
                   depositReference: 'ARQUEO-PREVIO',
-                  nextDayFund: 50
+                  nextDayFund: 50,
+                  paymentsSummary: s.paymentsSummary,
+                  fiscalSummary: s.fiscalSummary
                 });
               }}
               title="Previsualizar e imprimir arqueo Corte Z en formato térmico 80mm"
@@ -258,6 +289,72 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
               <div className="cash-sub-item">
                 <small>Tarjeta / Transf</small>
                 <strong style={{ color: '#c084fc' }}>${(Number(s.expected?.CARD || 0) + Number(s.expected?.TRANSFER || 0)).toFixed(2)}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* CONCILIACIÓN MULTICANAL EN VIVO: ¿DÓNDE ESTÁ EL DINERO? */}
+          <div className="panel" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px' }}>📍 ¿Dónde está el dinero del turno? (Conciliación Multicanal)</h3>
+                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Identificación de fondos en gaveta física, cuentas bancarias y datáfonos de tarjetas</p>
+              </div>
+              <span className="cash-status-tag" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
+                Total Recaudado Ventas: ${Number(s.paymentsSummary?.total || 0).toFixed(2)}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>💵 Gaveta de Efectivo</span>
+                  <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Físico</span>
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a' }}>${inDrawer.toFixed(2)}</div>
+                <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  Apertura (${Number(s.openingCash || 0).toFixed(2)}) + Ventas (${Number(s.salesCash || 0).toFixed(2)})
+                </small>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>🏦 Cuentas Bancarias</span>
+                  <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Transferencias</span>
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#2563eb' }}>${Number(s.paymentsSummary?.transfer || s.expected?.TRANSFER || 0).toFixed(2)}</div>
+                <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  Pichincha / Guayaquil / Produbanco
+                </small>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8' }}>💳 Datáfonos POS / Tarjetas</span>
+                  <span style={{ fontSize: '10px', background: '#f3e8ff', color: '#7e22ce', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Datafast / Medianet</span>
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#7c3aed' }}>${Number(s.paymentsSummary?.card || s.expected?.CARD || 0).toFixed(2)}</div>
+                <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  Pendiente de liquidación en lote
+                </small>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#854d0e' }}>🏛️ Desglose SRI / Tickets</span>
+                  <span style={{ fontSize: '10px', background: '#fef9c3', color: '#a16207', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Fiscal</span>
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginTop: '2px' }}>
+                  Facturas SRI: <strong>{s.fiscalSummary?.sriSalesCount || 0}</strong> (${Number(s.fiscalSummary?.sriSalesAmount || 0).toFixed(2)})
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                  Tickets Internos: <strong>{s.fiscalSummary?.ticketSalesCount || 0}</strong> (${Number(s.fiscalSummary?.ticketSalesAmount || 0).toFixed(2)})
+                </div>
+                {Number(s.fiscalSummary?.sriIva15 || 0) > 0 && (
+                  <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '2px' }}>
+                    IVA 15% SRI: ${Number(s.fiscalSummary?.sriIva15 || 0).toFixed(2)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -480,46 +577,187 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
       {/* MODAL CIERRE Y ARQUEO */}
       {showCloseModal && (
         <div className="modal-overlay" onClick={() => setShowCloseModal(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', maxHeight: '92vh', overflowY: 'auto' }}>
             <div className="modal-head">
-              <h3>🔒 Cierre y Arqueo de Caja</h3>
+              <h3>🔒 Cierre de Turno & Conciliación Real</h3>
               <button className="close-button" onClick={() => setShowCloseModal(false)}>✕</button>
             </div>
 
-            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#64748b' }}>Efectivo esperado según sistema:</span>
-                <strong style={{ fontSize: '15px' }}>${inDrawer.toFixed(2)}</strong>
+            {/* CONCILIACIÓN GENERAL: DÓNDE ESTÁ EL DINERO */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                📍 ¿DÓNDE ESTÁ EL DINERO DEL TURNO? (CANALES DE RECAUDACIÓN)
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#64748b' }}>Efectivo físico contado:</span>
-                <strong style={{ fontSize: '15px', color: '#3157d5' }}>${countedNum.toFixed(2)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '6px' }}>
-                <span style={{ fontWeight: 700 }}>Diferencia de Cuadre:</span>
-                <span style={{
-                  fontWeight: 800,
-                  fontSize: '14px',
-                  color: Math.abs(diff) < 0.01 ? '#10b981' : diff > 0 ? '#3b82f6' : '#ef4444'
-                }}>
-                  {Math.abs(diff) < 0.01 ? '✓ Cuadre Perfecto ($0.00)' : diff > 0 ? `+ Sobrante: $${diff.toFixed(2)}` : `- Faltante: $${Math.abs(diff).toFixed(2)}`}
-                </span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>💵 Gaveta (Efectivo)</small>
+                  <strong style={{ fontSize: '15px', color: '#0f172a' }}>${inDrawer.toFixed(2)}</strong>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>🏦 Banco (Transferencias)</small>
+                  <strong style={{ fontSize: '15px', color: '#2563eb' }}>${Number(s?.paymentsSummary?.transfer || s?.expected?.TRANSFER || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>💳 POS (Datáfonos)</small>
+                  <strong style={{ fontSize: '15px', color: '#7c3aed' }}>${Number(s?.paymentsSummary?.card || s?.expected?.CARD || 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px' }}>
+                  <small style={{ display: 'block', color: '#1e40af', fontSize: '11px' }}>💰 Total Recaudado</small>
+                  <strong style={{ fontSize: '15px', color: '#1d4ed8' }}>${Number(s?.paymentsSummary?.total || 0).toFixed(2)}</strong>
+                </div>
               </div>
             </div>
 
+            {/* TAB SELECTOR ARQUEO */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>
+              <button
+                type="button"
+                className={`filter-pill ${!useDenom ? 'active' : ''}`}
+                style={{ flex: 1, textAlign: 'center', padding: '8px 12px', fontWeight: 700 }}
+                onClick={() => setUseDenom(false)}
+              >
+                ⚡ Ingresar Total Directo
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${useDenom ? 'active' : ''}`}
+                style={{ flex: 1, textAlign: 'center', padding: '8px 12px', fontWeight: 700 }}
+                onClick={() => setUseDenom(true)}
+              >
+                🧮 Conteo por Billetes y Monedas
+              </button>
+            </div>
+
             <form onSubmit={close}>
-              <label>
-                <span>Efectivo Físico Contado en Gaveta ($) *</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={closeForm.countedCash}
-                  onChange={e => setCloseForm({ ...closeForm, countedCash: e.target.value })}
-                  required
-                  autoFocus
-                />
-              </label>
+              {useDenom ? (
+                <div style={{ background: '#f1f5f9', padding: '12px', borderRadius: '10px', marginBottom: '14px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <strong style={{ fontSize: '13px', color: '#1e293b' }}>Arqueo Físico por Denominaciones ($ USD)</strong>
+                    <button
+                      type="button"
+                      style={{ fontSize: '11px', color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                      onClick={() => {
+                        const reset = { b100:0, b50:0, b20:0, b10:0, b5:0, b1:0, c100:0, c50:0, c25:0, c10:0, c5:0, c1:0 };
+                        setDenoms(reset);
+                        setCloseForm(f => ({ ...f, countedCash: '0.00' }));
+                      }}
+                    >
+                      Limpiar conteo
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {/* Billetes */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#047857', marginBottom: '6px' }}>💵 BILLETES</div>
+                      {[
+                        ['b100', 100, '$100'],
+                        ['b50', 50, '$50'],
+                        ['b20', 20, '$20'],
+                        ['b10', 10, '$10'],
+                        ['b5', 5, '$5'],
+                        ['b1', 1, '$1']
+                      ].map(([k, val, lbl]) => (
+                        <div key={k as string} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, width: '45px' }}>{lbl}</span>
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>×</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={denoms[k as string] || ''}
+                            placeholder="0"
+                            onChange={e => updateDenom(k as string, parseInt(e.target.value) || 0)}
+                            style={{ width: '55px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', margin: '0 4px' }}
+                          />
+                          <span style={{ fontSize: '11px', fontWeight: 700, width: '50px', textAlign: 'right', color: '#047857' }}>
+                            ${((denoms[k as string] || 0) * (val as number)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Monedas */}
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#d97706', marginBottom: '6px' }}>🪙 MONEDAS</div>
+                      {[
+                        ['c100', 1.00, '$1.00'],
+                        ['c50', 0.50, '$0.50'],
+                        ['c25', 0.25, '$0.25'],
+                        ['c10', 0.10, '$0.10'],
+                        ['c5', 0.05, '$0.05'],
+                        ['c1', 0.01, '$0.01']
+                      ].map(([k, val, lbl]) => (
+                        <div key={k as string} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', background: '#fff', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, width: '45px' }}>{lbl}</span>
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>×</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={denoms[k as string] || ''}
+                            placeholder="0"
+                            onChange={e => updateDenom(k as string, parseInt(e.target.value) || 0)}
+                            style={{ width: '55px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', margin: '0 4px' }}
+                          />
+                          <span style={{ fontSize: '11px', fontWeight: 700, width: '50px', textAlign: 'right', color: '#d97706' }}>
+                            ${((denoms[k as string] || 0) * (val as number)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>Total Físico Contado:</span>
+                    <strong style={{ fontSize: '16px', color: '#1e40af' }}>${countedNum.toFixed(2)}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '14px' }}>
+                  <label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Efectivo Físico Contado en Gaveta ($) *</span>
+                      <button
+                        type="button"
+                        style={{ fontSize: '11px', color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontWeight: 600 }}
+                        onClick={() => setCloseForm(f => ({ ...f, countedCash: inDrawer.toFixed(2) }))}
+                      >
+                        ⚡ Copiar esperado (${inDrawer.toFixed(2)})
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={closeForm.countedCash}
+                      onChange={e => setCloseForm({ ...closeForm, countedCash: e.target.value })}
+                      required
+                      autoFocus
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* CUADRE COMPARATIVO */}
+              <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ color: '#64748b' }}>Efectivo esperado según sistema:</span>
+                  <strong style={{ fontSize: '14px' }}>${inDrawer.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ color: '#64748b' }}>Efectivo físico contado en gaveta:</span>
+                  <strong style={{ fontSize: '14px', color: '#3157d5' }}>${countedNum.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '4px' }}>
+                  <span style={{ fontWeight: 700 }}>Resultado del Cuadre:</span>
+                  <span style={{
+                    fontWeight: 800,
+                    fontSize: '14px',
+                    color: Math.abs(diff) < 0.01 ? '#10b981' : diff > 0 ? '#3b82f6' : '#ef4444'
+                  }}>
+                    {Math.abs(diff) < 0.01 ? '✓ Cuadre Perfecto ($0.00)' : diff > 0 ? `+ Sobrante: $${diff.toFixed(2)}` : `- Faltante: $${Math.abs(diff).toFixed(2)}`}
+                  </span>
+                </div>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
                 <label>
@@ -966,6 +1204,58 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       setCashTendered('');
       setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
       setDiscount('0');
+    }
+  }
+
+  async function saveCartAsQuote() {
+    if (!cart.length || busy) return;
+    setBusy(true);
+    try {
+      const selCust = customers.find(c => c.id === customerId);
+      const res = await api(`/api/quotes?branchId=${branchId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: customerId || null,
+          customerName: selCust ? selCust.name : 'Consumidor Final',
+          customerPhone: selCust ? selCust.phone : '',
+          customerEmail: selCust ? selCust.email : '',
+          customerIdNumber: selCust ? (selCust.identification_number || selCust.identificationNumber || '') : '',
+          validDays: 15,
+          notes: 'Cotización generada desde Punto de Venta (POS)',
+          terms: 'Precios incluyen IVA (15%). Cotización válida por 15 días.',
+          items: cart.map(i => ({
+            productId: i.id,
+            itemType: 'PRODUCT',
+            description: i.name,
+            quantity: i.quantity,
+            unitPrice: Number(i.price),
+            discount: 0,
+            taxRate: 15
+          }))
+        })
+      });
+
+      if (res.ok) {
+        const q = await res.json();
+        const token = q.publicToken || q.public_token || q.id;
+        const link = `${window.location.origin}/#quote/${token}`;
+        notify(`✓ Cotización #${q.quoteNumber || q.quote_number} generada con éxito.`);
+        setCart([]);
+        setCashTendered('');
+        setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+        setDiscount('0');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link).catch(() => {});
+        }
+        alert(`✓ ¡Cotización #${q.quoteNumber || q.quote_number} generada con éxito!\n\nTotal: $${Number(q.total).toFixed(2)}\n\nEnlace para enviar al cliente:\n${link}\n\n(Enlace copiado al portapapeles)`);
+      } else {
+        const err = await res.json().catch(() => null);
+        notify(err?.message || 'No se pudo generar la cotización');
+      }
+    } catch (e: any) {
+      notify('Error al generar cotización: ' + e.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1426,6 +1716,28 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
             }}
           >
             {busy ? 'Registrando...' : `Cobrar $${grandTotal.toFixed(2)}`}
+          </button>
+
+          <button
+            type="button"
+            disabled={!cart.length || busy}
+            onClick={saveCartAsQuote}
+            style={{
+              padding: '10px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: cart.length ? '#eff6ff' : '#f1f5f9',
+              color: cart.length ? '#2563eb' : '#94a3b8',
+              border: '1px solid #bfdbfe',
+              cursor: cart.length ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            📋 Guardar Carrito como Cotización
           </button>
         </div>
       </div>

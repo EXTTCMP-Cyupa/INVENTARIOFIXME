@@ -38,8 +38,14 @@ public class ProductController {
 
   @GetMapping
   @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_SUPER_ADMIN')")
-  public List<Product> list(@RequestParam UUID branchId, @AuthenticationPrincipal Jwt jwt) {
-    return service.list(tenant(jwt), branchId);
+  public List<Product> list(@RequestParam(required = false) UUID branchId, @AuthenticationPrincipal Jwt jwt) {
+    UUID tenant = tenant(jwt);
+    if (branchId == null) {
+      try {
+        branchId = jdbc.queryForObject("SELECT id FROM branches WHERE tenant_id = ? AND active = true ORDER BY created_at ASC LIMIT 1", UUID.class, tenant);
+      } catch (Exception ignored) {}
+    }
+    return service.list(tenant, branchId);
   }
 
   @PostMapping

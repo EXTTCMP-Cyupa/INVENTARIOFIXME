@@ -108,6 +108,8 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     position: static !important;
     display: block !important;
     background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
@@ -119,6 +121,22 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     border: none !important;
     box-shadow: none !important;
     inset: auto !important;
+    animation: none !important;
+  }
+
+  /* When a modal is open, collapse all background layout so it takes 0 height and 0 blank pages */
+  body:has(.modal-overlay) .inventory-hero,
+  body:has(.modal-overlay) .finance-grid,
+  body:has(.modal-overlay) .table-panel,
+  body:has(.modal-overlay) .inventory-stats,
+  body:has(.modal-overlay) .kpis,
+  body:has(.modal-overlay) .filter-card,
+  body:has(.modal-overlay) .crm-kpi-grid,
+  body:has(.modal-overlay) .summary-grid,
+  body:has(.modal-overlay) .panel,
+  body:has(.modal-overlay) main > section:not(.modal-overlay),
+  body:has(.modal-overlay) main > div:not(.modal-overlay) {
+    display: none !important;
   }
 
   /* 5. Make ALL printable elements and their children visible */
@@ -131,6 +149,8 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   #printable-barcodes, #printable-barcodes *,
   #printable-ride, #printable-ride * {
     visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* 6. Thermal Printers (80mm / 76mm printable area) */
@@ -153,8 +173,9 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     border-radius: 0 !important;
     box-shadow: none !important;
     font-family: 'Courier New', Courier, monospace !important;
-    font-size: 11px !important;
+    font-size: 11.5px !important;
     line-height: 1.35 !important;
+    z-index: 999999 !important;
   }
 
   /* 7. SRI Official Invoice (RIDE) Document */
@@ -170,6 +191,7 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     color: #000000 !important;
     border: none !important;
     box-shadow: none !important;
+    z-index: 999999 !important;
   }
 
   /* 8. Barcodes Document */

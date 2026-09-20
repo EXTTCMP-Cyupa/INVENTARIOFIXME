@@ -207,6 +207,169 @@ public final class SriXmlBuilder {
     return xml.toString();
   }
 
+  public record CreditNoteData(
+      String accessKey,
+      int environment,
+      String emitterRuc,
+      String emitterLegalName,
+      String emitterTradeName,
+      String emitterMatrixAddress,
+      String emitterBranchAddress,
+      String establishment,
+      String emissionPoint,
+      String sequential,
+      boolean requiresAccounting,
+      String taxRegime,
+      String specialTaxpayerNumber,
+      String retentionAgentNumber,
+      LocalDate emissionDate,
+      String buyerIdType,
+      String buyerIdNumber,
+      String buyerName,
+      String buyerAddress,
+      String buyerPhone,
+      String buyerEmail,
+      String modifiedDocType, // "01" (Factura)
+      String modifiedDocNumber, // e.g. "001-001-000000001"
+      LocalDate modifiedDocDate,
+      String reason, // Motivo de la nota de crédito
+      BigDecimal subtotalSinImpuestos,
+      BigDecimal subtotal15,
+      BigDecimal subtotal0,
+      BigDecimal iva15Amount,
+      BigDecimal totalDiscount,
+      BigDecimal grandTotal,
+      List<ItemDetail> items,
+      Map<String, String> additionalInfo
+  ) {}
+
+  public static String buildNotaCreditoXml(CreditNoteData d) {
+    StringBuilder xml = new StringBuilder();
+    xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.append("<notaCredito id=\"comprobante\" version=\"1.1.0\">\n");
+
+    // 1. infoTributaria
+    xml.append("  <infoTributaria>\n");
+    xml.append("    <ambiente>").append(d.environment()).append("</ambiente>\n");
+    xml.append("    <tipoEmision>1</tipoEmision>\n");
+    xml.append("    <razonSocial>").append(escapeXml(d.emitterLegalName())).append("</razonSocial>\n");
+    if (d.emitterTradeName() != null && !d.emitterTradeName().isBlank()) {
+      xml.append("    <nombreComercial>").append(escapeXml(d.emitterTradeName())).append("</nombreComercial>\n");
+    }
+    xml.append("    <ruc>").append(d.emitterRuc()).append("</ruc>\n");
+    xml.append("    <claveAcceso>").append(d.accessKey()).append("</claveAcceso>\n");
+    xml.append("    <codDoc>04</codDoc>\n"); // 04 = Nota de Credito
+    xml.append("    <estab>").append(String.format("%03d", Integer.parseInt(d.establishment()))).append("</estab>\n");
+    xml.append("    <ptoEmi>").append(String.format("%03d", Integer.parseInt(d.emissionPoint()))).append("</ptoEmi>\n");
+    xml.append("    <secuencial>").append(String.format("%09d", Long.parseLong(d.sequential()))).append("</secuencial>\n");
+    xml.append("    <dirMatriz>").append(escapeXml(d.emitterMatrixAddress())).append("</dirMatriz>\n");
+
+    if (d.taxRegime() != null && d.taxRegime().toUpperCase().contains("RIMPE")) {
+      xml.append("    <contribuyenteRimpe>CONTRIBUYENTE RÉGIMEN RIMPE</contribuyenteRimpe>\n");
+    }
+    if (d.retentionAgentNumber() != null && !d.retentionAgentNumber().isBlank()) {
+      xml.append("    <agenteRetencion>").append(escapeXml(d.retentionAgentNumber())).append("</agenteRetencion>\n");
+    }
+    xml.append("  </infoTributaria>\n");
+
+    // 2. infoNotaCredito
+    xml.append("  <infoNotaCredito>\n");
+    xml.append("    <fechaEmision>").append((d.emissionDate() != null ? d.emissionDate() : LocalDate.now()).format(SRI_DATE)).append("</fechaEmision>\n");
+    if (d.emitterBranchAddress() != null && !d.emitterBranchAddress().isBlank()) {
+      xml.append("    <dirEstablecimiento>").append(escapeXml(d.emitterBranchAddress())).append("</dirEstablecimiento>\n");
+    }
+    xml.append("    <tipoIdentificacionComprador>").append(d.buyerIdType()).append("</tipoIdentificacionComprador>\n");
+    xml.append("    <razonSocialComprador>").append(escapeXml(d.buyerName())).append("</razonSocialComprador>\n");
+    xml.append("    <identificacionComprador>").append(escapeXml(d.buyerIdNumber())).append("</identificacionComprador>\n");
+    xml.append("    <obligadoContabilidad>").append(d.requiresAccounting() ? "SI" : "NO").append("</obligadoContabilidad>\n");
+    xml.append("    <codDocModificado>").append(d.modifiedDocType() != null ? d.modifiedDocType() : "01").append("</codDocModificado>\n");
+    xml.append("    <numDocModificado>").append(d.modifiedDocNumber()).append("</numDocModificado>\n");
+    xml.append("    <fechaEmisionDocSustento>").append((d.modifiedDocDate() != null ? d.modifiedDocDate() : LocalDate.now()).format(SRI_DATE)).append("</fechaEmisionDocSustento>\n");
+    xml.append("    <totalSinImpuestos>").append(formatMoney(d.subtotalSinImpuestos())).append("</totalSinImpuestos>\n");
+
+    // totalConImpuestos
+    xml.append("    <totalConImpuestos>\n");
+    if (d.subtotal15() != null && d.subtotal15().compareTo(BigDecimal.ZERO) > 0) {
+      xml.append("      <totalImpuesto>\n");
+      xml.append("        <codigo>2</codigo>\n");
+      xml.append("        <codigoPorcentaje>4</codigoPorcentaje>\n");
+      xml.append("        <baseImponible>").append(formatMoney(d.subtotal15())).append("</baseImponible>\n");
+      xml.append("        <valor>").append(formatMoney(d.iva15Amount())).append("</valor>\n");
+      xml.append("      </totalImpuesto>\n");
+    }
+    if (d.subtotal0() != null && d.subtotal0().compareTo(BigDecimal.ZERO) > 0) {
+      xml.append("      <totalImpuesto>\n");
+      xml.append("        <codigo>2</codigo>\n");
+      xml.append("        <codigoPorcentaje>0</codigoPorcentaje>\n");
+      xml.append("        <baseImponible>").append(formatMoney(d.subtotal0())).append("</baseImponible>\n");
+      xml.append("        <valor>0.00</valor>\n");
+      xml.append("      </totalImpuesto>\n");
+    }
+    if ((d.subtotal15() == null || d.subtotal15().compareTo(BigDecimal.ZERO) == 0) &&
+        (d.subtotal0() == null || d.subtotal0().compareTo(BigDecimal.ZERO) == 0)) {
+      xml.append("      <totalImpuesto>\n");
+      xml.append("        <codigo>2</codigo>\n");
+      xml.append("        <codigoPorcentaje>0</codigoPorcentaje>\n");
+      xml.append("        <baseImponible>").append(formatMoney(d.subtotalSinImpuestos())).append("</baseImponible>\n");
+      xml.append("        <valor>0.00</valor>\n");
+      xml.append("      </totalImpuesto>\n");
+    }
+    xml.append("    </totalConImpuestos>\n");
+
+    xml.append("    <motivo>").append(escapeXml(d.reason() != null && !d.reason().isBlank() ? d.reason() : "Devolución / Anulación de factura")).append("</motivo>\n");
+    xml.append("  </infoNotaCredito>\n");
+
+    // 3. detalles
+    xml.append("  <detalles>\n");
+    for (ItemDetail item : d.items()) {
+      xml.append("    <detalle>\n");
+      xml.append("      <codigoInterno>").append(escapeXml(item.code())).append("</codigoInterno>\n");
+      xml.append("      <descripcion>").append(escapeXml(item.description())).append("</descripcion>\n");
+      xml.append("      <cantidad>").append(formatQty(item.quantity())).append("</cantidad>\n");
+      xml.append("      <precioUnitario>").append(formatMoney(item.unitPrice())).append("</precioUnitario>\n");
+      xml.append("      <descuento>").append(formatMoney(item.discount())).append("</descuento>\n");
+      xml.append("      <precioTotalSinImpuesto>").append(formatMoney(item.lineTotal())).append("</precioTotalSinImpuesto>\n");
+
+      xml.append("      <impuestos>\n");
+      xml.append("        <impuesto>\n");
+      xml.append("          <codigo>2</codigo>\n");
+      if (item.subjectToIva()) {
+        BigDecimal itemIva = item.lineTotal().multiply(BigDecimal.valueOf(0.15)).setScale(2, RoundingMode.HALF_UP);
+        xml.append("          <codigoPorcentaje>4</codigoPorcentaje>\n");
+        xml.append("          <tarifa>15.00</tarifa>\n");
+        xml.append("          <baseImponible>").append(formatMoney(item.lineTotal())).append("</baseImponible>\n");
+        xml.append("          <valor>").append(formatMoney(itemIva)).append("</valor>\n");
+      } else {
+        xml.append("          <codigoPorcentaje>0</codigoPorcentaje>\n");
+        xml.append("          <tarifa>0.00</tarifa>\n");
+        xml.append("          <baseImponible>").append(formatMoney(item.lineTotal())).append("</baseImponible>\n");
+        xml.append("          <valor>0.00</valor>\n");
+      }
+      xml.append("        </impuesto>\n");
+      xml.append("      </impuestos>\n");
+      xml.append("    </detalle>\n");
+    }
+    xml.append("  </detalles>\n");
+
+    // 4. infoAdicional
+    xml.append("  <infoAdicional>\n");
+    if (d.buyerEmail() != null && !d.buyerEmail().isBlank()) {
+      xml.append("    <campoAdicional nombre=\"Email\">").append(escapeXml(d.buyerEmail())).append("</campoAdicional>\n");
+    }
+    if (d.additionalInfo() != null) {
+      for (Map.Entry<String, String> e : d.additionalInfo().entrySet()) {
+        if (e.getValue() != null && !e.getValue().isBlank()) {
+          xml.append("    <campoAdicional nombre=\"").append(escapeXml(e.getKey())).append("\">")
+             .append(escapeXml(e.getValue())).append("</campoAdicional>\n");
+        }
+      }
+    }
+    xml.append("  </infoAdicional>\n");
+
+    xml.append("</notaCredito>");
+    return xml.toString();
+  }
+
   private static String formatMoney(BigDecimal val) {
     if (val == null) return "0.00";
     return val.setScale(2, RoundingMode.HALF_UP).toString();

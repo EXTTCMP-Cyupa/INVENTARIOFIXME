@@ -14,6 +14,7 @@ public interface WorkOrderPort {
   Optional<WorkOrder> findByTokenHash(UUID tenantId, String tokenHash);
   List<Map<String, Object>> listEnriched(UUID tenantId, String statusFilter, String search, UUID technicianId);
   Optional<Map<String, Object>> findPublicTracking(UUID tenantId, String tokenHash);
+  Optional<Map<String, Object>> findPublicTrackingByCode(String code);
   String generateNextOrderNumber(UUID tenantId);
   List<WorkOrderItem> findItemsByOrderId(UUID tenantId, UUID orderId);
   void saveItems(UUID tenantId, UUID orderId, List<WorkOrderItem> items);

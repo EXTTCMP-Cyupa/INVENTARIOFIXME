@@ -491,7 +491,7 @@ public class SriInvoiceController {
         .body(xml);
   }
 
-  // 6. LIST ELECTRONIC INVOICES
+  // 6. LIST ELECTRONIC INVOICES & CREDIT NOTES
   @GetMapping("/invoices")
   @PreAuthorize("isAuthenticated()")
   public List<Map<String, Object>> listInvoices(
@@ -502,7 +502,7 @@ public class SriInvoiceController {
     ctx(t);
 
     String sql = """
-        SELECT id, sale_id, numero_completo, clave_acceso, fecha_emision,
+        SELECT id, sale_id, tipo_documento, numero_completo, clave_acceso, fecha_emision,
                cliente_identificacion, cliente_razon_social,
                subtotal_sin_impuestos, iva_15, importe_total,
                estado_sri, numero_autorizacion, fecha_autorizacion, created_at
@@ -515,6 +515,206 @@ public class SriInvoiceController {
     return (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status))
         ? db.queryForList(sql, t, status)
         : db.queryForList(sql, t);
+  }
+
+  // 7. ISSUE OFFICIAL SRI ELECTRONIC CREDIT NOTE (NOTA DE CRÉDITO TIPO 04)
+  @PostMapping("/credit-notes/from-invoice/{invoiceId}")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
+  public Map<String, Object> issueCreditNote(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable UUID invoiceId,
+      @RequestBody(required = false) Map<String, Object> body
+  ) {
+    UUID t = tenant(jwt);
+    ctx(t);
+
+    // 1. Fetch original invoice
+    List<Map<String, Object>> invoices = db.queryForList("""
+        SELECT id, sale_id, tipo_documento, establecimiento, punto_emision, secuencial, numero_completo,
+               clave_acceso, fecha_emision, ambiente, cliente_tipo_id, cliente_identificacion,
+               cliente_razon_social, cliente_direccion, cliente_telefono, cliente_email,
+               subtotal_sin_impuestos, subtotal_15, subtotal_0, iva_15, total_descuento, importe_total,
+               estado_sri
+        FROM electronic_invoices
+        WHERE id = ? AND tenant_id = ?
+        """, invoiceId, t);
+
+    if (invoices.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Factura original no encontrada");
+    }
+    Map<String, Object> inv = invoices.get(0);
+
+    String reason = body != null && body.get("reason") != null && !body.get("reason").toString().isBlank()
+        ? body.get("reason").toString().trim()
+        : "Devolución / Anulación de factura";
+
+    // 2. Fetch SRI Config
+    Map<String, Object> config = getConfig(jwt);
+    String ruc = String.valueOf(config.get("ruc"));
+    String razonSocial = String.valueOf(config.get("razonSocial"));
+    String nombreComercial = String.valueOf(config.getOrDefault("nombreComercial", razonSocial));
+    String dirMatriz = String.valueOf(config.getOrDefault("direccionMatriz", "Matriz"));
+    String dirEstab = String.valueOf(config.getOrDefault("direccionEstablecimiento", dirMatriz));
+    String estab = String.valueOf(config.getOrDefault("codigoEstablecimiento", "001"));
+    String ptoEmi = String.valueOf(config.getOrDefault("codigoPuntoEmision", "001"));
+    boolean obligado = Boolean.parseBoolean(String.valueOf(config.getOrDefault("obligadoContabilidad", false)));
+    String regimen = String.valueOf(config.getOrDefault("regimenTributario", "GENERAL"));
+    int ambiente = Integer.parseInt(String.valueOf(config.getOrDefault("ambienteSri", 1)));
+
+    // 3. Resolve sequential for Credit Note
+    List<Integer> seqList = db.query("SELECT secuencial_nota_credito FROM tenant_sri_config WHERE tenant_id = ?", (rs, rowNum) -> rs.getInt(1), t);
+    int currentSeq = seqList.isEmpty() ? 1 : Math.max(1, seqList.get(0));
+    String seqFormatted = String.format("%09d", currentSeq);
+    String numCompleto = String.format("%03d-%03d-%09d", Integer.parseInt(estab), Integer.parseInt(ptoEmi), currentSeq);
+
+    // 4. Fetch items of original invoice
+    UUID saleId = (UUID) inv.get("sale_id");
+    List<Map<String, Object>> saleItems = Collections.emptyList();
+    if (saleId != null) {
+      saleItems = db.queryForList("""
+          SELECT si.quantity, si.unit_price, si.line_total, p.name AS product_name, p.sku
+          FROM sale_items si
+          JOIN products p ON p.id = si.product_id
+          WHERE si.sale_id = ?
+          """, saleId);
+    }
+
+    List<SriXmlBuilder.ItemDetail> items = new ArrayList<>();
+    for (Map<String, Object> si : saleItems) {
+      BigDecimal qty = new BigDecimal(si.get("quantity").toString());
+      BigDecimal unitPrice = new BigDecimal(si.get("unit_price").toString());
+      BigDecimal lineTotal = qty.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP);
+      items.add(new SriXmlBuilder.ItemDetail(
+          si.get("sku") != null ? si.get("sku").toString() : "PROD-" + items.size(),
+          si.get("product_name").toString(),
+          qty,
+          unitPrice,
+          BigDecimal.ZERO,
+          lineTotal,
+          true
+      ));
+    }
+
+    if (items.isEmpty()) {
+      BigDecimal tot = new BigDecimal(inv.get("subtotal_sin_impuestos").toString());
+      items.add(new SriXmlBuilder.ItemDetail(
+          "SERV-01",
+          "Devolución de factura " + inv.get("numero_completo"),
+          BigDecimal.ONE,
+          tot,
+          BigDecimal.ZERO,
+          tot,
+          true
+      ));
+    }
+
+    // 5. Generate 49-digit Access Key for Document 04
+    LocalDate today = LocalDate.now();
+    String accessKey = SriAccessKeyGenerator.generate(
+        today,
+        "04",
+        ruc,
+        ambiente,
+        estab,
+        ptoEmi,
+        seqFormatted,
+        null
+    );
+
+    LocalDate docSustentoDate = today;
+    if (inv.get("fecha_emision") instanceof OffsetDateTime odt) {
+      docSustentoDate = odt.toLocalDate();
+    }
+
+    BigDecimal subtotalSinImp = new BigDecimal(inv.get("subtotal_sin_impuestos").toString());
+    BigDecimal subtotal15 = new BigDecimal(inv.get("subtotal_15").toString());
+    BigDecimal subtotal0 = new BigDecimal(inv.get("subtotal_0").toString());
+    BigDecimal iva15 = new BigDecimal(inv.get("iva_15").toString());
+    BigDecimal totalDesc = new BigDecimal(inv.get("total_descuento").toString());
+    BigDecimal grandTotal = new BigDecimal(inv.get("importe_total").toString());
+
+    // 6. Build Nota de Credito XML
+    SriXmlBuilder.CreditNoteData cnData = new SriXmlBuilder.CreditNoteData(
+        accessKey,
+        ambiente,
+        ruc,
+        razonSocial,
+        nombreComercial,
+        dirMatriz,
+        dirEstab,
+        estab,
+        ptoEmi,
+        seqFormatted,
+        obligado,
+        regimen,
+        null,
+        null,
+        today,
+        inv.get("cliente_tipo_id").toString(),
+        inv.get("cliente_identificacion").toString(),
+        inv.get("cliente_razon_social").toString(),
+        (String) inv.get("cliente_direccion"),
+        (String) inv.get("cliente_telefono"),
+        (String) inv.get("cliente_email"),
+        "01",
+        inv.get("numero_completo").toString(),
+        docSustentoDate,
+        reason,
+        subtotalSinImp,
+        subtotal15,
+        subtotal0,
+        iva15,
+        totalDesc,
+        grandTotal,
+        items,
+        Map.of("FacturaModificada", inv.get("numero_completo").toString())
+    );
+
+    String rawXml = SriXmlBuilder.buildNotaCreditoXml(cnData);
+
+    // 7. Sign XML
+    List<Map<String, Object>> certRows = db.queryForList("SELECT certificado_p12_base64, certificado_p12_password FROM tenant_sri_config WHERE tenant_id = ?", t);
+    String p12Base64 = certRows.isEmpty() || certRows.get(0).get("certificado_p12_base64") == null ? null : certRows.get(0).get("certificado_p12_base64").toString();
+    String p12Pass = certRows.isEmpty() || certRows.get(0).get("certificado_p12_password") == null ? null : certRows.get(0).get("certificado_p12_password").toString();
+    String signedXml = SriXmlSigner.signXml(rawXml, p12Base64, p12Pass);
+
+    // 8. Process through SriSoapClient
+    SriSoapClient.SriResponse sriResp = SriSoapClient.processInvoice(signedXml, accessKey, ambiente);
+
+    // 9. Persist Credit Note
+    UUID creditNoteId = UUID.randomUUID();
+    String mensajesJson = "[]";
+    try {
+      mensajesJson = mapper.writeValueAsString(sriResp.messages());
+    } catch (Exception ignored) {}
+
+    db.update("""
+        INSERT INTO electronic_invoices (
+            id, tenant_id, sale_id, tipo_documento, establecimiento, punto_emision, secuencial, numero_completo,
+            clave_acceso, fecha_emision, ambiente,
+            cliente_tipo_id, cliente_identificacion, cliente_razon_social, cliente_direccion, cliente_telefono, cliente_email,
+            subtotal_sin_impuestos, subtotal_15, subtotal_0, iva_15, total_descuento, propina, importe_total,
+            xml_generado, xml_firmado, estado_sri, numero_autorizacion, fecha_autorizacion, mensajes_sri, updated_at
+        ) VALUES (
+            ?, ?, ?, '04', ?, ?, ?, ?,
+            ?, now(), ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, 0.00, ?,
+            ?, ?, ?, ?, ?, ?::jsonb, now()
+        )
+        """,
+        creditNoteId, t, saleId, estab, ptoEmi, seqFormatted, numCompleto,
+        accessKey, ambiente,
+        inv.get("cliente_tipo_id"), inv.get("cliente_identificacion"), inv.get("cliente_razon_social"),
+        inv.get("cliente_direccion"), inv.get("cliente_telefono"), inv.get("cliente_email"),
+        subtotalSinImp, subtotal15, subtotal0, iva15, totalDesc, grandTotal,
+        rawXml, signedXml, sriResp.status(), sriResp.authorizationNumber(), sriResp.authorizationDate(), mensajesJson
+    );
+
+    // Increment Credit Note sequence
+    db.update("UPDATE tenant_sri_config SET secuencial_nota_credito = secuencial_nota_credito + 1, updated_at = now() WHERE tenant_id = ?", t);
+
+    return getInvoiceDetail(jwt, creditNoteId);
   }
 }
 
