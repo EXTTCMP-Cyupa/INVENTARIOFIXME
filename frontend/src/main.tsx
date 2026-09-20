@@ -1,6 +1,7 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
 import { PublicCatalog, PublicDeliveryTracking, CatalogShareModal } from './publicModules';
 import { SriRideModal } from './sriRideModal';
+import { SriInvoicesListModal } from './sriInvoicesListModal';
 import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
 import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptModal, BarcodeTagsModal, CsvImportModal, TechnicianWorkbenchModal } from './commercialModals';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
@@ -1642,6 +1643,7 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [copied, setCopied] = React.useState(false);
   const [showRideInvoiceId, setShowRideInvoiceId] = React.useState<string | null>(null);
   const [issuingSriId, setIssuingSriId] = React.useState<string | null>(null);
+  const [showSriInvoicesModal, setShowSriInvoicesModal] = React.useState(false);
 
   const load = React.useCallback(() => {
     api(`/api/sales?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setRows);
@@ -1882,6 +1884,15 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button type="button" className="secondary-action" onClick={exportCSV} title="Descargar reporte en formato Excel/CSV">
             📥 Exportar Excel/CSV
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            style={{ background: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            onClick={() => setShowSriInvoicesModal(true)}
+            title="Ver todas las Facturas Electrónicas emitidas al SRI, consultar RIDE y descargar XML"
+          >
+            🏛️ Facturas SRI
           </button>
           <button type="button" className="primary-action" onClick={load}>
             🔄 Actualizar Ventas
@@ -2254,6 +2265,17 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                           >
                             📄 RIDE SRI
                           </button>
+                        ) : r.invoice_type === 'SRI_INVOICE' ? (
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            style={{ padding: '5px 8px', fontSize: '11px', whiteSpace: 'nowrap', background: '#fef3c7', color: '#b45309', borderColor: '#fde68a', fontWeight: 700 }}
+                            onClick={() => issueSriInvoice(r.id)}
+                            disabled={issuingSriId === r.id}
+                            title="Completar y emitir Factura Electrónica SRI oficial"
+                          >
+                            {issuingSriId === r.id ? 'Emitiendo...' : '🏛️ Emitir Factura SRI'}
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -2607,7 +2629,7 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 >
                   🖨️ Imprimir Térmico (80mm)
                 </button>
-                {detailModal.electronic_invoice_id && (
+                {detailModal.electronic_invoice_id ? (
                   <button
                     type="button"
                     className="primary-action"
@@ -2615,6 +2637,19 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                     onClick={() => setShowRideInvoiceId(detailModal.electronic_invoice_id)}
                   >
                     🏛️ Ver RIDE SRI
+                  </button>
+                ) : detailModal.invoice_type === 'SRI_INVOICE' && (
+                  <button
+                    type="button"
+                    className="primary-action"
+                    style={{ flex: 1, padding: '10px', fontWeight: 700, background: '#d97706', borderColor: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    onClick={async () => {
+                      const sId = detailModal.id;
+                      setDetailModal(null);
+                      await issueSriInvoice(sId);
+                    }}
+                  >
+                    🏛️ Emitir Factura SRI
                   </button>
                 )}
                 {detailModal.customer_phone && (
@@ -2671,6 +2706,14 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
           invoiceId={showRideInvoiceId}
           api={api}
           onClose={() => setShowRideInvoiceId(null)}
+        />
+      )}
+
+      {showSriInvoicesModal && (
+        <SriInvoicesListModal
+          api={api}
+          onClose={() => setShowSriInvoicesModal(false)}
+          onOpenRide={(id: string) => setShowRideInvoiceId(id)}
         />
       )}
     </>

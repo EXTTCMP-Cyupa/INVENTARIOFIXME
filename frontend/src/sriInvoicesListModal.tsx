@@ -1,0 +1,251 @@
+import React from 'react';
+
+interface SriInvoicesListModalProps {
+  api: (u: string, o?: RequestInit) => Promise<Response>;
+  onClose: () => void;
+  onOpenRide: (invoiceId: string) => void;
+  notify?: (msg: string) => void;
+}
+
+export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriInvoicesListModalProps) {
+  const [invoices, setInvoices] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('ALL');
+  const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    api('/api/sri/invoices')
+      .then(r => r.ok ? r.json() : [])
+      .then(setInvoices)
+      .finally(() => setLoading(false));
+  }, [api]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  function copyKey(k: string) {
+    navigator.clipboard.writeText(k);
+    setCopiedKey(k);
+    setTimeout(() => setCopiedKey(null), 2000);
+    if (notify) notify('Clave de acceso copiada al portapapeles');
+  }
+
+  function downloadXml(id: string) {
+    window.open(`/api/sri/invoices/${id}/xml`, '_blank');
+  }
+
+  const filtered = invoices.filter(inv => {
+    if (statusFilter !== 'ALL' && inv.estado_sri !== statusFilter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const num = (inv.numero_completo || '').toLowerCase();
+      const cli = (inv.cliente_razon_social || '').toLowerCase();
+      const iden = (inv.cliente_identificacion || '').toLowerCase();
+      const key = (inv.clave_acceso || '').toLowerCase();
+      if (!num.includes(q) && !cli.includes(q) && !iden.includes(q) && !key.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const totalSum = filtered.reduce((acc, i) => acc + Number(i.importe_total || 0), 0);
+  const totalIva = filtered.reduce((acc, i) => acc + Number(i.iva_15 || 0), 0);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card"
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '1020px', width: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <div className="modal-head" style={{ marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '24px' }}>🏛️</span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                Facturas Electrónicas Emitidas al SRI
+              </h3>
+              <small style={{ color: '#64748b' }}>
+                Registro oficial de comprobantes electrónicos autorizados por el SRI del Ecuador
+              </small>
+            </div>
+          </div>
+          <button className="close-button" onClick={onClose} title="Cerrar">✕</button>
+        </div>
+
+        {/* SUMMARY STATS & FILTERS */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '14px' }}>
+          <div style={{ flex: 1, minWidth: '220px' }}>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="🔍 Buscar por N° factura, cliente, C.I./RUC o clave..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '13px' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select
+              className="input-field"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              style={{ padding: '8px 12px', fontSize: '13px' }}
+            >
+              <option value="ALL">Todos los Estados</option>
+              <option value="AUTORIZADA">AUTORIZADA</option>
+              <option value="GENERADA">GENERADA / EN PROCESO</option>
+              <option value="DEVUELTA">DEVUELTA</option>
+            </select>
+
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={load}
+              disabled={loading}
+              title="Recargar facturas"
+              style={{ padding: '8px 12px', fontSize: '13px' }}
+            >
+              🔄 Recargar
+            </button>
+          </div>
+        </div>
+
+        {/* FINANCIAL PILLS */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 14px', fontSize: '12px' }}>
+            <span style={{ color: '#64748b' }}>Total comprobantes: </span>
+            <strong style={{ color: '#0f172a' }}>{filtered.length}</strong>
+          </div>
+          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', padding: '6px 14px', fontSize: '12px' }}>
+            <span style={{ color: '#065f46' }}>Total Facturado: </span>
+            <strong style={{ color: '#047857' }}>${totalSum.toFixed(2)}</strong>
+          </div>
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '6px 14px', fontSize: '12px' }}>
+            <span style={{ color: '#1e40af' }}>IVA (15%) Recaudado: </span>
+            <strong style={{ color: '#1d4ed8' }}>${totalIva.toFixed(2)}</strong>
+          </div>
+        </div>
+
+        {/* TABLE CONTAINER */}
+        <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div className="spinner" style={{ margin: '0 auto 10px' }} />
+              <p style={{ color: '#64748b', fontSize: '13px' }}>Cargando facturas electrónicas...</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+              <p style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 6px' }}>No se encontraron facturas electrónicas</p>
+              <p style={{ fontSize: '12px', margin: 0 }}>
+                Las facturas generadas al vender con la opción "Factura SRI" o al hacer clic en "Facturar SRI" aparecerán listadas aquí.
+              </p>
+            </div>
+          ) : (
+            <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', textAlign: 'left', position: 'sticky', top: 0, zIndex: 2 }}>
+                  <th style={{ padding: '8px 10px' }}>N° Factura</th>
+                  <th style={{ padding: '8px 10px' }}>Fecha</th>
+                  <th style={{ padding: '8px 10px' }}>Cliente</th>
+                  <th style={{ padding: '8px 10px' }}>Subtotal</th>
+                  <th style={{ padding: '8px 10px' }}>IVA 15%</th>
+                  <th style={{ padding: '8px 10px' }}>Total</th>
+                  <th style={{ padding: '8px 10px' }}>Estado SRI</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(inv => {
+                  const isAuth = inv.estado_sri === 'AUTORIZADA';
+                  return (
+                    <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                        {inv.numero_completo}
+                      </td>
+                      <td style={{ padding: '8px 10px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                        {inv.fecha_emision ? new Date(inv.fecha_emision).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{inv.cliente_razon_social || 'CONSUMIDOR FINAL'}</div>
+                        <small style={{ color: '#64748b', fontFamily: 'monospace' }}>{inv.cliente_identificacion}</small>
+                      </td>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                        ${Number(inv.subtotal_sin_impuestos || 0).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: '#2563eb' }}>
+                        ${Number(inv.iva_15 || 0).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', fontWeight: 800, color: '#047857' }}>
+                        ${Number(inv.importe_total || 0).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                        <span
+                          className="status-badge"
+                          style={{
+                            background: isAuth ? '#ecfdf5' : '#fffbeb',
+                            color: isAuth ? '#065f46' : '#92400e',
+                            borderColor: isAuth ? '#a7f3d0' : '#fde68a',
+                            fontWeight: 700,
+                            fontSize: '11px'
+                          }}
+                        >
+                          {isAuth ? '✓ AUTORIZADA' : inv.estado_sri}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            style={{ padding: '4px 8px', fontSize: '11px', background: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0', fontWeight: 700 }}
+                            onClick={() => onOpenRide(inv.id)}
+                            title="Ver e imprimir RIDE oficial"
+                          >
+                            📄 RIDE
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            style={{ padding: '4px 8px', fontSize: '11px' }}
+                            onClick={() => downloadXml(inv.id)}
+                            title="Descargar XML oficial firmado"
+                          >
+                            📥 XML
+                          </button>
+                          {inv.clave_acceso && (
+                            <button
+                              type="button"
+                              className="secondary-action"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => copyKey(inv.clave_acceso)}
+                              title={`Clave: ${inv.clave_acceso}`}
+                            >
+                              {copiedKey === inv.clave_acceso ? '✓ Copiada' : '📋 Clave'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" className="secondary-action" onClick={onClose} style={{ padding: '8px 20px', fontWeight: 600 }}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

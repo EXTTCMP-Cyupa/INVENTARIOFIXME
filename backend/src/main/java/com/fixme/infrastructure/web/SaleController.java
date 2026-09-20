@@ -50,7 +50,8 @@ public class SaleController {
       List<Item> items,
       List<Payment> payments,
       String invoiceType, // "INTERNAL_TICKET" or "SRI_INVOICE"
-      String offlineFolio
+      String offlineFolio,
+      BigDecimal discount
   ) {}
 
   @PostMapping
@@ -73,13 +74,14 @@ public class SaleController {
         in.branchId(),
         u,
         in.items().stream().map(i -> new SalePort.Item(i.productId(), i.quantity())).toList(),
-        in.payments().stream().map(p -> new SalePort.Payment(p.method().toUpperCase(Locale.ROOT), p.amount())).toList(),
+        in.payments().stream().map(p -> new SalePort.Payment(p.resolvedMethod().toUpperCase(Locale.ROOT), p.amount())).toList(),
         in.customerId(),
         in.warrantyDays(),
         in.channel(),
         in.fulfillmentType(),
         in.shippingCost(),
-        deliveryInfo
+        deliveryInfo,
+        in.discount()
     );
 
     String invType = (in.invoiceType() != null && "SRI_INVOICE".equalsIgnoreCase(in.invoiceType()))
@@ -94,6 +96,7 @@ public class SaleController {
     resp.put("branchId", sale.branchId());
     resp.put("userId", sale.userId());
     resp.put("subtotal", sale.subtotal());
+    resp.put("discount", sale.discount() != null ? sale.discount() : BigDecimal.ZERO);
     resp.put("tax", sale.tax());
     resp.put("total", sale.total());
     resp.put("status", sale.status());
@@ -116,6 +119,8 @@ public class SaleController {
       try {
         var sriInv = sriInvoiceController.issueInvoiceFromSale(jwt, sale.id(), null);
         resp.put("electronicInvoice", sriInv);
+        resp.put("electronicInvoiceId", sriInv.get("id"));
+        resp.put("electronic_invoice_id", sriInv.get("id"));
         resp.put("invoiceNumber", sriInv.get("numero_completo"));
         resp.put("accessKey", sriInv.get("clave_acceso"));
         resp.put("sriStatus", sriInv.get("estado_sri"));
@@ -196,9 +201,9 @@ public class SaleController {
     jdbc.queryForObject("select set_config('app.tenant_id',?,true)", String.class, t.toString());
 
     String sql = """
-        SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
+        SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, COALESCE(s.discount, 0.00) AS discount, s.tax, s.total, s.status,
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
-               s.invoice_type, s.offline_folio, s.electronic_invoice_id,
+               s.invoice_type, s.offline_folio, COALESCE(s.electronic_invoice_id, ei.id) AS electronic_invoice_id,
                ei.numero_completo AS invoice_number, ei.clave_acceso AS invoice_access_key,
                ei.estado_sri AS invoice_sri_status, ei.fecha_autorizacion AS invoice_auth_date,
                b.name AS branch_name,
@@ -222,7 +227,7 @@ public class SaleController {
         LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
-        LEFT JOIN electronic_invoices ei ON ei.id = s.electronic_invoice_id
+        LEFT JOIN electronic_invoices ei ON ei.id = COALESCE(s.electronic_invoice_id, (SELECT ei2.id FROM electronic_invoices ei2 WHERE ei2.sale_id = s.id ORDER BY ei2.created_at DESC LIMIT 1))
         WHERE s.tenant_id = ?
         """;
 
@@ -240,9 +245,9 @@ public class SaleController {
     jdbc.queryForObject("select set_config('app.tenant_id',?,true)", String.class, t.toString());
 
     String sql = """
-        SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, s.tax, s.total, s.status,
+        SELECT s.id, s.branch_id, s.user_id, s.customer_id, s.subtotal, COALESCE(s.discount, 0.00) AS discount, s.tax, s.total, s.status,
                s.warranty_days, s.created_at, s.channel, s.fulfillment_type, s.shipping_cost, s.delivery_notes,
-               s.invoice_type, s.offline_folio, s.electronic_invoice_id,
+               s.invoice_type, s.offline_folio, COALESCE(s.electronic_invoice_id, ei.id) AS electronic_invoice_id,
                ei.numero_completo AS invoice_number, ei.clave_acceso AS invoice_access_key,
                ei.estado_sri AS invoice_sri_status, ei.fecha_autorizacion AS invoice_auth_date,
                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
@@ -264,7 +269,7 @@ public class SaleController {
         LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id
-        LEFT JOIN electronic_invoices ei ON ei.id = s.electronic_invoice_id
+        LEFT JOIN electronic_invoices ei ON ei.id = COALESCE(s.electronic_invoice_id, (SELECT ei2.id FROM electronic_invoices ei2 WHERE ei2.sale_id = s.id ORDER BY ei2.created_at DESC LIMIT 1))
         WHERE s.tenant_id = ? AND s.id = ?
         """;
 

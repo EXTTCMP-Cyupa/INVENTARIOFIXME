@@ -65,12 +65,39 @@ public class SriInvoiceController {
         """, t);
 
     if (rows.isEmpty()) {
-      // Return defaults from tenant
-      var tenant = db.queryForMap("SELECT id, name, billing_contact_phone FROM tenants WHERE id = ?", t);
+      List<Map<String, Object>> tList = db.queryForList("SELECT id, name FROM tenants WHERE id = ?", t);
+      String tenantName = (!tList.isEmpty() && tList.get(0).get("name") != null) ? tList.get(0).get("name").toString() : "FixmeTiendas S.A.S.";
+      try {
+        db.update("""
+            INSERT INTO tenant_sri_config (
+                tenant_id, ruc, razon_social, nombre_comercial, direccion_matriz, direccion_establecimiento,
+                codigo_establecimiento, codigo_punto_emision, obligado_contabilidad, regimen_tributario,
+                ambiente_sri, secuencial_factura, enabled, updated_at
+            ) VALUES (?, '1790012345001', ?, ?, 'Av. Principal y Central', 'Av. Principal Local 1', '001', '001', false, 'RIMPE_EMPRENDEDOR', 1, 1, true, now())
+            ON CONFLICT (tenant_id) DO NOTHING
+            """, t, tenantName, tenantName);
+      } catch (Exception ignored) {}
+
+      rows = db.queryForList("""
+          SELECT id, tenant_id, ruc, razon_social, nombre_comercial,
+                 direccion_matriz, direccion_establecimiento,
+                 codigo_establecimiento, codigo_punto_emision,
+                 obligado_contabilidad, contribuyente_especial_num,
+                 regimen_tributario, agente_retencion_num,
+                 ambiente_sri, secuencial_factura, secuencial_nota_credito,
+                 certificado_caducidad, certificado_nombre_archivo,
+                 (certificado_p12_base64 IS NOT NULL AND LENGTH(certificado_p12_base64) > 10) AS tiene_certificado,
+                 enabled, created_at, updated_at
+          FROM tenant_sri_config
+          WHERE tenant_id = ?
+          """, t);
+    }
+
+    if (rows.isEmpty()) {
       Map<String, Object> def = new LinkedHashMap<>();
       def.put("ruc", "1790012345001");
-      def.put("razonSocial", tenant.get("name") != null ? tenant.get("name") : "FixmeTiendas S.A.S.");
-      def.put("nombreComercial", tenant.get("name"));
+      def.put("razonSocial", "FixmeTiendas S.A.S.");
+      def.put("nombreComercial", "FixmeTiendas");
       def.put("direccionMatriz", "Av. Principal y Central");
       def.put("direccionEstablecimiento", "Av. Principal Local 1");
       def.put("codigoEstablecimiento", "001");
@@ -206,8 +233,8 @@ public class SriInvoiceController {
     int ambiente = Integer.parseInt(String.valueOf(config.getOrDefault("ambienteSri", 1)));
 
     // Sequential resolution
-    Integer currentSeq = db.queryForObject("SELECT secuencial_factura FROM tenant_sri_config WHERE tenant_id = ?", Integer.class, t);
-    if (currentSeq == null) currentSeq = 1;
+    List<Integer> seqList = db.query("SELECT secuencial_factura FROM tenant_sri_config WHERE tenant_id = ?", (rs, rowNum) -> rs.getInt(1), t);
+    int currentSeq = seqList.isEmpty() ? 1 : Math.max(1, seqList.get(0));
     String seqFormatted = String.format("%09d", currentSeq);
     String numCompleto = String.format("%03d-%03d-%09d", Integer.parseInt(estab), Integer.parseInt(ptoEmi), currentSeq);
 
@@ -332,8 +359,9 @@ public class SriInvoiceController {
     String rawXml = SriXmlBuilder.buildFacturaXml(data);
 
     // 7. Sign XML
-    String p12Base64 = db.queryForObject("SELECT certificado_p12_base64 FROM tenant_sri_config WHERE tenant_id = ?", String.class, t);
-    String p12Pass = db.queryForObject("SELECT certificado_p12_password FROM tenant_sri_config WHERE tenant_id = ?", String.class, t);
+    List<Map<String, Object>> certRows = db.queryForList("SELECT certificado_p12_base64, certificado_p12_password FROM tenant_sri_config WHERE tenant_id = ?", t);
+    String p12Base64 = certRows.isEmpty() || certRows.get(0).get("certificado_p12_base64") == null ? null : certRows.get(0).get("certificado_p12_base64").toString();
+    String p12Pass = certRows.isEmpty() || certRows.get(0).get("certificado_p12_password") == null ? null : certRows.get(0).get("certificado_p12_password").toString();
     String signedXml = SriXmlSigner.signXml(rawXml, p12Base64, p12Pass);
 
     // 8. Submit to SRI / Web Service
@@ -357,14 +385,14 @@ public class SriInvoiceController {
             ?, ?, ?, '01', ?, ?, ?, ?,
             ?, now(), ?,
             ?, ?, ?, ?, ?, ?,
-            ?, ?, 0.00, ?, 0.00, ?, '01',
+            ?, ?, 0.00, ?, ?, ?, '01',
             ?, ?, ?, ?::jsonb, ?, ?
         )
         """,
         invoiceId, t, saleId, estab, ptoEmi, seqFormatted, numCompleto,
         accessKey, ambiente,
         buyerType, buyerId, buyerName, buyerAddress, buyerPhone, buyerEmail,
-        subtotalSinImpuestos, subtotal15, iva15Total, grandTotal,
+        subtotalSinImpuestosNeto, subtotal15Neto, iva15TotalNeto, totalDiscount, grandTotal,
         sriResp.status(), sriResp.authorizationNumber(), sriResp.authorizationDate(),
         mensajesJson, rawXml, signedXml
     );
@@ -378,7 +406,16 @@ public class SriInvoiceController {
         """, invoiceId, saleId, t);
 
     // Increment tenant sequential
-    db.update("UPDATE tenant_sri_config SET secuencial_factura = secuencial_factura + 1, updated_at = now() WHERE tenant_id = ?", t);
+    int updatedSeq = db.update("UPDATE tenant_sri_config SET secuencial_factura = secuencial_factura + 1, updated_at = now() WHERE tenant_id = ?", t);
+    if (updatedSeq == 0) {
+      try {
+        db.update("""
+            INSERT INTO tenant_sri_config (tenant_id, ruc, razon_social, direccion_matriz, secuencial_factura, updated_at)
+            VALUES (?, ?, ?, 'Av. Principal y Central', ?, now())
+            ON CONFLICT (tenant_id) DO UPDATE SET secuencial_factura = tenant_sri_config.secuencial_factura + 1
+            """, t, ruc, razonSocial, currentSeq + 1);
+      } catch (Exception ignored) {}
+    }
 
     return getInvoiceDetail(jwt, invoiceId);
   }
@@ -392,15 +429,15 @@ public class SriInvoiceController {
 
     List<Map<String, Object>> list = db.queryForList("""
         SELECT ei.*,
-               tsc.ruc AS emisor_ruc,
-               tsc.razon_social AS emisor_razon_social,
-               tsc.nombre_comercial AS emisor_nombre_comercial,
-               tsc.direccion_matriz AS emisor_direccion_matriz,
-               tsc.direccion_establecimiento AS emisor_direccion_estab,
-               tsc.regimen_tributario AS emisor_regimen,
-               tsc.obligado_contabilidad AS emisor_obligado
+               COALESCE(tsc.ruc, '1790012345001') AS emisor_ruc,
+               COALESCE(tsc.razon_social, 'FixmeTiendas S.A.S.') AS emisor_razon_social,
+               COALESCE(tsc.nombre_comercial, tsc.razon_social, 'FixmeTiendas') AS emisor_nombre_comercial,
+               COALESCE(tsc.direccion_matriz, 'Av. Principal y Central') AS emisor_direccion_matriz,
+               COALESCE(tsc.direccion_establecimiento, 'Av. Principal Local 1') AS emisor_direccion_estab,
+               COALESCE(tsc.regimen_tributario, 'RIMPE_EMPRENDEDOR') AS emisor_regimen,
+               COALESCE(tsc.obligado_contabilidad, false) AS emisor_obligado
         FROM electronic_invoices ei
-        JOIN tenant_sri_config tsc ON tsc.tenant_id = ei.tenant_id
+        LEFT JOIN tenant_sri_config tsc ON tsc.tenant_id = ei.tenant_id
         WHERE ei.id = ? AND ei.tenant_id = ?
         """, id, t);
 
