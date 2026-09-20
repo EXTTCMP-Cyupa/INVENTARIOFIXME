@@ -152,3 +152,4 @@ public final class SriXmlSigner {
     return xmlContent + mockSignature;
   }
 }
+

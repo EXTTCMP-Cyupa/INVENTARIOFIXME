@@ -32,7 +32,8 @@ public class JdbcSaleAdapter implements SalePort {
       String channel,
       String fulfillmentType,
       BigDecimal shippingCost,
-      DeliveryInfo delivery
+      DeliveryInfo delivery,
+      BigDecimal discount
   ) {
     tenant(t);
     jdbc.queryForObject("select id from branches where id=? and tenant_id=? and active", UUID.class, b, t);
@@ -66,8 +67,10 @@ public class JdbcSaleAdapter implements SalePort {
       rows.add(new Object[]{i, price, line, cost});
     }
 
+    BigDecimal finalDiscount = (discount != null && discount.signum() > 0) ? discount : BigDecimal.ZERO;
+    BigDecimal taxableSubtotal = subtotal.subtract(finalDiscount).max(BigDecimal.ZERO);
     BigDecimal finalShipping = shippingCost != null && shippingCost.signum() > 0 ? shippingCost : BigDecimal.ZERO;
-    BigDecimal total = subtotal.add(finalShipping);
+    BigDecimal total = taxableSubtotal.add(finalShipping);
     BigDecimal paid = payments.stream().map(Payment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     if (paid.compareTo(total) < 0) {
       throw new IllegalArgumentException("Pagos insuficientes. Total requerido: $" + total + ", total recibido: $" + paid);
@@ -83,9 +86,9 @@ public class JdbcSaleAdapter implements SalePort {
     String deliveryNotes = delivery != null ? delivery.notes() : null;
 
     jdbc.update(
-        "insert into sales(id, tenant_id, branch_id, user_id, customer_id, warranty_days, subtotal, total, cash_session_id, channel, fulfillment_type, shipping_cost, delivery_notes) " +
-        "values(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        id, t, b, u, customerId, warranty, subtotal, total, session, finalChannel, finalFulfillment, finalShipping, deliveryNotes
+        "insert into sales(id, tenant_id, branch_id, user_id, customer_id, warranty_days, subtotal, discount, total, cash_session_id, channel, fulfillment_type, shipping_cost, delivery_notes) " +
+        "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        id, t, b, u, customerId, warranty, subtotal, finalDiscount, total, session, finalChannel, finalFulfillment, finalShipping, deliveryNotes
     );
 
     for (Object[] row : rows) {
@@ -150,7 +153,7 @@ public class JdbcSaleAdapter implements SalePort {
     }
 
     return jdbc.queryForObject(
-        "select id, tenant_id, branch_id, user_id, subtotal, tax, total, status, created_at from sales where id=?",
+        "select id, tenant_id, branch_id, user_id, subtotal, coalesce(discount, 0), tax, total, status, created_at from sales where id=?",
         (r, n) -> new Sale(
             r.getObject(1, UUID.class),
             r.getObject(2, UUID.class),
@@ -159,8 +162,9 @@ public class JdbcSaleAdapter implements SalePort {
             r.getBigDecimal(5),
             r.getBigDecimal(6),
             r.getBigDecimal(7),
-            r.getString(8),
-            r.getTimestamp(9).toInstant()
+            r.getBigDecimal(8),
+            r.getString(9),
+            r.getTimestamp(10).toInstant()
         ),
         id
     );
@@ -169,7 +173,7 @@ public class JdbcSaleAdapter implements SalePort {
   public List<Sale> list(UUID t, UUID b) {
     tenant(t);
     return jdbc.query(
-        "select id, tenant_id, branch_id, user_id, subtotal, tax, total, status, created_at from sales where tenant_id=? and (? is null or branch_id=?) order by created_at desc",
+        "select id, tenant_id, branch_id, user_id, subtotal, coalesce(discount, 0), tax, total, status, created_at from sales where tenant_id=? and (? is null or branch_id=?) order by created_at desc",
         (r, n) -> new Sale(
             r.getObject(1, UUID.class),
             r.getObject(2, UUID.class),
@@ -178,8 +182,9 @@ public class JdbcSaleAdapter implements SalePort {
             r.getBigDecimal(5),
             r.getBigDecimal(6),
             r.getBigDecimal(7),
-            r.getString(8),
-            r.getTimestamp(9).toInstant()
+            r.getBigDecimal(8),
+            r.getString(9),
+            r.getTimestamp(10).toInstant()
         ),
         t, b, b
     );

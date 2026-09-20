@@ -23,7 +23,13 @@ public class SaleController {
   }
 
   public record Item(UUID productId, int quantity) {}
-  public record Payment(String method, BigDecimal amount) {}
+  public record Payment(String method, String paymentMethod, BigDecimal amount) {
+    public String resolvedMethod() {
+      if (method != null && !method.isBlank()) return method;
+      if (paymentMethod != null && !paymentMethod.isBlank()) return paymentMethod;
+      return "CASH";
+    }
+  }
   public record DeliveryInput(
       String recipientName,
       String recipientPhone,

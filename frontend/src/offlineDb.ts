@@ -31,6 +31,7 @@ export interface OfflineSale {
     notes?: string;
     courier?: string;
   } | null;
+  discount?: number;
   grandTotal: number;
   synced: boolean;
 }
@@ -150,3 +151,4 @@ export async function clearPendingSales(): Promise<void> {
   const tx = db.transaction('pendingSales', 'readwrite');
   tx.objectStore('pendingSales').clear();
 }
+

@@ -128,9 +128,12 @@ public class PlatformAdministrationController {
 
     UUID branch = UUID.randomUUID();
     UUID owner = UUID.randomUUID();
+    UUID cashRegister = UUID.randomUUID();
     db.update("insert into branches(id, tenant_id, name) values(?, ?, ?)", branch, id, "Principal");
     db.update("insert into app_users(id, tenant_id, email, password_hash, role, full_name, phone) values(?, ?, ?, ?, 'MANAGER', ?, ?)",
         owner, id, ownerEmail, passwords.hash(ownerPassword), ownerName, ownerPhone);
+    db.update("insert into user_branches(user_id, branch_id, tenant_id) values(?, ?, ?) on conflict do nothing", owner, branch, id);
+    db.update("insert into cash_registers(id, tenant_id, branch_id, name) values(?, ?, ?, 'Caja principal') on conflict do nothing", cashRegister, id, branch);
 
     // Initial default role permissions for the new store
     db.update("""

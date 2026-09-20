@@ -16,8 +16,25 @@ public interface SalePort {
       String channel,
       String fulfillmentType,
       BigDecimal shippingCost,
-      DeliveryInfo delivery
+      DeliveryInfo delivery,
+      BigDecimal discount
   );
+
+  default Sale create(
+      UUID tenant,
+      UUID branch,
+      UUID user,
+      List<Item> items,
+      List<Payment> payments,
+      UUID customerId,
+      Integer warrantyDays,
+      String channel,
+      String fulfillmentType,
+      BigDecimal shippingCost,
+      DeliveryInfo delivery
+  ) {
+    return create(tenant, branch, user, items, payments, customerId, warrantyDays, channel, fulfillmentType, shippingCost, delivery, BigDecimal.ZERO);
+  }
 
   List<Sale> list(UUID tenant, UUID branch);
 

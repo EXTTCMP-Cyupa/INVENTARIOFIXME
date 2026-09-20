@@ -2,10 +2,11 @@ import React from 'react';import{createRoot}from'react-dom/client';import'./styl
 import { PublicCatalog, PublicDeliveryTracking, CatalogShareModal } from './publicModules';
 import { SriRideModal } from './sriRideModal';
 import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
-type Any=Record<string,any>;const tenantId='00000000-0000-0000-0000-000000000001',branchId='00000000-0000-0000-0000-000000000010';
+import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptModal, BarcodeTagsModal, CsvImportModal, TechnicianWorkbenchModal } from './commercialModals';
+type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'SUCURSAL ACTUAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':'Principal'}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':undefined} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
-function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState('demo@fixme.local'),[password,setPassword]=React.useState('password'),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tenantId,email,password})});if(r.ok){onLogin((await r.json()).accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':(item==='warranties'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>!canReadModules||mods.length===0||mods.some(m=>m.moduleKey===key&&m.enabled);if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
+function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.trim(),password})});if(r.ok){const data=await r.json();if(data.tenantId){tenantId=data.tenantId;localStorage.tenantId=data.tenantId;}if(data.branchId){branchId=data.branchId;localStorage.branchId=data.branchId;}if(data.tenantName){localStorage.tenantName=data.tenantName;}if(data.fullName){localStorage.fullName=data.fullName;}onLogin(data.accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="ejemplo@correo.com"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
   const [history, setHistory] = React.useState<Any[]>([]);
@@ -16,6 +17,7 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
   const [showMoveModal, setShowMoveModal] = React.useState(false);
   const [showDepositModal, setShowDepositModal] = React.useState(false);
   const [showCloseModal, setShowCloseModal] = React.useState(false);
+  const [corteZSummary, setCorteZSummary] = React.useState<Any|null>(null);
 
   // Forms
   const [movement, setMovement] = React.useState({ type: 'CASH_IN', paymentMethod: 'CASH', amount: '', reason: '' });
@@ -91,6 +93,20 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
     if (r.ok) {
       notify('Caja cerrada y arqueada correctamente');
       setShowCloseModal(false);
+      setCorteZSummary({
+        openingCash: s?.openingCash || s?.expected?.OPENING || 0,
+        salesCash: s?.salesCash || (s?.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
+        inflowsCash: s?.inflowsCash || 0,
+        outflowsCash: s?.outflowsCash || 0,
+        depositsCash: s?.depositsCash || 0,
+        cashInDrawer: inDrawer,
+        counted: counted,
+        difference: diff,
+        depositAmount: Number(closeForm.depositAmount || 0),
+        depositDestination: closeForm.depositDestination,
+        depositReference: closeForm.depositReference,
+        nextDayFund: Number(closeForm.nextDayFund || 0)
+      });
       load();
     }
   }
@@ -115,7 +131,34 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
           <h2>Arqueo de Caja y Depósitos</h2>
           <p>Supervisa el dinero físico en gaveta, ventas en efectivo, gastos menores y destino de depósitos bancarios.</p>
         </div>
-        <button className="primary-action" onClick={load}>Actualizar Caja</button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {s && (
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => {
+                setCorteZSummary({
+                  openingCash: s.openingCash || s.expected?.OPENING || 0,
+                  salesCash: s.salesCash || (s.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
+                  inflowsCash: s.inflowsCash || 0,
+                  outflowsCash: s.outflowsCash || 0,
+                  depositsCash: s.depositsCash || 0,
+                  cashInDrawer: inDrawer,
+                  counted: inDrawer,
+                  difference: 0,
+                  depositAmount: 0,
+                  depositDestination: 'Banco',
+                  depositReference: 'ARQUEO-PREVIO',
+                  nextDayFund: 50
+                });
+              }}
+              title="Previsualizar e imprimir arqueo Corte Z en formato térmico 80mm"
+            >
+              📊 Imprimir Corte Z
+            </button>
+          )}
+          <button className="primary-action" onClick={load}>Actualizar Caja</button>
+        </div>
       </section>
 
       {!s ? (
@@ -548,6 +591,14 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
           </div>
         </div>
       )}
+
+      {corteZSummary && (
+        <CorteZModal
+          summary={corteZSummary}
+          onClose={() => setCorteZSummary(null)}
+          tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+        />
+      )}
     </>
   );
 }
@@ -588,6 +639,9 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 
   const [busy, setBusy] = React.useState(false);
   const [receiptModal, setReceiptModal] = React.useState<Any|null>(null);
+  const [showQuickCust, setShowQuickCust] = React.useState(false);
+  const [discount, setDiscount] = React.useState('0');
+  const [showThermalTicket, setShowThermalTicket] = React.useState(false);
 
   const load = React.useCallback(() => {
     if (navigator.onLine) {
@@ -655,7 +709,8 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         items: p.items.map(it => ({ productId: it.productId, quantity: it.quantity })),
         payments: p.payments,
         invoiceType: p.invoiceType || 'INTERNAL_TICKET',
-        offlineFolio: p.offlineFolio
+        offlineFolio: p.offlineFolio,
+        discount: p.discount || 0
       }));
       const r = await api('/api/sales/sync-offline', {
         method: 'POST',
@@ -701,7 +756,8 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 
   const subtotal = cart.reduce((n, i) => n + Number(i.price) * i.quantity, 0);
   const shippingFee = fulfillment === 'DELIVERY' ? Number(delivery.shippingCost || 0) : 0;
-  const grandTotal = subtotal + shippingFee;
+  const discountVal = Math.max(0, Number(discount || 0));
+  const grandTotal = Math.max(0, subtotal - discountVal + shippingFee);
 
   const tenderedVal = Number(cashTendered || 0);
   const changeVal = tenderedVal >= grandTotal ? tenderedVal - grandTotal : 0;
@@ -761,6 +817,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         items: cart.map(i => ({ productId: i.id, quantity: i.quantity, name: i.name, price: Number(i.price) })),
         payments: paymentsPayload,
         delivery: fulfillment === 'DELIVERY' ? { ...delivery } : null,
+        discount: discountVal,
         grandTotal,
         synced: false
       };
@@ -771,9 +828,10 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 
       notify(`⚠️ Venta guardada en MODO OFFLINE (${offlineFolio}). Se sincronizará automáticamente.`);
       setReceiptModal({
-        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal },
+        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal, discount: discountVal },
         items: [...cart],
         subtotal,
+        discount: discountVal,
         shippingFee,
         grandTotal,
         channel,
@@ -790,6 +848,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       setCart([]);
       setCashTendered('');
       setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+      setDiscount('0');
       return;
     }
 
@@ -813,7 +872,8 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       items: cart.map(i => ({ productId: i.id, quantity: i.quantity })),
       payments: paymentsPayload,
       invoiceType,
-      offlineFolio: null
+      offlineFolio: null,
+      discount: discountVal
     };
 
     try {
@@ -833,6 +893,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
           sale: createdSale,
           items: [...cart],
           subtotal,
+          discount: discountVal,
           shippingFee,
           grandTotal,
           channel,
@@ -848,6 +909,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         setCart([]);
         setCashTendered('');
         setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+        setDiscount('0');
         load();
       } else {
         notify(await r.text() || 'No se pudo registrar la venta');
@@ -873,6 +935,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         items: cart.map(i => ({ productId: i.id, quantity: i.quantity, name: i.name, price: Number(i.price) })),
         payments: paymentsPayload,
         delivery: fulfillment === 'DELIVERY' ? { ...delivery } : null,
+        discount: discountVal,
         grandTotal,
         synced: false
       };
@@ -881,9 +944,10 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       setPendingOffline(updated);
       notify(`⚠️ Conexión perdida. Venta guardada en MODO OFFLINE (${offlineFolio}).`);
       setReceiptModal({
-        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal },
+        sale: { id: offlineFolio, offlineFolio, invoiceType, total: grandTotal, discount: discountVal },
         items: [...cart],
         subtotal,
+        discount: discountVal,
         shippingFee,
         grandTotal,
         channel,
@@ -898,14 +962,42 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
         invoiceType
       });
       setCart([]);
+      setCashTendered('');
+      setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+      setDiscount('0');
     }
   }
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = !search || `${p.name} ${p.sku}`.toLowerCase().includes(search.toLowerCase());
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || `${p.name} ${p.sku} ${p.barcode || ''}`.toLowerCase().includes(q);
     const matchesCat = !selectedCat || p.category_id === selectedCat || p.categoryId === selectedCat;
     return matchesSearch && matchesCat;
   });
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && search.trim()) {
+      e.preventDefault();
+      const q = search.trim().toLowerCase();
+      const match = products.find(p =>
+        (p.barcode && p.barcode.toLowerCase() === q) ||
+        (p.sku && p.sku.toLowerCase() === q) ||
+        p.name.toLowerCase() === q
+      ) || filteredProducts[0];
+
+      if (match) {
+        if (Number(match.stock) > 0) {
+          add(match);
+          notify(`✓ "${match.name}" agregado al carrito`);
+          setSearch('');
+        } else {
+          notify(`⚠️ "${match.name}" está agotado`);
+        }
+      } else {
+        notify(`⚠️ No se encontró producto con código/SKU "${search.trim()}"`);
+      }
+    }
+  };
 
   return (
     <section className="panel">
@@ -925,9 +1017,11 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
             <div className="search-box" style={{ flex: 1, minWidth: '220px' }}>
               <span>🔍</span>
               <input
-                placeholder="Buscar por producto o SKU..."
+                placeholder="Escanear código de barras o buscar producto/SKU (Enter para agregar)..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                autoFocus
               />
             </div>
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -1144,7 +1238,26 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
 
           {/* CUSTOMER & WARRANTY */}
           <label>
-            Cliente registrado (opcional)
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span>Cliente registrado (opcional)</span>
+              <button
+                type="button"
+                onClick={() => setShowQuickCust(true)}
+                style={{
+                  border: '1px solid #bfdbfe',
+                  background: '#eff6ff',
+                  color: '#2563eb',
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+                title="Registrar cliente rápido sin salir del POS"
+              >
+                + Nuevo Cliente
+              </button>
+            </div>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)}>
               <option value="">Consumidor Final (Sin cliente)</option>
               {customers.map(c => (
@@ -1212,6 +1325,18 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               <span>Subtotal:</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+              <span>Descuento ($):</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={discount}
+                onChange={e => setDiscount(e.target.value)}
+                style={{ width: '80px', padding: '3px 6px', fontSize: '12px', textAlign: 'right', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              />
+            </div>
             {shippingFee > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                 <span>Envío a domicilio:</span>
@@ -1219,7 +1344,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 800, color: '#3157d5', marginTop: '6px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
-              <span>Total:</span>
+              <span>Total a Cobrar:</span>
               <span>${grandTotal.toFixed(2)}</span>
             </div>
           </div>
@@ -1319,6 +1444,24 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               <div className="ticket-divider"></div>
               <div><strong>VENTA: #{receiptModal.sale?.id?.slice(0, 8)}</strong></div>
               <div>Fecha: {new Date().toLocaleString()}</div>
+              {receiptModal.isOfflineSale ? (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#92400e', fontSize: '11px', fontWeight: 700 }}>
+                  ⚠️ Venta registrada Offline (Folio: {receiptModal.sale?.offlineFolio}). Pendiente de sincronización.
+                </div>
+              ) : receiptModal.invoiceType === 'SRI_INVOICE' || receiptModal.sale?.invoiceNumber || receiptModal.sale?.electronicInvoice ? (
+                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#065f46', fontSize: '11px', fontWeight: 700 }}>
+                  🏛️ FACTURA ELECTRÓNICA SRI: {receiptModal.sale?.invoiceNumber || receiptModal.sale?.electronicInvoice?.numero_completo || 'EMITIDA'}
+                  {(receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso) && (
+                    <div style={{ fontSize: '9px', fontWeight: 'normal', color: '#047857', wordBreak: 'break-all', marginTop: '2px' }}>
+                      Clave Acceso: {receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '4px 6px', borderRadius: '4px', margin: '4px 0', color: '#64748b', fontSize: '10.5px' }}>
+                  🧾 Ticket de Venta Interno (Sin declaración de IVA)
+                </div>
+              )}
               <div>Canal: {receiptModal.channel === 'ONLINE' ? 'Venta Online / Catálogo' : 'Venta en Local'}</div>
               <div>Cliente: {receiptModal.customer ? receiptModal.customer.name : 'Consumidor Final'}</div>
               {receiptModal.customer?.phone && <div>Teléfono: {receiptModal.customer.phone}</div>}
@@ -1352,10 +1495,16 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               ))}
 
               <div className="ticket-divider"></div>
+              {Number(receiptModal.discount || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#16a34a', margin: '2px 0' }}>
+                  <span>Descuento aplicado:</span>
+                  <span>-${Number(receiptModal.discount).toFixed(2)}</span>
+                </div>
+              )}
               {receiptModal.shippingFee > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                   <span>Flete a domicilio:</span>
-                  <span>${receiptModal.shippingFee.toFixed(2)}</span>
+                  <span>+${receiptModal.shippingFee.toFixed(2)}</span>
                 </div>
               )}
               <div style={{ fontSize: '14px', fontWeight: 800, margin: '4px 0' }}>
@@ -1380,6 +1529,27 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               <button className="primary-action" style={{ flex: 1, minWidth: '120px' }} onClick={() => window.print()}>
                 🖨️ Imprimir
               </button>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ flex: 1, minWidth: '130px', background: '#f8fafc', fontWeight: 700 }}
+                onClick={() => setShowThermalTicket(true)}
+              >
+                🧾 Formato 80mm
+              </button>
+              {(receiptModal.sale?.electronicInvoice?.id || receiptModal.sale?.electronicInvoiceId) && (
+                <button
+                  type="button"
+                  className="primary-action"
+                  style={{ flex: 1, minWidth: '150px', background: '#059669', borderColor: '#047857', fontWeight: 700 }}
+                  onClick={() => {
+                    const invId = receiptModal.sale?.electronicInvoice?.id || receiptModal.sale?.electronicInvoiceId;
+                    if (invId) setShowRideModalId(invId);
+                  }}
+                >
+                  🏛️ Ver RIDE / Factura SRI
+                </button>
+              )}
               {receiptModal.fulfillment === 'DELIVERY' && receiptModal.sale?.trackingNumber && (
                 <a
                   className="secondary-action"
@@ -1408,6 +1578,54 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
           </div>
         </div>
       )}
+
+      {showRideModalId && (
+        <SriRideModal
+          invoiceId={showRideModalId}
+          api={api}
+          onClose={() => setShowRideModalId(null)}
+        />
+      )}
+
+      {showQuickCust && (
+        <QuickCustomerModal
+          api={api}
+          notify={notify}
+          onCreated={c => {
+            setCustomers(prev => [c, ...prev]);
+            setCustomerId(c.id);
+          }}
+          onClose={() => setShowQuickCust(false)}
+        />
+      )}
+
+      {showThermalTicket && receiptModal && (
+        <ThermalTicketModal
+          sale={{
+            id: receiptModal.sale?.id || receiptModal.sale?.offlineFolio,
+            orderNumber: receiptModal.sale?.id?.slice(0, 8).toUpperCase(),
+            createdAt: new Date().toISOString(),
+            customerName: receiptModal.customer?.name || 'CONSUMIDOR FINAL',
+            customerIdentification: receiptModal.customer?.identification_number || receiptModal.customer?.cedula || '',
+            items: receiptModal.items.map((it: Any) => ({
+              productName: it.name,
+              quantity: it.quantity,
+              unitPrice: Number(it.price)
+            })),
+            payments: receiptModal.payments,
+            subtotal: receiptModal.subtotal,
+            discountAmount: receiptModal.discount != null ? receiptModal.discount : discountVal,
+            shippingCost: receiptModal.shippingFee,
+            total: receiptModal.grandTotal,
+            invoiceType: receiptModal.invoiceType,
+            warrantyDays: Number(warrantyDays || 0),
+            deliveryTrackingCode: receiptModal.sale?.trackingNumber,
+            changeAmount: receiptModal.change
+          }}
+          onClose={() => setShowThermalTicket(false)}
+          tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+        />
+      )}
     </section>
   );
 }
@@ -1422,10 +1640,33 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [detailModal, setDetailModal] = React.useState<Any|null>(null);
   const [loadingDetail, setLoadingDetail] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [showRideInvoiceId, setShowRideInvoiceId] = React.useState<string | null>(null);
+  const [issuingSriId, setIssuingSriId] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
     api(`/api/sales?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setRows);
   }, [api]);
+
+  async function issueSriInvoice(saleId: string) {
+    if (!confirm('¿Deseas generar la Factura Electrónica SRI oficial con 15% IVA y Clave de Acceso para esta venta?')) return;
+    setIssuingSriId(saleId);
+    try {
+      const res = await api(`/api/sri/invoices/from-sale/${saleId}`, { method: 'POST' });
+      if (res.ok) {
+        const inv = await res.json();
+        alert(`¡Factura Electrónica generada y autorizada con éxito!\nN°: ${inv.numero_completo}\nClave de Acceso: ${inv.clave_acceso}`);
+        load();
+        setShowRideInvoiceId(inv.id);
+      } else {
+        const err = await res.text();
+        alert(`Error al emitir factura SRI: ${err}`);
+      }
+    } catch (e: any) {
+      alert(`Error de conexión al emitir factura SRI: ${e.message}`);
+    } finally {
+      setIssuingSriId(null);
+    }
+  }
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -1611,6 +1852,7 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
 
 📦 *DETALLE DE PRODUCTOS:*
 ${itemsText}
+${Number(sale.discount || 0) > 0 ? `\n🏷️ *Descuento Aplicado:* -$${Number(sale.discount).toFixed(2)}` : ''}
 
 💰 *TOTAL PAGADO:* $${Number(sale.total).toFixed(2)}
 💳 *Forma de Pago:* ${paymentText}${deliveryBlock}${warrantyBlock}
@@ -1701,7 +1943,7 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 className={`filter-pill ${filterChannel === 'ONLINE' ? 'active' : ''}`}
                 onClick={() => setFilterChannel('ONLINE')}
               >
-                🌐 Por Internet ({rows.filter(r => r.channel === 'ONLINE').length})
+                📱 Pedidos Catálogo / Web ({rows.filter(r => r.channel === 'ONLINE').length})
               </button>
 
               <span style={{ borderLeft: '1px solid #cbd5e1', margin: '0 4px' }} />
@@ -1780,6 +2022,7 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
             <thead>
               <tr>
                 <th>Ticket / Fecha</th>
+                <th>Comprobante</th>
                 <th>Vendedor / Cajero</th>
                 <th>Cliente & Identificación</th>
                 <th>Canal</th>
@@ -1813,6 +2056,43 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                         <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8' }}>
                           📍 {r.branch_name}
                         </span>
+                      )}
+                    </td>
+
+                    {/* Comprobante */}
+                    <td>
+                      {r.invoice_type === 'SRI_INVOICE' || r.electronic_invoice_id || r.invoice_number ? (
+                        <div>
+                          <span className="status-badge status-approved" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10.5px' }}>
+                            🏛️ Factura SRI
+                          </span>
+                          <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
+                            {r.invoice_number || 'Emitida'}
+                          </div>
+                          {r.invoice_sri_status && (
+                            <span style={{ fontSize: '9.5px', color: r.invoice_sri_status === 'AUTORIZADA' ? '#059669' : '#d97706', fontWeight: 600 }}>
+                              ● {r.invoice_sri_status}
+                            </span>
+                          )}
+                        </div>
+                      ) : r.offline_folio ? (
+                        <div>
+                          <span className="status-badge" style={{ background: '#fef3c7', color: '#92400e', fontSize: '10.5px' }}>
+                            🧾 Offline
+                          </span>
+                          <div style={{ fontSize: '10px', color: '#78350f', fontFamily: 'monospace' }}>
+                            {r.offline_folio}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="status-badge" style={{ background: '#f1f5f9', color: '#475569', fontSize: '10.5px' }}>
+                            🧾 Ticket Interno
+                          </span>
+                          <div style={{ fontSize: '9.5px', color: '#94a3b8' }}>
+                            Sin IVA SRI
+                          </div>
+                        </div>
                       )}
                     </td>
 
@@ -1954,7 +2234,7 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
 
                     {/* Acciones */}
                     <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           className="secondary-action"
@@ -1964,6 +2244,28 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                         >
                           👁️ Ver Ticket
                         </button>
+                        {r.electronic_invoice_id ? (
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            style={{ padding: '5px 8px', fontSize: '11px', whiteSpace: 'nowrap', background: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0', fontWeight: 700 }}
+                            onClick={() => setShowRideInvoiceId(r.electronic_invoice_id)}
+                            title="Ver RIDE oficial, descargar XML firmado y consultar SRI"
+                          >
+                            📄 RIDE SRI
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            style={{ padding: '5px 8px', fontSize: '11px', whiteSpace: 'nowrap', background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}
+                            onClick={() => issueSriInvoice(r.id)}
+                            disabled={issuingSriId === r.id}
+                            title="Generar Factura Electrónica SRI oficial para esta venta"
+                          >
+                            {issuingSriId === r.id ? 'Emitiendo...' : '🏛️ Facturar SRI'}
+                          </button>
+                        )}
                         {r.customer_phone && (
                           <a
                             className="whatsapp-btn"
@@ -2024,6 +2326,25 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
                   CANAL: {detailModal.channel === 'ONLINE' ? 'VENTA EN LÍNEA / WHATSAPP' : 'VENTA EN TIENDA FÍSICA'}
                 </div>
+                {detailModal.invoice_number ? (
+                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 8px', borderRadius: '4px', margin: '6px 0', fontSize: '11px' }}>
+                    <div style={{ fontWeight: 800, color: '#065f46' }}>🏛️ FACTURA ELECTRÓNICA SRI N°: {detailModal.invoice_number}</div>
+                    <div style={{ fontSize: '9px', color: '#047857', wordBreak: 'break-all', marginTop: '2px' }}>
+                      Clave Acceso: {detailModal.invoice_access_key}
+                    </div>
+                    <div style={{ fontSize: '9.5px', color: '#059669', marginTop: '2px' }}>
+                      Estado SRI: {detailModal.invoice_sri_status || 'AUTORIZADA'}
+                    </div>
+                  </div>
+                ) : detailModal.offline_folio ? (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 6px', borderRadius: '4px', margin: '6px 0', color: '#92400e', fontSize: '10.5px', fontWeight: 700 }}>
+                    ⚠️ Venta Registrada Offline (Folio: {detailModal.offline_folio})
+                  </div>
+                ) : (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 6px', borderRadius: '4px', margin: '6px 0', color: '#64748b', fontSize: '10px' }}>
+                    🧾 Ticket de Control Interno (No SRI)
+                  </div>
+                )}
               </div>
 
               <div className="receipt-divider-dash" />
@@ -2286,6 +2607,16 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 >
                   🖨️ Imprimir Térmico (80mm)
                 </button>
+                {detailModal.electronic_invoice_id && (
+                  <button
+                    type="button"
+                    className="primary-action"
+                    style={{ flex: 1, padding: '10px', fontWeight: 700, background: '#059669', borderColor: '#047857', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    onClick={() => setShowRideInvoiceId(detailModal.electronic_invoice_id)}
+                  >
+                    🏛️ Ver RIDE SRI
+                  </button>
+                )}
                 {detailModal.customer_phone && (
                   <a
                     className="whatsapp-btn"
@@ -2333,6 +2664,14 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
             </div>
           </div>
         </div>
+      )}
+
+      {showRideInvoiceId && (
+        <SriRideModal
+          invoiceId={showRideInvoiceId}
+          api={api}
+          onClose={() => setShowRideInvoiceId(null)}
+        />
       )}
     </>
   );
@@ -3823,11 +4162,82 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
 }
 
 function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void}){
-  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'>('matrix');
+  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'|'sri'>('matrix');
   const [profile, setProfile] = React.useState<Any>({});
   const [users, setUsers] = React.useState<Any[]>([]);
   const [rolePerms, setRolePerms] = React.useState<Record<string, string[]>>({});
   const [savingMatrix, setSavingMatrix] = React.useState(false);
+
+  // SRI Configuration state
+  const [sriConfig, setSriConfig] = React.useState<Any>({
+    ruc: '1790012345001',
+    razonSocial: 'FixmeTiendas S.A.S.',
+    nombreComercial: 'FixmeTiendas',
+    direccionMatriz: 'Matriz Central, Quito',
+    direccionEstablecimiento: 'Matriz Central, Quito',
+    codigoEstablecimiento: '001',
+    codigoPuntoEmision: '001',
+    obligadoContabilidad: false,
+    regimenTributario: 'RIMPE_EMPRENDEDOR',
+    ambienteSri: 1,
+    secuencialFactura: 1,
+    certificadoP12Base64: '',
+    certificadoP12Password: '',
+    certificadoNombreArchivo: '',
+    hasCertificate: false
+  });
+  const [loadingSri, setLoadingSri] = React.useState(false);
+  const [savingSri, setSavingSri] = React.useState(false);
+
+  const loadSri = React.useCallback(() => {
+    setLoadingSri(true);
+    api('/api/sri/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (cfg) setSriConfig((prev: Any) => ({ ...prev, ...cfg }));
+      })
+      .finally(() => setLoadingSri(false));
+  }, [api]);
+
+  function handleP12File(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      setSriConfig((prev: Any) => ({
+        ...prev,
+        certificadoP12Base64: base64,
+        certificadoNombreArchivo: file.name
+      }));
+      notify?.(`Firma electrónica ${file.name} cargada.`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveSriConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingSri(true);
+    try {
+      const res = await api('/api/sri/config', {
+        method: 'POST',
+        body: JSON.stringify(sriConfig)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSriConfig(updated);
+        notify?.('✓ Configuración del SRI guardada exitosamente');
+      } else {
+        const err = await res.text();
+        notify?.(`Error al guardar configuración SRI: ${err}`);
+      }
+    } catch (e: any) {
+      notify?.(`Error de conexión: ${e.message}`);
+    } finally {
+      setSavingSri(false);
+    }
+  }
   const [userPermModal, setUserPermModal] = React.useState<Any|null>(null);
   const [selectedPerms, setSelectedPerms] = React.useState<string[]>([]);
   const [isCustomPerms, setIsCustomPerms] = React.useState(false);
@@ -4011,6 +4421,20 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
           }}
         >
           🏢 Perfil de la Empresa
+        </button>
+        <button
+          onClick={() => { setTab('sri'); loadSri(); }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'sri' ? '1px solid #059669' : '1px solid #cbd5e1',
+            background: tab === 'sri' ? '#ecfdf5' : '#ffffff',
+            color: tab === 'sri' ? '#065f46' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          🏛️ Facturación SRI (Ecuador)
         </button>
       </div>
 
@@ -4266,6 +4690,234 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
         </section>
       )}
 
+      {/* TAB 4: SRI ECUADOR */}
+      {tab === 'sri' && (
+        <section className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>🏛️ Facturación Electrónica Oficial (SRI Ecuador)</h3>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                Emisión de comprobantes tributarios válidos ante el SRI con firma digital PKCS#12 (.p12) y autorización SOAP en línea.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={loadSri}
+              disabled={loadingSri}
+              style={{ fontSize: '12px' }}
+            >
+              {loadingSri ? 'Cargando...' : '🔄 Actualizar Datos SRI'}
+            </button>
+          </div>
+
+          <form onSubmit={saveSriConfig} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '12px 16px', fontSize: '12.5px', color: '#166534' }}>
+              <strong>⚖️ Normativa Tributaria Vigente:</strong> Facturación electrónica esquema XML v1.1.0, cálculo automático de <b>IVA 15%</b> (código SRI 4), clave de acceso de 49 dígitos generada con algoritmo oficial <b>Módulo 11</b> y soporte de firma digital <b>XAdES-BES</b>.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {/* BLOQUE 1: DATOS FISCALES */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  🏢 Datos Tributarios del Emisor
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    RUC (13 dígitos)
+                    <input
+                      value={sriConfig.ruc || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, ruc: e.target.value })}
+                      placeholder="1790012345001"
+                      required
+                      pattern="[0-9]{13}"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Razón Social (Según RUC)
+                    <input
+                      value={sriConfig.razonSocial || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, razonSocial: e.target.value })}
+                      placeholder="Nombre de la empresa o persona natural"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Nombre Comercial (Rótulo)
+                    <input
+                      value={sriConfig.nombreComercial || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, nombreComercial: e.target.value })}
+                      placeholder="FixmeTiendas"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Dirección Matriz
+                    <input
+                      value={sriConfig.direccionMatriz || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, direccionMatriz: e.target.value })}
+                      placeholder="Dirección fiscal matriz"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Dirección Sucursal / Establecimiento
+                    <input
+                      value={sriConfig.direccionEstablecimiento || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, direccionEstablecimiento: e.target.value })}
+                      placeholder="Dirección donde opera este punto de venta"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                      Establecimiento
+                      <input
+                        value={sriConfig.codigoEstablecimiento || '001'}
+                        onChange={e => setSriConfig({ ...sriConfig, codigoEstablecimiento: e.target.value })}
+                        placeholder="001"
+                        maxLength={3}
+                        required
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4, fontFamily: 'monospace' }}
+                      />
+                    </label>
+                    <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                      Punto Emisión
+                      <input
+                        value={sriConfig.codigoPuntoEmision || '001'}
+                        onChange={e => setSriConfig({ ...sriConfig, codigoPuntoEmision: e.target.value })}
+                        placeholder="001"
+                        maxLength={3}
+                        required
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4, fontFamily: 'monospace' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                      Régimen Tributario
+                      <select
+                        value={sriConfig.regimenTributario || 'RIMPE_EMPRENDEDOR'}
+                        onChange={e => setSriConfig({ ...sriConfig, regimenTributario: e.target.value })}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                      >
+                        <option value="RIMPE_EMPRENDEDOR">CONTRIBUYENTE RÉGIMEN RIMPE EMPRENDEDOR</option>
+                        <option value="RIMPE_NEGOCIO_POPULAR">CONTRIBUYENTE RÉGIMEN RIMPE NEGOCIO POPULAR</option>
+                        <option value="GENERAL">RÉGIMEN GENERAL</option>
+                        <option value="OTRO">OTRO / DESIGNADO</option>
+                      </select>
+                    </label>
+
+                    <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                      Secuencial Siguiente
+                      <input
+                        type="number"
+                        min={1}
+                        value={sriConfig.secuencialFactura || 1}
+                        onChange={e => setSriConfig({ ...sriConfig, secuencialFactura: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4, fontFamily: 'monospace' }}
+                      />
+                    </label>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '12.5px', marginTop: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!sriConfig.obligadoContabilidad}
+                      onChange={e => setSriConfig({ ...sriConfig, obligadoContabilidad: e.target.checked })}
+                    />
+                    <strong>Obligado a llevar contabilidad</strong>
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOQUE 2: AMBIENTE Y FIRMA DIGITAL */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <h4 style={{ margin: 0, fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  🔐 Ambiente y Firma Electrónica (.p12)
+                </h4>
+
+                <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                  Ambiente SRI
+                  <select
+                    value={sriConfig.ambienteSri || 1}
+                    onChange={e => setSriConfig({ ...sriConfig, ambienteSri: Number(e.target.value) })}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                  >
+                    <option value={1}>1 - PRUEBAS / CERTIFICACIÓN (celcer.sri.gob.ec)</option>
+                    <option value={2}>2 - PRODUCCIÓN OFICIAL (cel.sri.gob.ec)</option>
+                  </select>
+                  <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: 2 }}>
+                    Para pruebas se simula o conecta al entorno de pruebas del SRI sin valor legal vinculante.
+                  </small>
+                </label>
+
+                <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: 12 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    Archivo de Firma Digital (.p12 / .pfx)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".p12,.pfx"
+                    onChange={handleP12File}
+                    style={{ fontSize: '12px', width: '100%' }}
+                  />
+                  {sriConfig.hasCertificate ? (
+                    <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 10px', borderRadius: 6, marginTop: 8, fontSize: '11px', color: '#065f46' }}>
+                      ✅ Firma digital activa: <b>{sriConfig.certificadoNombreArchivo || 'firma_electronica.p12'}</b>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: 6, marginTop: 8, fontSize: '11px', color: '#92400e' }}>
+                      ⚠️ No se ha subido archivo .p12 (o se usará simulador de firma para pruebas).
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Contraseña de la Firma Electrónica
+                    <input
+                      type="password"
+                      value={sriConfig.certificadoP12Password || ''}
+                      onChange={e => setSriConfig({ ...sriConfig, certificadoP12Password: e.target.value })}
+                      placeholder="••••••••••••"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+                  <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: 2 }}>
+                    La contraseña se almacena de forma segura para firmar los comprobantes XML en el servidor.
+                  </small>
+                </div>
+
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', fontSize: '11.5px', color: '#1e3a8a', marginTop: 'auto' }}>
+                  💡 <b>Emisión Dual:</b> Recuerda que en el Punto de Venta (POS) puedes elegir entre <b>🧾 Ticket Interno</b> (sin declarar IVA) o <b>🏛️ Factura SRI</b> según solicite el cliente.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={savingSri}
+                style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 700 }}
+              >
+                {savingSri ? 'Guardando...' : '💾 Guardar Configuración SRI'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
       {/* Modal for Individual User Permissions */}
       {userPermModal && (
         <div className="modal-backdrop" onClick={() => setUserPermModal(null)}>
@@ -4344,9 +4996,10 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   const [stats, setStats] = React.useState<Any>({ total: 0, active: 0, in_repair: 0, waiting_parts: 0, ready: 0, completed: 0, urgent_sla: 0 });
   const [filter, setFilter] = React.useState('ALL');
   const [search, setSearch] = React.useState('');
+  const [viewMode, setViewMode] = React.useState<'KANBAN' | 'TABLE' | 'CARDS'>('KANBAN');
   const [loading, setLoading] = React.useState(true);
-  const [noteModal, setNoteModal] = React.useState<Any|null>(null);
-  const [noteForm, setNoteForm] = React.useState({ diagnosis: '', technicianNotes: '' });
+  const [workbenchOrder, setWorkbenchOrder] = React.useState<Any|null>(null);
+  const [receiptOrder, setReceiptOrder] = React.useState<Any|null>(null);
   const [updating, setUpdating] = React.useState(false);
 
   const load = React.useCallback(() => {
@@ -4355,8 +5008,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       api('/api/work-orders/my-work').then(r => r.ok ? r.json() : []),
       api('/api/work-orders/my-work/stats').then(r => r.ok ? r.json() : {})
     ]).then(([ordersData, statsData]) => {
-      setOrders(ordersData);
-      setStats(statsData);
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setStats(statsData || {});
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [api]);
@@ -4373,42 +5026,16 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
     });
     setUpdating(false);
     if (r.ok) {
-      notify?.('Estado de la orden actualizado a ' + newStatus);
+      notify?.('✓ Estado de la orden actualizado a ' + newStatus);
       load();
     } else {
       notify?.('No se pudo actualizar el estado');
     }
   }
 
-  async function saveTechnicalNotes(e: React.FormEvent) {
-    e.preventDefault();
-    if (!noteModal) return;
-    setUpdating(true);
-    const r = await api(`/api/work-orders/${noteModal.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        diagnosis: noteForm.diagnosis,
-        technicianNotes: noteForm.technicianNotes,
-        quote: noteModal.quote || 0,
-        estimatedDelivery: noteModal.estimated_delivery || null,
-        assignedTechnicianId: noteModal.assigned_technician_id || null,
-        slaHours: noteModal.sla_hours || 48,
-        items: noteModal.items || []
-      })
-    });
-    setUpdating(false);
-    if (r.ok) {
-      notify?.('Notas técnicas y diagnóstico guardados');
-      setNoteModal(null);
-      load();
-    } else {
-      notify?.('Error al guardar notas');
-    }
-  }
-
   function getSlaBadge(o: Any) {
     if (o.status === 'COMPLETED' || o.status === 'ENTREGADO' || o.status === 'LISTO_ENTREGA') {
-      return <span className="sla-badge sla-badge-ok">✓ Listo / Reparado</span>;
+      return <span className="sla-badge sla-badge-ok">✓ Culminado</span>;
     }
     const deadline = o.sla_deadline || o.estimated_delivery;
     if (!deadline) {
@@ -4423,11 +5050,33 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
     if (diffHours <= 12) {
       const leftH = Math.floor(diffHours);
       const leftM = Math.round((diffHours - leftH) * 60);
-      return <span className="sla-badge sla-badge-warning">⚠️ Urgente: {leftH}h {leftM}m restantes</span>;
+      return <span className="sla-badge sla-badge-warning">⚠️ Urgente: {leftH}h {leftM}m</span>;
     }
     const leftDays = Math.floor(diffHours / 24);
     const leftH = Math.round(diffHours % 24);
-    return <span className="sla-badge sla-badge-ok">⏱ {leftDays > 0 ? `${leftDays}d ` : ''}{leftH}h restantes</span>;
+    return <span className="sla-badge sla-badge-ok">⏱ {leftDays > 0 ? `${leftDays}d ` : ''}{leftH}h</span>;
+  }
+
+  function getStatusBadge(st: string) {
+    const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(st);
+    const isWaiting = ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(st);
+    const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(st);
+    const isDelivered = ['ENTREGADO', 'DELIVERED'].includes(st);
+
+    const bg = isRepair ? '#dbeafe' : isWaiting ? '#fef3c7' : isReady ? '#d1fae5' : isDelivered ? '#e0e7ff' : '#f1f5f9';
+    const fg = isRepair ? '#1e40af' : isWaiting ? '#92400e' : isReady ? '#065f46' : isDelivered ? '#3730a3' : '#475569';
+    const label = st === 'EN_REPARACION' ? 'En Reparación' :
+                  st === 'ESPERANDO_REPUESTOS' ? 'Esperando Repuestos' :
+                  st === 'LISTO_ENTREGA' ? 'Listo para Entrega' :
+                  st === 'ENTREGADO' ? 'Entregado' :
+                  st === 'RECIBIDO' ? 'Recibido' :
+                  st === 'EN_DIAGNOSTICO' ? 'En Diagnóstico' : st;
+
+    return (
+      <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: bg, color: fg }}>
+        {label}
+      </span>
+    );
   }
 
   const filteredOrders = orders.filter(o => {
@@ -4435,11 +5084,16 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       if (filter === 'ACTIVE') {
         if (!['RECIBIDO', 'EN_DIAGNOSTICO', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'OPEN', 'DIAGNOSIS', 'APPROVED', 'IN_PROGRESS'].includes(o.status)) return false;
       } else if (filter === 'IN_REPAIR') {
-        if (!['EN_REPARACION', 'IN_PROGRESS'].includes(o.status)) return false;
+        if (!['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(o.status)) return false;
       } else if (filter === 'WAITING_PARTS') {
-        if (o.status !== 'ESPERANDO_REPUESTOS') return false;
+        if (!['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status)) return false;
       } else if (filter === 'READY') {
         if (!['LISTO_ENTREGA', 'COMPLETED'].includes(o.status)) return false;
+      } else if (filter === 'URGENT') {
+        const deadline = o.sla_deadline || o.estimated_delivery;
+        if (!deadline) return false;
+        const diffHours = (new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+        if (diffHours > 12) return false;
       }
     }
     if (search.trim()) {
@@ -4449,62 +5103,147 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                     (o.device_model || '').toLowerCase().includes(q) ||
                     (o.serial_number || '').toLowerCase().includes(q) ||
                     (o.customer_name || '').toLowerCase().includes(q) ||
-                    (o.reported_fault || '').toLowerCase().includes(q);
+                    (o.reported_fault || '').toLowerCase().includes(q) ||
+                    (o.diagnosis || '').toLowerCase().includes(q);
       if (!match) return false;
     }
     return true;
   });
 
+  const kanbanColumns = [
+    {
+      id: 'COL_DIAG',
+      title: '🔍 Por Diagnosticar',
+      statuses: ['OPEN', 'RECIBIDO', 'EN_DIAGNOSTICO', 'DIAGNOSIS', 'QUOTED'],
+      borderColor: '#94a3b8'
+    },
+    {
+      id: 'COL_REPAIR',
+      title: '⚙️ En Reparación',
+      statuses: ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'],
+      borderColor: '#2563eb'
+    },
+    {
+      id: 'COL_PARTS',
+      title: '⏳ Esperando Repuestos',
+      statuses: ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'],
+      borderColor: '#d97706'
+    },
+    {
+      id: 'COL_READY',
+      title: '✅ Listo para Entrega',
+      statuses: ['LISTO_ENTREGA', 'COMPLETED'],
+      borderColor: '#059669'
+    },
+    {
+      id: 'COL_DELIVERED',
+      title: '🤝 Entregado al Cliente',
+      statuses: ['ENTREGADO', 'DELIVERED'],
+      borderColor: '#64748b'
+    }
+  ];
+
   return (
     <>
+      {/* Header Section */}
       <div className="section-header" style={{ marginBottom: 16 }}>
         <div>
           <h2>🛠️ Mi Trabajo y Taller Personal</h2>
-          <p>Órdenes asignadas directamente a ti. Gestiona avances técnicos, cumple los tiempos de garantía y contacta a los clientes.</p>
+          <p>Banco técnico de órdenes asignadas. Administra diagnósticos, notas de avance, repuestos del inventario y mano de obra con cálculo en tiempo real.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="secondary-action" onClick={load}>🔄 Refrescar</button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* View Mode Switcher */}
+          <div className="view-mode-toggle">
+            <button
+              className={`view-mode-btn ${viewMode === 'KANBAN' ? 'active' : ''}`}
+              onClick={() => setViewMode('KANBAN')}
+              title="Vista Tablero Kanban"
+            >
+              📊 Tablero
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'TABLE' ? 'active' : ''}`}
+              onClick={() => setViewMode('TABLE')}
+              title="Vista Tabla Compacta (Para alto volumen)"
+            >
+              📋 Tabla
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'CARDS' ? 'active' : ''}`}
+              onClick={() => setViewMode('CARDS')}
+              title="Vista Cuadrícula de Tarjetas"
+            >
+              🗂️ Tarjetas
+            </button>
+          </div>
+          <button className="secondary-action" onClick={load} title="Recargar órdenes">🔄 Refrescar</button>
         </div>
       </div>
 
-      {/* KPI Counters */}
+      {/* KPI Summary Cards */}
       <div className="summary-grid" style={{ marginBottom: 18 }}>
-        <div className="summary-card" onClick={() => setFilter('ALL')} style={{ cursor: 'pointer', borderLeft: filter === 'ALL' ? '4px solid #3157d5' : undefined }}>
+        <div
+          className="summary-card"
+          onClick={() => setFilter('ALL')}
+          style={{ cursor: 'pointer', borderLeft: filter === 'ALL' ? '4px solid #3157d5' : undefined }}
+        >
           <small>Total Asignadas</small>
           <strong>{stats.total || orders.length}</strong>
-          <span>Todas mis órdenes</span>
+          <span>Todas mis órdenes activas</span>
         </div>
-        <div className="summary-card" onClick={() => setFilter('IN_REPAIR')} style={{ cursor: 'pointer', borderLeft: filter === 'IN_REPAIR' ? '4px solid #2563eb' : undefined }}>
+        <div
+          className="summary-card"
+          onClick={() => setFilter('IN_REPAIR')}
+          style={{ cursor: 'pointer', borderLeft: filter === 'IN_REPAIR' ? '4px solid #2563eb' : undefined }}
+        >
           <small>En Reparación</small>
           <strong style={{ color: '#2563eb' }}>{stats.in_repair || 0}</strong>
           <span>En mi banco de trabajo</span>
         </div>
-        <div className="summary-card" onClick={() => setFilter('WAITING_PARTS')} style={{ cursor: 'pointer', borderLeft: filter === 'WAITING_PARTS' ? '4px solid #d97706' : undefined }}>
+        <div
+          className="summary-card"
+          onClick={() => setFilter('WAITING_PARTS')}
+          style={{ cursor: 'pointer', borderLeft: filter === 'WAITING_PARTS' ? '4px solid #d97706' : undefined }}
+        >
           <small>Esperando Repuestos</small>
           <strong style={{ color: '#d97706' }}>{stats.waiting_parts || 0}</strong>
-          <span>Pendientes de piezas</span>
+          <span>Piezas pendientes</span>
         </div>
-        <div className="summary-card" onClick={() => setFilter('READY')} style={{ cursor: 'pointer', borderLeft: filter === 'READY' ? '4px solid #059669' : undefined }}>
+        <div
+          className="summary-card"
+          onClick={() => setFilter('READY')}
+          style={{ cursor: 'pointer', borderLeft: filter === 'READY' ? '4px solid #059669' : undefined }}
+        >
           <small>Listos para Entrega</small>
           <strong style={{ color: '#059669' }}>{stats.ready || 0}</strong>
-          <span>Reparación culminada</span>
+          <span>Trabajo finalizado</span>
         </div>
-        <div className="summary-card" style={{ background: Number(stats.urgent_sla || 0) > 0 ? '#fef2f2' : '#f8fafc', borderColor: Number(stats.urgent_sla || 0) > 0 ? '#fca5a5' : '#e2e8f0' }}>
-          <small style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : undefined }}>SLA Crítico (&lt;12h / Vencido)</small>
+        <div
+          className="summary-card"
+          onClick={() => setFilter('URGENT')}
+          style={{
+            cursor: 'pointer',
+            borderLeft: filter === 'URGENT' ? '4px solid #dc2626' : undefined,
+            background: Number(stats.urgent_sla || 0) > 0 ? '#fef2f2' : undefined,
+            borderColor: Number(stats.urgent_sla || 0) > 0 ? '#fca5a5' : undefined
+          }}
+        >
+          <small style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : undefined }}>SLA Crítico (&lt;12h)</small>
           <strong style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : '#64748b' }}>{stats.urgent_sla || 0}</strong>
           <span>Prioridad inmediata</span>
         </div>
       </div>
 
-      {/* Filter Tabs & Search */}
+      {/* Filter Tabs & Search Toolbar */}
       <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+        <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
           {[
             ['ALL', `Todas (${orders.length})`],
             ['ACTIVE', `Activas (${stats.active || 0})`],
             ['IN_REPAIR', `En Reparación (${stats.in_repair || 0})`],
             ['WAITING_PARTS', `Esperando Repuestos (${stats.waiting_parts || 0})`],
-            ['READY', `Listas para Entrega (${stats.ready || 0})`]
+            ['READY', `Listas para Entrega (${stats.ready || 0})`],
+            ['URGENT', `SLA Crítico (${stats.urgent_sla || 0})`]
           ].map(([k, label]) => (
             <button
               key={k}
@@ -4518,7 +5257,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                 color: filter === k ? '#1d4ed8' : '#475569',
                 fontWeight: filter === k ? 700 : 500,
                 cursor: 'pointer',
-                fontSize: '12px'
+                fontSize: '12px',
+                whiteSpace: 'nowrap'
               }}
             >
               {label}
@@ -4536,27 +5276,276 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         </div>
       </div>
 
-      {/* Orders Grid */}
+      {/* Main Content Area */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Cargando órdenes asignadas...</div>
+        <div style={{ textAlign: 'center', padding: 50, color: '#64748b' }}>Cargando órdenes asignadas a tu taller...</div>
       ) : filteredOrders.length === 0 ? (
-        <div className="panel empty" style={{ textAlign: 'center', padding: '40px 20px', background: '#ffffff', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎉</div>
+        <div className="panel empty" style={{ textAlign: 'center', padding: '40px 20px', background: '#ffffff', borderRadius: 14, border: '1px dashed #cbd5e1' }}>
+          <div style={{ fontSize: '36px', marginBottom: '8px' }}>🎉</div>
           <h3 style={{ margin: '0 0 6px 0', color: '#1e293b' }}>¡Todo al día en tu banco de trabajo!</h3>
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
-            {orders.length === 0 ? 'No tienes órdenes de servicio asignadas actualmente.' : 'No hay órdenes que coincidan con este filtro o búsqueda.'}
+            {orders.length === 0 ? 'No tienes órdenes de servicio asignadas actualmente.' : 'No hay órdenes que coincidan con los filtros aplicados.'}
           </p>
         </div>
+      ) : viewMode === 'KANBAN' ? (
+        /* ================= 1. KANBAN VIEW ================= */
+        <div className="mywork-kanban">
+          {kanbanColumns.map(col => {
+            const colOrders = filteredOrders.filter(o => col.statuses.includes(o.status));
+            return (
+              <div className="kanban-column" key={col.id} style={{ borderTop: `4px solid ${col.borderColor}` }}>
+                <div className="kanban-col-head">
+                  <span>{col.title}</span>
+                  <span className="kanban-badge">{colOrders.length}</span>
+                </div>
+                <div className="kanban-col-body">
+                  {colOrders.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', fontSize: '12px' }}>
+                      Sin órdenes aquí
+                    </div>
+                  ) : (
+                    colOrders.map(o => {
+                      const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
+                      const waUrl = cleanPhone
+                        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`)}`
+                        : '';
+                      const itemsCount = (o.items || []).length;
+                      const quoteVal = Number(o.quote || 0);
+
+                      return (
+                        <div className="kanban-card" key={o.id}>
+                          <div className="kanban-card-top">
+                            <span className="kanban-order-num">{o.order_number || 'OT-#'}</span>
+                            <div>{getSlaBadge(o)}</div>
+                          </div>
+
+                          <div className="kanban-device-title">
+                            📱 {o.device_brand} {o.device_model}
+                          </div>
+                          {o.serial_number && (
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                              S/N: <code>{o.serial_number}</code>
+                            </div>
+                          )}
+
+                          <div className="kanban-card-fault">
+                            <strong>Falla:</strong> "{o.reported_fault || 'Sin reporte inicial'}"
+                          </div>
+
+                          {o.diagnosis && (
+                            <div style={{ fontSize: '11px', color: '#166534', background: '#f0fdf4', padding: '5px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
+                              <strong>Diagnóstico:</strong> {o.diagnosis}
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2px 0' }}>
+                            {itemsCount > 0 ? (
+                              <span className="kanban-items-pill">
+                                📦 {itemsCount} ítems (${quoteVal.toFixed(2)})
+                              </span>
+                            ) : quoteVal > 0 ? (
+                              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#0f172a' }}>
+                                Cotiz: ${quoteVal.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin cotización</span>
+                            )}
+                          </div>
+
+                          <div className="kanban-card-customer">
+                            <span title={o.customer_name}>👤 {o.customer_name || 'Cliente'}</span>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {waUrl && (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 700, fontSize: '12px' }}
+                                  title="WhatsApp al cliente"
+                                >
+                                  💬 WA
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setReceiptOrder(o)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: 0 }}
+                                title="Imprimir Ticket Térmico 80mm"
+                              >
+                                🖨️
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick Action Buttons */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
+                            <button
+                              type="button"
+                              className="btn-primary-sm"
+                              style={{ flex: 1, padding: '5px 8px', fontSize: '11px', textAlign: 'center', justifyContent: 'center' }}
+                              onClick={() => setWorkbenchOrder(o)}
+                            >
+                              🔧 Ficha & Taller
+                            </button>
+                            {col.id === 'COL_DIAG' && (
+                              <button
+                                type="button"
+                                className="tech-action-btn tech-action-repair"
+                                disabled={updating}
+                                onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Técnico inició reparación')}
+                                title="Iniciar reparación"
+                              >
+                                ▶ Iniciar
+                              </button>
+                            )}
+                            {col.id === 'COL_REPAIR' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="tech-action-btn tech-action-parts"
+                                  disabled={updating}
+                                  onClick={() => updateStatus(o.id, 'ESPERANDO_REPUESTOS', 'Esperando repuestos')}
+                                  title="Poner en espera de repuestos"
+                                >
+                                  ⏳ Repuesto
+                                </button>
+                                <button
+                                  type="button"
+                                  className="tech-action-btn tech-action-ready"
+                                  disabled={updating}
+                                  onClick={() => updateStatus(o.id, 'LISTO_ENTREGA', 'Reparación culminada')}
+                                  title="Marcar listo para entrega"
+                                >
+                                  ✓ Listo
+                                </button>
+                              </>
+                            )}
+                            {col.id === 'COL_PARTS' && (
+                              <button
+                                type="button"
+                                className="tech-action-btn tech-action-repair"
+                                disabled={updating}
+                                onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Repuestos disponibles, reanudando')}
+                                title="Reanudar reparación"
+                              >
+                                ▶ Reanudar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : viewMode === 'TABLE' ? (
+        /* ================= 2. TABLE VIEW (COMPACT FOR HIGH VOLUME) ================= */
+        <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="items-table" style={{ margin: 0 }}>
+              <thead>
+                <tr>
+                  <th>N° Orden</th>
+                  <th>SLA / Plazo</th>
+                  <th>Equipo & Serie</th>
+                  <th>Cliente</th>
+                  <th>Falla Reportada</th>
+                  <th>Diagnóstico</th>
+                  <th>Cotización</th>
+                  <th>Estado</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map(o => {
+                  const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
+                  const waUrl = cleanPhone
+                    ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico sobre tu orden ${o.order_number || ''}.`)}`
+                    : '';
+                  const itemsCount = (o.items || []).length;
+                  const quoteVal = Number(o.quote || 0);
+
+                  return (
+                    <tr key={o.id} style={{ cursor: 'pointer' }} onClick={() => setWorkbenchOrder(o)}>
+                      <td style={{ fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                        {o.order_number || 'OT-#'}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{getSlaBadge(o)}</td>
+                      <td>
+                        <strong>{o.device_brand} {o.device_model}</strong>
+                        {o.serial_number && <div style={{ fontSize: '10.5px', color: '#64748b' }}>S/N: {o.serial_number}</div>}
+                      </td>
+                      <td>
+                        <div>{o.customer_name || 'Sin nombre'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{o.customer_phone || ''}</div>
+                      </td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.reported_fault}>
+                        {o.reported_fault || '-'}
+                      </td>
+                      <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: o.diagnosis ? '#166534' : '#94a3b8' }} title={o.diagnosis}>
+                        {o.diagnosis || 'Pendiente'}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 700 }}>${quoteVal.toFixed(2)}</div>
+                        {itemsCount > 0 && <span style={{ fontSize: '10px', color: '#64748b' }}>{itemsCount} ítems</span>}
+                      </td>
+                      <td>{getStatusBadge(o.status)}</td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          {waUrl && (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-secondary-sm"
+                              style={{ padding: '4px 8px', fontSize: '11px', textDecoration: 'none', color: '#16a34a' }}
+                              title="Chat WhatsApp"
+                            >
+                              💬 WA
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            className="btn-secondary-sm"
+                            style={{ padding: '4px 8px', fontSize: '11px' }}
+                            onClick={() => setReceiptOrder(o)}
+                            title="Imprimir Comprobante 80mm"
+                          >
+                            🖨️
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary-sm"
+                            style={{ padding: '4px 10px', fontSize: '11px' }}
+                            onClick={() => setWorkbenchOrder(o)}
+                          >
+                            🔧 Taller
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* ================= 3. CARDS GRID VIEW ================= */
         <div className="mywork-grid">
           {filteredOrders.map(o => {
             const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
             const waMsg = encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`);
             const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
 
-            const isRepair = ['EN_REPARACION', 'IN_PROGRESS'].includes(o.status);
-            const isWaiting = o.status === 'ESPERANDO_REPUESTOS';
+            const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(o.status);
+            const isWaiting = ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status);
             const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(o.status);
+            const itemsCount = (o.items || []).length;
+            const quoteVal = Number(o.quote || 0);
 
             return (
               <div key={o.id} className="mywork-card">
@@ -4566,16 +5555,7 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                       <span style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>{o.order_number || 'OT-#'}</span>
                       <div style={{ marginTop: 2 }}>{getSlaBadge(o)}</div>
                     </div>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: 12,
-                      background: isRepair ? '#dbeafe' : isWaiting ? '#fef3c7' : isReady ? '#d1fae5' : '#f1f5f9',
-                      color: isRepair ? '#1e40af' : isWaiting ? '#92400e' : isReady ? '#065f46' : '#475569'
-                    }}>
-                      {o.status}
-                    </span>
+                    <div>{getStatusBadge(o.status)}</div>
                   </div>
 
                   <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
@@ -4587,24 +5567,32 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                     </div>
                   )}
 
-                  <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: 6, fontSize: '12px', color: '#334155', marginBottom: 8 }}>
+                  <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: 8, fontSize: '12px', color: '#334155', marginBottom: 8 }}>
                     <div style={{ fontWeight: 600, color: '#64748b', fontSize: '10.5px', textTransform: 'uppercase', marginBottom: 2 }}>Falla Reportada:</div>
                     <div>"{o.reported_fault || 'Sin detalle de falla'}"</div>
                     {o.accessories && <div style={{ fontSize: '11px', color: '#64748b', marginTop: 4 }}>Accesorios: {o.accessories}</div>}
                   </div>
 
                   {o.diagnosis && (
-                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '8px 10px', borderRadius: 6, fontSize: '12px', color: '#166534', marginBottom: 8 }}>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '8px 10px', borderRadius: 8, fontSize: '12px', color: '#166534', marginBottom: 8 }}>
                       <div style={{ fontWeight: 700, fontSize: '10.5px', textTransform: 'uppercase', marginBottom: 2 }}>Diagnóstico Técnico:</div>
                       <div>{o.diagnosis}</div>
                     </div>
                   )}
 
                   {o.technician_notes && (
-                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '8px 10px', borderRadius: 6, fontSize: '11.5px', color: '#1e40af', marginBottom: 8 }}>
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '8px 10px', borderRadius: 8, fontSize: '11.5px', color: '#1e40af', marginBottom: 8 }}>
                       <strong>Nota de avance:</strong> {o.technician_notes}
                     </div>
                   )}
+
+                  {/* Budget & Parts summary */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '6px 10px', borderRadius: 6, marginBottom: 10, fontSize: '12px' }}>
+                    <span style={{ color: '#64748b' }}>Presupuesto:</span>
+                    <strong style={{ color: '#0f172a', fontSize: '13px' }}>
+                      ${quoteVal.toFixed(2)} {itemsCount > 0 && <small style={{ fontWeight: 500, color: '#64748b' }}>({itemsCount} ítems)</small>}
+                    </strong>
+                  </div>
 
                   {/* Customer Info */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', fontSize: '12px', marginBottom: 12 }}>
@@ -4612,16 +5600,35 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                       <div style={{ fontWeight: 600, color: '#1e293b' }}>👤 {o.customer_name || 'Cliente'}</div>
                       <div style={{ fontSize: '11px', color: '#64748b' }}>📞 {o.customer_phone || 'Sin teléfono'}</div>
                     </div>
-                    {waUrl && (
-                      <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#25d366', color: '#ffffff', padding: '4px 8px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
-                        💬 WhatsApp
-                      </a>
-                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {waUrl && (
+                        <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#25d366', color: '#ffffff', padding: '4px 8px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                          💬 WhatsApp
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setReceiptOrder(o)}
+                        className="btn-secondary-sm"
+                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                        title="Imprimir Ticket Térmico 80mm"
+                      >
+                        🖨️
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Technician Quick Actions */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 6 }}>
+                  <button
+                    type="button"
+                    className="btn-primary-sm"
+                    style={{ flex: '1 1 100%', padding: '7px 12px', fontSize: '12px', justifyContent: 'center' }}
+                    onClick={() => setWorkbenchOrder(o)}
+                  >
+                    🔧 Abrir Ficha Técnica & Taller
+                  </button>
                   {!isRepair && !isReady && (
                     <button
                       className="tech-action-btn tech-action-repair"
@@ -4649,15 +5656,6 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                       ✓ Marcar Listo
                     </button>
                   )}
-                  <button
-                    className="tech-action-btn tech-action-diag"
-                    onClick={() => {
-                      setNoteModal(o);
-                      setNoteForm({ diagnosis: o.diagnosis || '', technicianNotes: o.technician_notes || '' });
-                    }}
-                  >
-                    📝 Nota / Diagnóstico
-                  </button>
                 </div>
               </div>
             );
@@ -4665,51 +5663,26 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         </div>
       )}
 
-      {/* Modal for Technical Notes and Diagnosis */}
-      {noteModal && (
-        <div className="modal-backdrop" onClick={() => setNoteModal(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div className="modal-header">
-              <h3>📝 Ficha Técnica - {noteModal.order_number}</h3>
-              <button className="close-btn" onClick={() => setNoteModal(null)}>✕</button>
-            </div>
-            <form onSubmit={saveTechnicalNotes}>
-              <div style={{ marginBottom: 12 }}>
-                <strong>{noteModal.device_brand} {noteModal.device_model}</strong>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Falla: {noteModal.reported_fault}</div>
-              </div>
+      {/* Technician Workbench Modal (Ficha Técnica, Repuestos, Mano de Obra, Cotización) */}
+      {workbenchOrder && (
+        <TechnicianWorkbenchModal
+          order={workbenchOrder}
+          onClose={() => setWorkbenchOrder(null)}
+          onSaved={load}
+          api={api}
+          notify={notify}
+          branchId={branchId}
+          tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+        />
+      )}
 
-              <label style={{ display: 'block', marginBottom: 10 }}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>Diagnóstico Técnico</span>
-                <textarea
-                  rows={3}
-                  value={noteForm.diagnosis}
-                  onChange={e => setNoteForm({ ...noteForm, diagnosis: e.target.value })}
-                  placeholder="Describe la falla encontrada tras revisar el equipo..."
-                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '13px' }}
-                />
-              </label>
-
-              <label style={{ display: 'block', marginBottom: 16 }}>
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>Nota de Trabajo / Bitácora Interna</span>
-                <textarea
-                  rows={2}
-                  value={noteForm.technicianNotes}
-                  onChange={e => setNoteForm({ ...noteForm, technicianNotes: e.target.value })}
-                  placeholder="Ej: Cambio de pantalla ejecutado, testeando batería..."
-                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '13px' }}
-                />
-              </label>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button type="button" className="secondary-action" onClick={() => setNoteModal(null)}>Cancelar</button>
-                <button type="submit" className="primary-action" disabled={updating}>
-                  {updating ? 'Guardando...' : 'Guardar Ficha'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Thermal Receipt Modal (Comprobante 80mm para el cliente o técnico) */}
+      {receiptOrder && (
+        <WorkOrderReceiptModal
+          order={receiptOrder}
+          onClose={() => setReceiptOrder(null)}
+          tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+        />
       )}
     </>
   );
@@ -4816,6 +5789,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
   const [stockFilter, setStockFilter] = React.useState<'ALL'|'IN_STOCK'|'LOW_STOCK'|'OUT_OF_STOCK'>('ALL');
   const [showForm, setShowForm] = React.useState(false);
   const [editItem, setEditItem] = React.useState<Any|null>(null);
+  const [showBarcodes, setShowBarcodes] = React.useState(false);
+  const [showCsvImport, setShowCsvImport] = React.useState(false);
   const [msg, setMsg] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
@@ -4823,6 +5798,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
   const [form, setForm] = React.useState({
     sku: '',
     name: '',
+    barcode: '',
+    minStock: '5',
     stock: '10',
     purchasePrice: '0',
     price: '0',
@@ -4877,6 +5854,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
       body: JSON.stringify({
         ...form,
         stock: Number(form.stock),
+        minStock: Number(form.minStock || 5),
+        barcode: form.barcode.trim() || null,
         price: Number(form.price),
         purchasePrice: Number(form.purchasePrice),
         extraCost: Number(form.extraCost),
@@ -4886,7 +5865,7 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
     setBusy(false);
     if (r.ok) {
       setMsg('Producto registrado exitosamente');
-      setForm({ sku: '', name: '', stock: '10', purchasePrice: '0', price: '0', extraCost: '0', marginPercent: '30', categoryId: '' });
+      setForm({ sku: '', name: '', barcode: '', minStock: '5', stock: '10', purchasePrice: '0', price: '0', extraCost: '0', marginPercent: '30', categoryId: '' });
       setShowForm(false);
       load();
     } else {
@@ -4904,6 +5883,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
       body: JSON.stringify({
         sku: editItem.sku,
         name: editItem.name,
+        barcode: editItem.barcode ? editItem.barcode.trim() : null,
+        minStock: Number(editItem.min_stock ?? editItem.minStock ?? 5),
         stock: Number(editItem.stock || 0),
         price: Number(editItem.price || 0),
         purchasePrice: Number(editItem.purchase_price ?? editItem.purchasePrice ?? 0),
@@ -4932,22 +5913,50 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
     }
   }
 
+  const exportCsv = () => {
+    if (!rows.length) {
+      alert('No hay productos para exportar');
+      return;
+    }
+    const headers = ['SKU', 'Nombre', 'CodigoBarras', 'Stock', 'StockMinimo', 'CostoCompra', 'PrecioPVP', 'Categoria'];
+    const lines = rows.map(p => [
+      `"${p.sku || ''}"`,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${p.barcode || ''}"`,
+      p.stock || 0,
+      p.min_stock ?? p.minStock ?? 5,
+      p.purchase_price ?? p.purchasePrice ?? 0,
+      p.price || 0,
+      `"${(cats.find(c => c.id === p.category_id || c.id === p.categoryId)?.name || '').replace(/"/g, '""')}"`
+    ].join(','));
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...lines].join('\n');
+    const encoded = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encoded);
+    link.setAttribute('download', `inventario_fixme_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Stock and financial calculations
   const totalUnits = rows.reduce((acc, p) => acc + Number(p.stock || 0), 0);
   const totalCostValue = rows.reduce((acc, p) => acc + (Number(p.stock || 0) * Number(p.purchase_price ?? p.purchasePrice ?? 0)), 0);
   const totalRetailValue = rows.reduce((acc, p) => acc + (Number(p.stock || 0) * Number(p.price || 0)), 0);
   const potentialProfit = Math.max(0, totalRetailValue - totalCostValue);
   const projectedMargin = totalRetailValue > 0 ? ((potentialProfit / totalRetailValue) * 100) : 0;
-  const lowStockCount = rows.filter(p => Number(p.stock) > 0 && Number(p.stock) <= 5).length;
+  const lowStockCount = rows.filter(p => Number(p.stock) > 0 && Number(p.stock) <= Number(p.min_stock ?? p.minStock ?? 5)).length;
   const outOfStockCount = rows.filter(p => Number(p.stock) <= 0).length;
 
   const filtered = rows.filter(r => {
-    const matchQuery = !query || `${r.name} ${r.sku}`.toLowerCase().includes(query.toLowerCase());
+    const q = query.toLowerCase().trim();
+    const matchQuery = !q || `${r.name} ${r.sku} ${r.barcode || ''}`.toLowerCase().includes(q);
     const matchCat = !category || r.category_id === category || r.categoryId === category;
+    const minS = Number(r.min_stock ?? r.minStock ?? 5);
     const matchStock =
       stockFilter === 'ALL' ? true :
-      stockFilter === 'IN_STOCK' ? Number(r.stock) > 5 :
-      stockFilter === 'LOW_STOCK' ? (Number(r.stock) > 0 && Number(r.stock) <= 5) :
+      stockFilter === 'IN_STOCK' ? Number(r.stock) > minS :
+      stockFilter === 'LOW_STOCK' ? (Number(r.stock) > 0 && Number(r.stock) <= minS) :
       Number(r.stock) <= 0;
     return matchQuery && matchCat && matchStock;
   });
@@ -4960,11 +5969,24 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
           <h2>Control de Existencias y Rentabilidad</h2>
           <p>Conoce la inversión total en mercadería, valorización proyectada a PVP y calcula márgenes al instante.</p>
         </div>
-        {canManage && (
-          <button className="primary-action" onClick={() => { setShowForm(!showForm); setMsg(''); }}>
-            {showForm ? '✕ Cancelar' : '＋ Nuevo Producto'}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button type="button" className="secondary-action" onClick={exportCsv} title="Descargar inventario completo en formato CSV">
+            📥 Exportar CSV
           </button>
-        )}
+          {canManage && (
+            <>
+              <button type="button" className="secondary-action" onClick={() => setShowCsvImport(true)} title="Importar masivamente productos desde archivo CSV">
+                📤 Importar CSV
+              </button>
+              <button type="button" className="secondary-action" onClick={() => setShowBarcodes(true)} title="Generar e imprimir etiquetas de código de barras">
+                🏷️ Etiquetas Barcode
+              </button>
+              <button className="primary-action" onClick={() => { setShowForm(!showForm); setMsg(''); }}>
+                {showForm ? '✕ Cancelar' : '＋ Nuevo Producto'}
+              </button>
+            </>
+          )}
+        </div>
       </section>
 
       {/* FINANCIAL INVENTORY VALUATION KPIS */}
@@ -5033,6 +6055,13 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                     required
                   />
                 </label>
+                <label>Código de Barras (opcional)
+                  <input
+                    placeholder="Ej. 7861234567890 (Lector USB)"
+                    value={form.barcode}
+                    onChange={e => setForm({ ...form, barcode: e.target.value })}
+                  />
+                </label>
                 <label>Categoría
                   <select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
                     <option value="">Sin categoría / General</option>
@@ -5045,6 +6074,16 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                     min="0"
                     value={form.stock}
                     onChange={e => setForm({ ...form, stock: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>Stock Mínimo de Alerta *
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="5"
+                    value={form.minStock}
+                    onChange={e => setForm({ ...form, minStock: e.target.value })}
                     required
                   />
                 </label>
@@ -5188,12 +6227,31 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                       required
                     />
                   </label>
+                  <label>Código de Barras
+                    <input
+                      placeholder="Lector USB / EAN"
+                      value={editItem.barcode || ''}
+                      onChange={e => setEditItem({ ...editItem, barcode: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <label>Stock Disponible *
                     <input
                       type="number"
                       min="0"
                       value={editItem.stock || 0}
                       onChange={e => setEditItem({ ...editItem, stock: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>Stock Mínimo de Alerta *
+                    <input
+                      type="number"
+                      min="1"
+                      value={editItem.min_stock ?? editItem.minStock ?? 5}
+                      onChange={e => setEditItem({ ...editItem, min_stock: e.target.value, minStock: e.target.value })}
                       required
                     />
                   </label>
@@ -5321,13 +6379,32 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                   <div className="product-thumb">📦</div>
                   <div className="product-card-body">
                     <div className="product-card-top">
-                      <span className="sku-label">{r.sku}</span>
-                      <span className={stock > 5 ? 'stock-badge' : stock > 0 ? 'stock-badge' : 'stock-badge empty-stock'} style={{
-                        background: stock > 5 ? '#dcfce7' : stock > 0 ? '#fef3c7' : '#fee2e2',
-                        color: stock > 5 ? '#166534' : stock > 0 ? '#92400e' : '#991b1b'
-                      }}>
-                        {stock > 5 ? `${stock} en stock` : stock > 0 ? `Bajo (${stock})` : 'Agotado'}
-                      </span>
+                      <div>
+                        <span className="sku-label">{r.sku}</span>
+                        {r.barcode && (
+                          <small style={{ display: 'block', fontSize: '9.5px', color: '#64748b' }}>
+                            🏷️ {r.barcode}
+                          </small>
+                        )}
+                      </div>
+                      {(() => {
+                        const minS = Number(r.min_stock ?? r.minStock ?? 5);
+                        const isOut = stock <= 0;
+                        const isLow = stock > 0 && stock <= minS;
+                        return (
+                          <span
+                            className={!isOut && !isLow ? 'stock-badge' : isLow ? 'stock-badge' : 'stock-badge empty-stock'}
+                            style={{
+                              background: !isOut && !isLow ? '#dcfce7' : isLow ? '#fef3c7' : '#fee2e2',
+                              color: !isOut && !isLow ? '#166534' : isLow ? '#92400e' : '#991b1b',
+                              fontWeight: 700
+                            }}
+                            title={`Stock actual: ${stock} unidades · Alerta mínima configurada: ${minS}`}
+                          >
+                            {!isOut && !isLow ? `🟢 ${stock} en stock` : isLow ? `🟡 Bajo (${stock}/${minS})` : '🔴 Agotado'}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <h4>{r.name}</h4>
@@ -5371,6 +6448,25 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
           </div>
         )}
       </section>
+
+      {showBarcodes && (
+        <BarcodeTagsModal
+          products={filtered}
+          onClose={() => setShowBarcodes(false)}
+        />
+      )}
+
+      {showCsvImport && (
+        <CsvImportModal
+          branchId={branchId}
+          api={api}
+          onDone={() => {
+            setShowCsvImport(false);
+            load();
+          }}
+          onClose={() => setShowCsvImport(false)}
+        />
+      )}
     </>
   );
 }
@@ -7269,8 +8365,21 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const getWaLink=(o:Any)=>{
     const phone=(o.customer_phone||'').replace(/[^0-9]/g,'');
     const url=getFullUrl(o);
-    const folio=o.order_number||o.id?.slice(0,8)||'';
-    const text=encodeURIComponent(`Hola ${o.customer_name||'estimado/a cliente'}, te compartimos el enlace para seguir el avance y cotización de tu orden ${folio} en FixmeTiendas: ${url}`);
+    const folio=o.order_number||o.id?.slice(0,8).toUpperCase()||'';
+    const name=o.customer_name||'estimado/a cliente';
+    const device=`${o.device_brand||''} ${o.device_model||o.description||'dispositivo'}`.trim();
+
+    let msg=`Hola ${name}, te saludamos de FixmeTiendas.\nTe compartimos el enlace para consultar tu orden #${folio} (${device}):\n${url}`;
+    if(o.status==='DIAGNOSIS'||o.status==='OPEN'){
+      msg=`Hola ${name}, tu equipo ${device} ha ingresado a taller para diagnóstico.\nOrden #${folio}.\nPuedes hacer seguimiento en vivo aquí:\n${url}`;
+    }else if(o.status==='QUOTED'){
+      msg=`Hola ${name}, tenemos listo el presupuesto para tu equipo ${device}.\nTotal cotizado: $${Number(o.quote||0).toFixed(2)}.\nPuedes revisar los repuestos y autorizar la reparación aquí:\n${url}`;
+    }else if(o.status==='IN_PROGRESS'||o.status==='APPROVED'){
+      msg=`Hola ${name}, tu equipo ${device} se encuentra en proceso de reparación técnica.\nOrden #${folio}.\nAvance en tiempo real: ${url}`;
+    }else if(o.status==='COMPLETED'){
+      msg=`¡Buenas noticias ${name}! 🎉\nTu equipo ${device} (Orden #${folio}) ya está LISTO para retiro en nuestra tienda.\nDetalle final: ${url}\n¡Te esperamos!`;
+    }
+    const text=encodeURIComponent(msg);
     return phone?`https://wa.me/${phone}?text=${text}`:`https://wa.me/?text=${text}`;
   };
 
@@ -7752,71 +8861,14 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       </div>
     </div>}
 
-    {/* MODAL TICKET DE RECEPCIÓN IMPRIMIBLE */}
-    {ticketModal&&<div className="modal-overlay" onClick={()=>setTicketModal(null)}>
-      <div className="modal-card" onClick={e=>e.stopPropagation()}>
-        <div className="modal-head">
-          <h3>🖨️ Ticket de Recepción</h3>
-          <button className="close-button" onClick={()=>setTicketModal(null)}>✕</button>
-        </div>
-
-        <div id="printable-ticket" className="ticket-preview">
-          <h2>FIXMETIENDAS</h2>
-          <div className="ticket-center">Servicio Técnico Especializado</div>
-          <div className="ticket-divider"></div>
-          <div><strong>ORDEN: {ticketModal.order_number||ticketModal.id?.slice(0,8)}</strong></div>
-          <div>Fecha: {ticketModal.created_at?new Date(ticketModal.created_at).toLocaleString():''}</div>
-          <div>Cliente: {ticketModal.customer_name||'Cliente'}</div>
-          <div>Teléfono: {ticketModal.customer_phone||'N/A'}</div>
-          <div>Técnico Asignado: {ticketModal.technician_name||'Taller General'}</div>
-          <div>SLA Comprometido: {ticketModal.sla_hours||48} Horas</div>
-          <div className="ticket-divider"></div>
-          <div><strong>EQUIPO:</strong> {ticketModal.device_brand||''} {ticketModal.device_model||ticketModal.description}</div>
-          <div><strong>SERIE/IMEI:</strong> {ticketModal.serial_number||'N/A'}</div>
-          <div><strong>ACCESORIOS:</strong> {ticketModal.accessories||'Ninguno'}</div>
-          <div><strong>FALLA REPORTADA:</strong> {ticketModal.reported_fault||ticketModal.description}</div>
-
-          {ticketModal.items&&ticketModal.items.length>0&&(
-            <>
-              <div className="ticket-divider"></div>
-              <div><strong>DESGLOSE DE SERVICIO:</strong></div>
-              {ticketModal.items.map((it:Any,idx:number)=>(
-                <div key={idx} style={{display:'flex',justifyContent:'space-between',fontSize:'11px',margin:'2px 0'}}>
-                  <span>{it.quantity}x {it.name} ({it.itemType==='LABOR'?'MO':'Rep'})</span>
-                  <span>${Number(it.subtotal||it.quantity*it.unitPrice||0).toFixed(2)}</span>
-                </div>
-              ))}
-            </>
-          )}
-
-          <div className="ticket-divider"></div>
-          <div style={{fontSize:'13px',fontWeight:800}}>TOTAL COTIZACIÓN: ${Number(ticketModal.quote||0).toFixed(2)}</div>
-          <div>ESTADO: {statusLabel(ticketModal.status)}</div>
-          <div className="ticket-divider"></div>
-
-          <div className="ticket-center" style={{margin:'10px 0'}}>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(getFullUrl(ticketModal))}`}
-              alt="QR Ticket"
-              width="140"
-              height="140"
-            />
-            <div style={{fontSize:'10px',marginTop:'4px'}}>Escanea para consultar tu orden en tiempo real</div>
-          </div>
-
-          <div className="ticket-divider"></div>
-          <p style={{fontSize:'9px',textAlign:'center',color:'#64748b'}}>
-            * No nos hacemos responsables por equipos no retirados después de 30 días.<br/>
-            * Garantía de 90 días en repuestos y mano de obra instalada.
-          </p>
-        </div>
-
-        <div style={{display:'flex',gap:'10px',marginTop:'18px'}}>
-          <button className="secondary-action" style={{flex:1}} onClick={()=>setTicketModal(null)}>Cerrar</button>
-          <button className="primary-action" style={{flex:1}} onClick={()=>window.print()}>🖨️ Imprimir Ticket</button>
-        </div>
-      </div>
-    </div>}
+    {/* MODAL COMPROBANTE DE RECEPCIÓN TALLER (80mm) */}
+    {ticketModal && (
+      <WorkOrderReceiptModal
+        order={ticketModal}
+        onClose={() => setTicketModal(null)}
+        tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+      />
+    )}
   </>;
 }
 function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){

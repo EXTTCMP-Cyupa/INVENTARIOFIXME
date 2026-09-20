@@ -59,9 +59,21 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 
 @media print{
   body *{visibility:hidden}
-  #printable-ticket,#printable-ticket *{visibility:visible}
-  #printable-ticket{position:fixed;left:0;top:0;width:100%;max-width:320px;margin:0;padding:10px;border:0;font-size:11px}
+  .no-print{display:none !important}
+  #printable-ticket, #printable-ticket *,
+  #printable-thermal, #printable-thermal *,
+  #printable-work-receipt, #printable-work-receipt *,
+  #printable-z-report, #printable-z-report *,
+  #printable-sale-receipt, #printable-sale-receipt *,
+  #printable-barcodes, #printable-barcodes *{visibility:visible}
+  #printable-ticket, #printable-thermal, #printable-work-receipt, #printable-z-report, #printable-sale-receipt{
+    position:absolute;left:0;top:0;width:80mm;max-width:80mm;margin:0;padding:6px;border:0;box-shadow:none;font-size:11px;
+  }
+  #printable-barcodes{
+    position:absolute;left:0;top:0;width:100%;margin:0;padding:8px;border:0;box-shadow:none;
+  }
 }
+
 
 /* --- ADVANCED POS, PAYMENTS & OMNICHANNEL STYLES --- */
 .toggle-group {
@@ -2680,22 +2692,1159 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   body * {
     visibility: hidden;
   }
-  #printable-ride, #printable-ride * {
+  #printable-ride, #printable-ride *,
+  #printable-ticket, #printable-ticket *,
+  #printable-thermal, #printable-thermal *,
+  #printable-work-receipt, #printable-work-receipt *,
+  #printable-z-report, #printable-z-report *,
+  #printable-barcodes, #printable-barcodes * {
     visibility: visible;
   }
-  #printable-ride {
+  #printable-ticket, #printable-thermal, #printable-work-receipt, #printable-z-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 2mm 3mm;
+    border: 0;
+    box-shadow: none;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #000;
+    background: #fff;
+  }
+  #printable-barcodes {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     margin: 0;
-    padding: 0;
-    border: 0;
-    box-shadow: none;
+    padding: 10px;
+    background: #fff;
   }
   .no-print {
     display: none !important;
   }
 }
 
+/* ==========================================================================
+   DARK MODE THEME SYSTEM
+   ========================================================================== */
+[data-theme='dark'] body,
+[data-theme='dark'] .shell {
+  background: #0b0f19 !important;
+  color: #f1f5f9 !important;
+}
 
+[data-theme='dark'] aside {
+  background: #0f172a !important;
+  border-right-color: #1e293b !important;
+}
+
+[data-theme='dark'] .brand,
+[data-theme='dark'] .brand b,
+[data-theme='dark'] h1,
+[data-theme='dark'] h2,
+[data-theme='dark'] h3,
+[data-theme='dark'] h4,
+[data-theme='dark'] strong {
+  color: #f8fafc !important;
+}
+
+[data-theme='dark'] .branch-switch {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+[data-theme='dark'] .nav-item {
+  color: #94a3b8 !important;
+}
+
+[data-theme='dark'] .nav-item:hover {
+  background: #1e293b !important;
+  color: #60a5fa !important;
+}
+
+[data-theme='dark'] .nav-item.active {
+  background: #1e3a8a !important;
+  color: #93c5fd !important;
+}
+
+[data-theme='dark'] .sidebar-user {
+  border-top-color: #1e293b !important;
+}
+
+[data-theme='dark'] .panel,
+[data-theme='dark'] .kpi,
+[data-theme='dark'] .inventory-stats > div,
+[data-theme='dark'] .order-card,
+[data-theme='dark'] .product-card,
+[data-theme='dark'] .modal-card,
+[data-theme='dark'] .cart,
+[data-theme='dark'] .search-box,
+[data-theme='dark'] .filter-pill,
+[data-theme='dark'] .quick button {
+  background: #131d31 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme='dark'] .product-thumb {
+  background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+  color: #60a5fa !important;
+}
+
+[data-theme='dark'] table {
+  color: #e2e8f0 !important;
+}
+
+[data-theme='dark'] th {
+  border-bottom-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme='dark'] td {
+  border-bottom-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme='dark'] tbody tr:hover {
+  background: #1a2744 !important;
+}
+
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme='dark'] input:focus,
+[data-theme='dark'] select:focus,
+[data-theme='dark'] textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+
+[data-theme='dark'] .order-card-meta {
+  background: #0f172a !important;
+}
+
+[data-theme='dark'] .header-icon {
+  background: #131d31 !important;
+  border-color: #1e293b !important;
+  color: #60a5fa !important;
+}
+
+[data-theme='dark'] .toggle-group {
+  background: #0f172a !important;
+}
+
+[data-theme='dark'] .toggle-btn.active {
+  background: #1e293b !important;
+  color: #60a5fa !important;
+}
+
+/* THEME TOGGLE SWITCH */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .16s ease;
+  margin-top: 6px;
+}
+[data-theme='dark'] .theme-toggle-btn {
+  border-color: #334155;
+  background: #0f172a;
+}
+
+/* ==========================================================================
+   THERMAL RECEIPT & PRINTABLE STYLES (80mm)
+   ========================================================================== */
+.thermal-receipt {
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 16px 14px;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #0f172a;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+.thermal-center {
+  text-align: center;
+}
+.thermal-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+.thermal-sub {
+  font-size: 11px;
+  color: #475569;
+  margin: 2px 0;
+}
+.thermal-divider {
+  border-top: 1px dashed #64748b;
+  margin: 8px 0;
+}
+.thermal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 6px 0;
+}
+.thermal-table th {
+  text-align: left;
+  border-bottom: 1px dashed #94a3b8;
+  padding: 4px 0;
+  font-size: 10px;
+}
+.thermal-table td {
+  padding: 4px 0;
+  border-bottom: 0;
+  font-size: 11px;
+}
+.thermal-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0;
+  font-size: 11px;
+}
+.thermal-row.total-highlight {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 6px 0;
+}
+
+/* BARCODE TAGS GRID */
+.barcode-print-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.barcode-tag-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 10px;
+  text-align: center;
+  background: #fff;
+  font-family: monospace;
+}
+.barcode-tag-title {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.barcode-tag-price {
+  font-size: 14px;
+  font-weight: 800;
+  color: #2563eb;
+  margin-bottom: 6px;
+}
+.barcode-bars {
+  letter-spacing: 3px;
+  font-size: 18px;
+  font-weight: 800;
+  background: repeating-linear-gradient(90deg, #000 0, #000 2px, transparent 2px, transparent 4px, #000 4px, #000 7px, transparent 7px, transparent 9px);
+  height: 36px;
+  width: 90%;
+  margin: 0 auto;
+}
+
+/* ENHANCED TOASTS */
+.toast-success {
+  border-left: 5px solid #10b981 !important;
+}
+.toast-error {
+  border-left: 5px solid #ef4444 !important;
+}
+.toast-warning {
+  border-left: 5px solid #f59e0b !important;
+}
+
+/* SKELETON LOADING PULSE */
+.skeleton-pulse {
+  background: linear-gradient(90deg, rgba(226,232,240,0.4) 0%, rgba(203,213,225,0.7) 50%, rgba(226,232,240,0.4) 100%);
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s infinite ease-in-out;
+  border-radius: 6px;
+}
+@keyframes skeletonPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+[data-theme='dark'] .skeleton-pulse {
+  background: linear-gradient(90deg, rgba(30,41,59,0.5) 0%, rgba(51,65,85,0.8) 50%, rgba(30,41,59,0.5) 100%);
+}
+
+/* ==========================================================
+   MY WORK / TALLER PERSONAL: KPIS, KANBAN, WORKBENCH & ITEMS
+   ========================================================== */
+
+/* SUMMARY GRID & CARDS (KPIs) */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+.summary-card small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.summary-card strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.summary-card span {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+[data-theme='dark'] .summary-card {
+  background: #111c44;
+  border-color: #1e293b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+[data-theme='dark'] .summary-card small {
+  color: #94a3b8;
+}
+[data-theme='dark'] .summary-card strong {
+  color: #f8fafc;
+}
+[data-theme='dark'] .summary-card span {
+  color: #64748b;
+}
+
+/* KANBAN BOARD SYSTEM */
+.mywork-kanban {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+.kanban-column {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 480px;
+  max-height: 75vh;
+  overflow: hidden;
+}
+[data-theme='dark'] .kanban-column {
+  background: #0d1527;
+  border-color: #1e293b;
+}
+.kanban-col-head {
+  padding: 12px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+}
+[data-theme='dark'] .kanban-col-head {
+  background: #111c44;
+  border-color: #1e293b;
+  color: #f8fafc;
+}
+.kanban-badge {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+[data-theme='dark'] .kanban-badge {
+  background: #1e293b;
+  color: #94a3b8;
+}
+.kanban-col-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+.kanban-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  border-color: #3157d5;
+}
+[data-theme='dark'] .kanban-card {
+  background: #172242;
+  border-color: #243054;
+}
+[data-theme='dark'] .kanban-card:hover {
+  border-color: #4f75f2;
+}
+
+/* WORKBENCH CARD GRID */
+.mywork-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.mywork-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.18s ease;
+}
+.mywork-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+[data-theme='dark'] .mywork-card {
+  background: #111c44;
+  border-color: #1e293b;
+}
+
+/* WORKBENCH TABS & ITEMS TABLE */
+.workbench-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+[data-theme='dark'] .workbench-tabs {
+  border-color: #1e293b;
+}
+.workbench-tab-btn {
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.workbench-tab-btn.active {
+  color: #3157d5;
+  border-bottom-color: #3157d5;
+  font-weight: 800;
+}
+[data-theme='dark'] .workbench-tab-btn.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.items-table th {
+  background: #f8fafc;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+[data-theme='dark'] .items-table th {
+  background: #0b1329;
+  border-color: #1e293b;
+  color: #94a3b8;
+}
+.items-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+[data-theme='dark'] .items-table td {
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+.badge-service {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.badge-part {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+}
+[data-theme='dark'] .badge-service {
+  background: rgba(30, 64, 175, 0.3);
+  color: #93c5fd;
+}
+[data-theme='dark'] .badge-part {
+  background: rgba(146, 64, 14, 0.3);
+  color: #fcd34d;
+}
+.tech-action-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.tech-action-repair {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.tech-action-repair:hover {
+  background: #dbeafe;
+}
+.tech-action-parts {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.tech-action-parts:hover {
+  background: #fef3c7;
+}
+.tech-action-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.tech-action-ready:hover {
+  background: #d1fae5;
+}
+.tech-action-diag {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+.tech-action-diag:hover {
+  background: #f1f5f9;
+}
+[data-theme='dark'] .kanban-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme='dark'] .kanban-order-num,
+[data-theme='dark'] .kanban-device-title {
+  color: #f8fafc;
+}
+[data-theme='dark'] .kanban-card-fault {
+  background: #0f172a;
+  color: #cbd5e1;
+}
+[data-theme='dark'] .kanban-card-customer {
+  border-color: #334155;
+}
+[data-theme='dark'] .view-mode-toggle {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme='dark'] .view-mode-btn.active {
+  background: #1e293b;
+  border-color: #4f75f2;
+}
+
+/* WORKBENCH CARD GRID */
+.mywork-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.mywork-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.18s ease;
+}
+.mywork-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+[data-theme='dark'] .mywork-card {
+  background: #111c44;
+  border-color: #1e293b;
+}
+
+/* WORKBENCH TABS & ITEMS TABLE */
+.workbench-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+[data-theme='dark'] .workbench-tabs {
+  border-color: #1e293b;
+}
+.workbench-tab-btn {
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.workbench-tab-btn.active {
+  color: #3157d5;
+  border-bottom-color: #3157d5;
+  font-weight: 800;
+}
+[data-theme='dark'] .workbench-tab-btn.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.items-table th {
+  background: #f8fafc;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+[data-theme='dark'] .items-table th {
+  background: #0b1329;
+  border-color: #1e293b;
+  color: #94a3b8;
+}
+.items-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+[data-theme='dark'] .items-table td {
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+.badge-service {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.badge-part {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+}
+[data-theme='dark'] .badge-service {
+  background: rgba(30, 64, 175, 0.3);
+  color: #93c5fd;
+}
+[data-theme='dark'] .badge-part {
+  background: rgba(146, 64, 14, 0.3);
+  color: #fcd34d;
+}
+.tech-action-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.tech-action-repair {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.tech-action-repair:hover {
+  background: #dbeafe;
+}
+.tech-action-parts {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.tech-action-parts:hover {
+  background: #fef3c7;
+}
+.tech-action-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.tech-action-ready:hover {
+  background: #d1fae5;
+}
+.tech-action-diag {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+.tech-action-diag:hover {
+  background: #f1f5f9;
+}
+[data-theme='dark'] .tech-action-repair {
+  background: rgba(29, 78, 216, 0.2);
+  border-color: #1e3a8a;
+  color: #93c5fd;
+}
+[data-theme='dark'] .tech-action-parts {
+  background: rgba(180, 83, 9, 0.2);
+  border-color: #78350f;
+  color: #fde68a;
+}
+[data-theme='dark'] .tech-action-ready {
+  background: rgba(4, 120, 87, 0.2);
+  border-color: #064e3b;
+  color: #a7f3d0;
+}
+[data-theme='dark'] .tech-action-diag {
+  background: #1e293b;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+/* =========================================================================
+   MODERN TECHNICIAN WORKBENCH & MI TRABAJO (KANBAN, KPIS, CARDS, TABLE)
+   ========================================================================= */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.summary-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.summary-card small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.summary-card strong {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text, #0f172a);
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+.summary-card span {
+  font-size: 11.5px;
+  color: var(--muted, #64748b);
+}
+
+.view-mode-toggle {
+  display: inline-flex;
+  background: var(--surface-subtle, #f1f5f9);
+  padding: 3px;
+  border-radius: 10px;
+  gap: 2px;
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-mode-btn.active {
+  background: var(--surface, #ffffff);
+  color: var(--primary, #2563eb);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* KANBAN BOARD */
+.mywork-kanban {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  align-items: flex-start;
+  min-height: calc(100vh - 330px);
+}
+
+.kanban-column {
+  flex: 0 0 320px;
+  min-width: 310px;
+  background: var(--surface-subtle, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 290px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.kanban-col-head {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text, #0f172a);
+}
+
+.kanban-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--border, #e2e8f0);
+  color: var(--muted, #475569);
+}
+
+.kanban-col-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.kanban-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+.kanban-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.kanban-order-num {
+  font-weight: 800;
+  font-size: 13.5px;
+  color: var(--text, #0f172a);
+}
+
+.kanban-device-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text, #1e293b);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-card-fault {
+  background: var(--surface-subtle, #f8fafc);
+  border-left: 3px solid #3b82f6;
+  padding: 6px 8px;
+  border-radius: 0 6px 6px 0;
+  font-size: 11.5px;
+  color: var(--text-secondary, #475569);
+  line-height: 1.35;
+}
+
+.kanban-card-customer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--muted, #64748b);
+  padding-top: 4px;
+  border-top: 1px dashed var(--border, #f1f5f9);
+}
+
+.kanban-items-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* WORKBENCH TABS & DETAILS */
+.workbench-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border, #e2e8f0);
+  margin-bottom: 18px;
+  padding-bottom: 2px;
+}
+
+.workbench-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s ease;
+}
+
+.workbench-tab-btn:hover {
+  color: var(--text, #0f172a);
+}
+
+.workbench-tab-btn.active {
+  color: var(--primary, #2563eb);
+  border-bottom-color: var(--primary, #2563eb);
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.items-table th {
+  background: var(--surface-subtle, #f8fafc);
+  color: var(--muted, #64748b);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.items-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  vertical-align: middle;
+}
+
+.badge-service {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* DARK MODE OVERRIDES */
+[data-theme='dark'] .summary-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme='dark'] .summary-card strong {
+  color: #f8fafc;
+}
+[data-theme='dark'] .kanban-column {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme='dark'] .kanban-col-head {
+  border-color: #334155;
+  color: #f8fafc;
+}
+[data-theme='dark'] .kanban-badge {
+  background: #334155;
+  color: #cbd5e1;
+}
+[data-theme='dark'] .kanban-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme='dark'] .kanban-order-num,
+[data-theme='dark'] .kanban-device-title {
+  color: #f8fafc;
+}
+[data-theme='dark'] .kanban-card-fault {
+  background: #0f172a;
+  color: #cbd5e1;
+}
+[data-theme='dark'] .kanban-card-customer {
+  border-color: #334155;
+}
+[data-theme='dark'] .view-mode-toggle {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme='dark'] .view-mode-btn.active {
+  background: #1e293b;
+  color: #60a5fa;
+}
+[data-theme='dark'] .mywork-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme='dark'] .workbench-tabs {
+  border-color: #334155;
+}
+[data-theme='dark'] .items-table th {
+  background: #0f172a;
+  border-color: #334155;
+  color: #94a3b8;
+}
+[data-theme='dark'] .items-table td {
+  border-color: #334155;
+  color: #e2e8f0;
+}

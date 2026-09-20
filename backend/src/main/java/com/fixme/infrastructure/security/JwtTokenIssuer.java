@@ -59,7 +59,21 @@ public class JwtTokenIssuer implements TokenIssuer {
 
     String scopeString = String.join(" ", scopes);
 
-    JwtClaimsSet claims = JwtClaimsSet.builder()
+    UUID branchId = null;
+    try {
+      db.queryForObject("select set_config('app.tenant_id',?,true)", String.class, user.tenantId().toString());
+      var ub = db.queryForList("select branch_id from user_branches where user_id = ? limit 1", user.id());
+      if (!ub.isEmpty() && ub.get(0).get("branch_id") != null) {
+        branchId = (UUID) ub.get(0).get("branch_id");
+      } else {
+        var b = db.queryForList("select id from branches where tenant_id = ? and active = true order by created_at asc limit 1", user.tenantId());
+        if (!b.isEmpty() && b.get(0).get("id") != null) {
+          branchId = (UUID) b.get(0).get("id");
+        }
+      }
+    } catch (Exception ignored) {}
+
+    JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
         .issuer("fixmetiendas")
         .subject(user.email())
         .issuedAt(now)
@@ -69,8 +83,13 @@ public class JwtTokenIssuer implements TokenIssuer {
         .claim("scope", scopeString)
         .claim("roles", new ArrayList<>(scopes))
         .claim("primary_role", user.role())
-        .claim("permissions", permissions)
-        .build();
+        .claim("permissions", permissions);
+
+    if (branchId != null) {
+      claimsBuilder.claim("branch_id", branchId.toString());
+    }
+
+    JwtClaimsSet claims = claimsBuilder.build();
 
     return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
   }

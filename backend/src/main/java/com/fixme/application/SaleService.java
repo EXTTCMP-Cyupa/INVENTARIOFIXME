@@ -14,7 +14,7 @@ public class SaleService {
   }
 
   public Sale create(UUID tenant, UUID branch, UUID user, List<SalePort.Item> items, List<SalePort.Payment> payments, UUID customerId, Integer warrantyDays) {
-    return create(tenant, branch, user, items, payments, customerId, warrantyDays, "STORE", "PICKUP", BigDecimal.ZERO, null);
+    return create(tenant, branch, user, items, payments, customerId, warrantyDays, "STORE", "PICKUP", BigDecimal.ZERO, null, BigDecimal.ZERO);
   }
 
   public Sale create(
@@ -30,6 +30,23 @@ public class SaleService {
       BigDecimal shippingCost,
       SalePort.DeliveryInfo delivery
   ) {
+    return create(tenant, branch, user, items, payments, customerId, warrantyDays, channel, fulfillmentType, shippingCost, delivery, BigDecimal.ZERO);
+  }
+
+  public Sale create(
+      UUID tenant,
+      UUID branch,
+      UUID user,
+      List<SalePort.Item> items,
+      List<SalePort.Payment> payments,
+      UUID customerId,
+      Integer warrantyDays,
+      String channel,
+      String fulfillmentType,
+      BigDecimal shippingCost,
+      SalePort.DeliveryInfo delivery,
+      BigDecimal discount
+  ) {
     modules.require(tenant, "POS");
     if (branch == null || items == null || items.isEmpty() || payments == null || payments.isEmpty()) {
       throw new IllegalArgumentException("sucursal, items y pagos son obligatorios");
@@ -44,6 +61,7 @@ public class SaleService {
       throw new IllegalArgumentException("los días de garantía no pueden ser negativos");
     }
 
+    BigDecimal finalDiscount = (discount != null && discount.signum() > 0) ? discount : BigDecimal.ZERO;
     String finalChannel = (channel != null && "ONLINE".equalsIgnoreCase(channel.trim())) ? "ONLINE" : "STORE";
     String finalFulfillment = (fulfillmentType != null && "DELIVERY".equalsIgnoreCase(fulfillmentType.trim())) ? "DELIVERY" : "PICKUP";
     BigDecimal finalShipping = shippingCost != null && shippingCost.signum() > 0 ? shippingCost : BigDecimal.ZERO;
@@ -54,7 +72,7 @@ public class SaleService {
       }
     }
 
-    return port.create(tenant, branch, user, items, payments, customerId, warrantyDays, finalChannel, finalFulfillment, finalShipping, delivery);
+    return port.create(tenant, branch, user, items, payments, customerId, warrantyDays, finalChannel, finalFulfillment, finalShipping, delivery, finalDiscount);
   }
 
   public List<Sale> list(UUID tenant, UUID branch) {

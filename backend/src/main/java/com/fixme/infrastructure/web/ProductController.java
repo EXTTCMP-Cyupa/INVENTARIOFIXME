@@ -15,12 +15,25 @@ import org.springframework.web.bind.annotation.*;
 public class ProductController {
   private final ProductService service;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+
   public ProductController(ProductService service, org.springframework.jdbc.core.JdbcTemplate jdbc) {
-    this.service = service; this.jdbc = jdbc;
+    this.service = service;
+    this.jdbc = jdbc;
   }
 
-  public record Input(String sku, String name, Integer stock, BigDecimal price, BigDecimal purchasePrice, BigDecimal extraCost,
-      BigDecimal marginPercent, UUID categoryId) {}
+  public record Input(
+      String sku,
+      String name,
+      Integer stock,
+      BigDecimal price,
+      BigDecimal purchasePrice,
+      BigDecimal extraCost,
+      BigDecimal marginPercent,
+      UUID categoryId,
+      Integer minStock,
+      String barcode
+  ) {}
+
   public record MovementInput(String type, Integer quantity, String reason) {}
 
   @GetMapping
@@ -47,6 +60,33 @@ public class ProductController {
     return service.update(product(input, id, tenant(jwt)), branchId);
   }
 
+  @PostMapping("/batch-import")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
+  public Map<String, Object> batchImport(
+      @RequestParam UUID branchId,
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestBody List<Input> items
+  ) {
+    UUID tenant = tenant(jwt);
+    int imported = 0;
+    int updated = 0;
+    for (Input in : items) {
+      if (in == null || in.sku() == null || in.sku().isBlank() || in.name() == null || in.name().isBlank()) continue;
+      try {
+        var existing = jdbc.queryForList("SELECT id FROM products WHERE tenant_id = ? AND sku = ?", tenant, in.sku().trim());
+        if (existing.isEmpty()) {
+          service.create(product(in, null, tenant), branchId);
+          imported++;
+        } else {
+          UUID existingId = (UUID) existing.get(0).get("id");
+          service.update(product(in, existingId, tenant), branchId);
+          updated++;
+        }
+      } catch (Exception ignored) {}
+    }
+    return Map.of("imported", imported, "updated", updated, "total", items != null ? items.size() : 0);
+  }
+
   @PostMapping("/{id}/movements")
   @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
   public ResponseEntity<Void> movement(@PathVariable UUID id, @RequestParam UUID branchId,
@@ -70,14 +110,18 @@ public class ProductController {
         || (i.marginPercent() != null && i.marginPercent().signum() < 0))
       throw new IllegalArgumentException("sku, nombre, precio y stock son obligatorios y válidos");
   }
+
   private Product product(Input i, UUID id, UUID tenant) {
     BigDecimal cost = i.purchasePrice() == null ? BigDecimal.ZERO : i.purchasePrice();
     BigDecimal extra = i.extraCost() == null ? BigDecimal.ZERO : i.extraCost();
     BigDecimal margin = i.marginPercent() == null
         ? (i.price().signum() == 0 ? BigDecimal.ZERO : i.price().subtract(cost).multiply(BigDecimal.valueOf(100))
             .divide(i.price(), 2, java.math.RoundingMode.HALF_UP)) : i.marginPercent();
-    return new Product(id, tenant, i.sku().trim(), i.name().trim(), i.stock(), i.price(), cost, extra, margin, i.categoryId());
+    int minStock = i.minStock() != null && i.minStock() >= 0 ? i.minStock() : 5;
+    String barcode = i.barcode() != null && !i.barcode().isBlank() ? i.barcode().trim() : i.sku().trim();
+    return new Product(id, tenant, i.sku().trim(), i.name().trim(), i.stock(), i.price(), cost, extra, margin, i.categoryId(), minStock, barcode);
   }
+
   private UUID tenant(Jwt jwt) {
     try {
       String value = jwt == null ? null : jwt.getClaimAsString("tenant_id");

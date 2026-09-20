@@ -226,3 +226,4 @@ public final class SriXmlBuilder {
             .replace("'", "&apos;");
   }
 }
+

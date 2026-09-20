@@ -169,7 +169,7 @@ public class SriInvoiceController {
 
     // 1. Fetch sale
     List<Map<String, Object>> sales = db.queryForList("""
-        SELECT s.id, s.tenant_id, s.subtotal, s.tax, s.total, s.created_at, s.customer_id,
+        SELECT s.id, s.tenant_id, s.subtotal, COALESCE(s.discount, 0.00) AS discount, s.tax, s.total, s.created_at, s.customer_id,
                c.name AS customer_name, c.identification_type, c.identification_number,
                c.phone AS customer_phone, c.email AS customer_email, c.address AS customer_address
         FROM sales s
@@ -276,7 +276,11 @@ public class SriInvoiceController {
       ));
     }
 
-    BigDecimal grandTotal = subtotalSinImpuestos.add(iva15Total);
+    BigDecimal totalDiscount = sale.get("discount") != null ? new BigDecimal(sale.get("discount").toString()) : BigDecimal.ZERO;
+    BigDecimal subtotalSinImpuestosNeto = subtotalSinImpuestos.subtract(totalDiscount).max(BigDecimal.ZERO);
+    BigDecimal subtotal15Neto = subtotal15.subtract(totalDiscount).max(BigDecimal.ZERO);
+    BigDecimal iva15TotalNeto = subtotal15Neto.multiply(BigDecimal.valueOf(0.15)).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal grandTotal = subtotalSinImpuestosNeto.add(iva15TotalNeto);
 
     // 5. Generate 49-digit Access Key
     LocalDate today = LocalDate.now();
@@ -314,11 +318,11 @@ public class SriInvoiceController {
         buyerAddress,
         buyerPhone,
         buyerEmail,
-        subtotalSinImpuestos,
-        subtotal15,
+        subtotalSinImpuestosNeto,
+        subtotal15Neto,
         BigDecimal.ZERO,
-        iva15Total,
-        BigDecimal.ZERO,
+        iva15TotalNeto,
+        totalDiscount,
         grandTotal,
         "01", // 01: Sin utilizacion del sistema financiero / Efectivo
         items,
@@ -476,3 +480,4 @@ public class SriInvoiceController {
         : db.queryForList(sql, t);
   }
 }
+
