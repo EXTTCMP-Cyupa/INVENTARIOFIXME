@@ -1,4 +1,11 @@
 import React from 'react';
+import {
+  TicketFormatSelector,
+  TicketPaperWidth,
+  getStoredPaperWidth,
+  setStoredPaperWidth,
+  printTicketElement
+} from './ticketPrinter';
 
 type Any = Record<string, any>;
 
@@ -14,6 +21,13 @@ export function ThermalTicketModal({
   onClose: () => void;
   tenantName?: string;
 }) {
+  const [paperWidth, setPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
+
+  const handleWidthChange = (w: TicketPaperWidth) => {
+    setPaperWidth(w);
+    setStoredPaperWidth(w);
+  };
+
   const items = sale.items || [];
   const payments = sale.payments || [];
   const storeName = tenantName || localStorage.tenantName || 'Fixme Tienda';
@@ -29,13 +43,19 @@ export function ThermalTicketModal({
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card" style={{ maxWidth: '380px' }}>
-        <div className="modal-head no-print">
-          <h3>🖨️ Ticket de Venta (80mm)</h3>
-          <button className="close-button" onClick={onClose}>✕</button>
+      <div className="modal-card" style={{ maxWidth: paperWidth === '58mm' ? '330px' : '410px', transition: 'max-width 0.2s' }}>
+        <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>🖨️ Ticket de Venta</h3>
+            <small style={{ color: '#64748b' }}>Formato térmico ({paperWidth})</small>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TicketFormatSelector value={paperWidth} onChange={handleWidthChange} />
+            <button className="close-button" onClick={onClose}>✕</button>
+          </div>
         </div>
 
-        <div id="printable-thermal" className="thermal-receipt">
+        <div id="printable-thermal" className={`thermal-receipt paper-${paperWidth}`}>
           <div className="thermal-center">
             <h2 className="thermal-title">{storeName}</h2>
             <div className="thermal-sub">
@@ -172,9 +192,9 @@ export function ThermalTicketModal({
             type="button"
             className="btn-primary-sm"
             style={{ padding: '12px', fontSize: '13px' }}
-            onClick={() => window.print()}
+            onClick={() => printTicketElement('printable-thermal', paperWidth)}
           >
-            🖨️ Imprimir Ticket (80mm)
+            🖨️ Imprimir Ticket ({paperWidth})
           </button>
           <button
             type="button"
@@ -332,15 +352,27 @@ export function CorteZModal({
   const counted = Number(summary.counted || 0);
   const diff = Number(summary.difference || counted - expected);
 
+  const [paperWidth, setPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
+  const handleWidthChange = (w: TicketPaperWidth) => {
+    setPaperWidth(w);
+    setStoredPaperWidth(w);
+  };
+
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card" style={{ maxWidth: '380px' }}>
-        <div className="modal-head no-print">
-          <h3>📊 Reporte de Cierre Z (Arqueo)</h3>
-          <button className="close-button" onClick={onClose}>✕</button>
+      <div className="modal-card" style={{ maxWidth: paperWidth === '58mm' ? '330px' : '410px', transition: 'max-width 0.2s' }}>
+        <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>📊 Reporte de Cierre Z</h3>
+            <small style={{ color: '#64748b' }}>Arqueo de Turno ({paperWidth})</small>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TicketFormatSelector value={paperWidth} onChange={handleWidthChange} />
+            <button className="close-button" onClick={onClose}>✕</button>
+          </div>
         </div>
 
-        <div id="printable-z-report" className="thermal-receipt">
+        <div id="printable-z-report" className={`thermal-receipt paper-${paperWidth}`}>
           <div className="thermal-center">
             <h2 className="thermal-title">{storeName}</h2>
             <div className="thermal-sub" style={{ fontWeight: 800 }}>*** CORTE Z - CIERRE DE TURNO ***</div>
@@ -485,9 +517,9 @@ export function CorteZModal({
             type="button"
             className="btn-primary-sm"
             style={{ padding: '12px' }}
-            onClick={() => window.print()}
+            onClick={() => printTicketElement('printable-z-report', paperWidth)}
           >
-            🖨️ Imprimir Corte Z (80mm)
+            🖨️ Imprimir Corte Z ({paperWidth})
           </button>
           <button
             type="button"
@@ -519,15 +551,27 @@ export function WorkOrderReceiptModal({
   const orderNum = order.orderNumber || order.order_number || order.id?.slice(0, 8).toUpperCase();
   const trackingUrl = `${window.location.origin}/#order/${order.orderNumber || order.order_number || order.id || orderNum}`;
 
+  const [paperWidth, setPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
+  const handleWidthChange = (w: TicketPaperWidth) => {
+    setPaperWidth(w);
+    setStoredPaperWidth(w);
+  };
+
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card" style={{ maxWidth: '380px' }}>
-        <div className="modal-head no-print">
-          <h3>📄 Comprobante de Recepción</h3>
-          <button className="close-button" onClick={onClose}>✕</button>
+      <div className="modal-card" style={{ maxWidth: paperWidth === '58mm' ? '330px' : '410px', transition: 'max-width 0.2s' }}>
+        <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>📄 Comprobante de Recepción</h3>
+            <small style={{ color: '#64748b' }}>Taller y Servicio Técnico ({paperWidth})</small>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TicketFormatSelector value={paperWidth} onChange={handleWidthChange} />
+            <button className="close-button" onClick={onClose}>✕</button>
+          </div>
         </div>
 
-        <div id="printable-work-receipt" className="thermal-receipt">
+        <div id="printable-work-receipt" className={`thermal-receipt paper-${paperWidth}`}>
           <div className="thermal-center">
             <h2 className="thermal-title">{storeName}</h2>
             <div className="thermal-sub" style={{ fontWeight: 800 }}>ORDEN DE SERVICIO TÉCNICO</div>
@@ -595,9 +639,9 @@ export function WorkOrderReceiptModal({
               Rastreo en vivo por celular & aprobación de presupuesto:
             </div>
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(trackingUrl)}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=${paperWidth === '58mm' ? '90x90' : '120x120'}&data=${encodeURIComponent(trackingUrl)}`}
               alt="QR Seguimiento"
-              style={{ width: '105px', height: '105px', margin: '4px auto', display: 'block' }}
+              style={{ width: paperWidth === '58mm' ? '80px' : '105px', height: paperWidth === '58mm' ? '80px' : '105px', margin: '4px auto', display: 'block' }}
             />
             <div style={{ fontSize: '8px', color: '#64748b', wordBreak: 'break-all', marginTop: '2px' }}>{trackingUrl}</div>
           </div>
@@ -613,9 +657,9 @@ export function WorkOrderReceiptModal({
             type="button"
             className="btn-primary-sm"
             style={{ padding: '12px' }}
-            onClick={() => window.print()}
+            onClick={() => printTicketElement('printable-work-receipt', paperWidth)}
           >
-            🖨️ Imprimir Comprobante (80mm)
+            🖨️ Imprimir Comprobante ({paperWidth})
           </button>
           <button
             type="button"
@@ -667,7 +711,7 @@ export function BarcodeTagsModal({
             type="button"
             className="btn-primary-sm"
             style={{ padding: '12px' }}
-            onClick={() => window.print()}
+            onClick={() => printTicketElement('printable-barcodes')}
           >
             🖨️ Imprimir Todas las Etiquetas
           </button>

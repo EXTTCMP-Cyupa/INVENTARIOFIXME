@@ -1,4 +1,7 @@
 import React from 'react';
+import { DeUnaModal } from './deunaModal';
+import { PayphoneModal } from './payphoneModal';
+import { printTicketElement } from './ticketPrinter';
 
 type Any = Record<string, any>;
 
@@ -1249,7 +1252,7 @@ function PrintQuoteModal({
         </div>
 
         <div className="modal-actions no-print" style={{ marginTop: 16 }}>
-          <button type="button" className="btn-primary-sm" style={{ padding: '10px 16px' }} onClick={() => window.print()}>
+          <button type="button" className="btn-primary-sm" style={{ padding: '10px 16px' }} onClick={() => printTicketElement('printable-quote')}>
             🖨️ Imprimir Proforma
           </button>
           <button type="button" className="btn-secondary-sm" style={{ padding: '10px 16px' }} onClick={onClose}>
@@ -1270,6 +1273,10 @@ export function PublicQuoteView({ token, onBack }: { token: string; onBack?: () 
   const [error, setError] = React.useState('');
   const [approving, setApproving] = React.useState(false);
   const [approvedMsg, setApprovedMsg] = React.useState('');
+  const [showDeUna, setShowDeUna] = React.useState(false);
+  const [paidWithDeUna, setPaidWithDeUna] = React.useState<Any | null>(null);
+  const [showPayphone, setShowPayphone] = React.useState(false);
+  const [paidWithPayphone, setPaidWithPayphone] = React.useState<Any | null>(null);
 
   const load = React.useCallback(() => {
     fetch(`/api/public/quotes/${encodeURIComponent(token)}`)
@@ -1448,20 +1455,88 @@ export function PublicQuoteView({ token, onBack }: { token: string; onBack?: () 
             {/* ACTIONS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {!isApproved && !isConverted && (
-                <button
-                  type="button"
-                  className="primary-action"
-                  disabled={approving}
-                  onClick={handleApprove}
-                  style={{ width: '100%', padding: '14px', fontSize: 15, justifyContent: 'center', background: '#16a34a' }}
-                >
-                  {approving ? 'Procesando Aprobación...' : '✓ APROBAR ESTA COTIZACIÓN'}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeUna(true)}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      borderRadius: 10,
+                      border: 0,
+                      background: 'linear-gradient(135deg, #00a896 0%, #028090 100%)',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(0, 168, 150, 0.3)'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>📱</span>
+                    <span>PAGAR CON DEUNA QR (${Number(data.total).toFixed(2)})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPayphone(true)}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      borderRadius: 10,
+                      border: 0,
+                      background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)'
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>💳</span>
+                    <span>PAGAR CON TARJETA (PAYPHONE) (${Number(data.total).toFixed(2)})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={approving}
+                    onClick={handleApprove}
+                    style={{ width: '100%', padding: '12px', fontSize: 14, justifyContent: 'center', background: '#16a34a' }}
+                  >
+                    {approving ? 'Procesando Aprobación...' : '✓ Solo Aprobar Cotización (Pagar después)'}
+                  </button>
+                </div>
               )}
 
-              {isApproved && !isConverted && (
+              {paidWithDeUna && (
+                <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', padding: '12px', borderRadius: 8, textAlign: 'center', color: '#065f46', fontSize: 13 }}>
+                  <strong>✅ ¡Pago recibido exitosamente por DeUna!</strong>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>
+                    Código de Autorización: <b>{paidWithDeUna.authorizationCode}</b> · Ref: {paidWithDeUna.transactionId}
+                  </div>
+                </div>
+              )}
+
+              {paidWithPayphone && (
+                <div style={{ background: '#fff7ed', border: '1px solid #fdba74', padding: '12px', borderRadius: 8, textAlign: 'center', color: '#c2410c', fontSize: 13 }}>
+                  <strong>✅ ¡Pago con Tarjeta ({paidWithPayphone.cardBrand}) recibido exitosamente!</strong>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>
+                    Tarjeta: **** <b>{paidWithPayphone.cardLastDigits}</b> · Código de Autorización: <b>{paidWithPayphone.authorizationCode}</b>
+                  </div>
+                </div>
+              )}
+
+              {isApproved && !isConverted && !paidWithDeUna && !paidWithPayphone && (
                 <div style={{ background: '#dcfce7', padding: '12px', borderRadius: 8, textAlign: 'center', color: '#15803d', fontWeight: 700, fontSize: 13 }}>
-                  ✓ Cotización aprobada. La tienda te contactará pronto para coordinar el pago.
+                  ✓ Cotización aprobada. La tienda te contactará pronto para coordinar la entrega o facturación.
                 </div>
               )}
 
@@ -1485,6 +1560,42 @@ export function PublicQuoteView({ token, onBack }: { token: string; onBack?: () 
             </div>
           </div>
         </div>
+
+        {/* DEUNA QR MODAL */}
+        {showDeUna && (
+          <DeUnaModal
+            amount={Number(data.total)}
+            isPublicQuote={true}
+            quoteToken={token}
+            customerName={data.customerName}
+            customerPhone={data.customerPhone}
+            onSuccess={(res) => {
+              setShowDeUna(false);
+              setPaidWithDeUna(res);
+              setApprovedMsg(`¡Pago de $${res.amount.toFixed(2)} registrado con éxito con DeUna QR! Código de autorización: ${res.authorizationCode}.`);
+              load();
+            }}
+            onClose={() => setShowDeUna(false)}
+          />
+        )}
+
+        {/* PAYPHONE CARDS MODAL */}
+        {showPayphone && (
+          <PayphoneModal
+            amount={Number(data.total)}
+            isPublicQuote={true}
+            quoteToken={token}
+            customerEmail={data.customerEmail}
+            customerPhone={data.customerPhone}
+            onSuccess={(res) => {
+              setShowPayphone(false);
+              setPaidWithPayphone(res);
+              setApprovedMsg(`¡Pago de $${res.amount.toFixed(2)} registrado con éxito con Tarjeta Payphone (${res.cardBrand} **** ${res.cardLastDigits})! Código de autorización: ${res.authorizationCode}.`);
+              load();
+            }}
+            onClose={() => setShowPayphone(false)}
+          />
+        )}
       </div>
     </div>
   );

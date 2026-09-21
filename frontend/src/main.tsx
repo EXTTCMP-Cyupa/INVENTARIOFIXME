@@ -5,10 +5,171 @@ import { SriRideModal } from './sriRideModal';
 import { SriInvoicesListModal } from './sriInvoicesListModal';
 import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
 import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptModal, BarcodeTagsModal, CsvImportModal, TechnicianWorkbenchModal } from './commercialModals';
+import { DeUnaModal } from './deunaModal';
+import { PayphoneModal } from './payphoneModal';
+import { LandingPage } from './landingPage';
+import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement } from './ticketPrinter';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
-function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token)return <Login onLogin={t=>{localStorage.token=t;setToken(t)}}/>;function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main><header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}</div>}
-function Login({onLogin}:{onLogin:(t:string)=>void}){const[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.trim(),password})});if(r.ok){const data=await r.json();if(data.tenantId){tenantId=data.tenantId;localStorage.tenantId=data.tenantId;}if(data.branchId){branchId=data.branchId;localStorage.branchId=data.branchId;}if(data.tenantName){localStorage.tenantName=data.tenantName;}if(data.fullName){localStorage.fullName=data.fullName;}onLogin(data.accessToken);}else{try{const data=await r.json();if(data&&(data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Esta tienda se encuentra suspendida por mensualidad pendiente. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card"><div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="ejemplo@correo.com"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
+function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
+const[trialInfo,setTrialInfo]=React.useState<{isTrial?:boolean;daysRemaining?:number;trialEndsAt?:string}|null>(()=>{
+  if(localStorage.isTrial==='true'){
+    return {
+      isTrial:true,
+      daysRemaining:localStorage.trialDaysRemaining!==undefined&&localStorage.trialDaysRemaining!==''?parseInt(localStorage.trialDaysRemaining,10):15,
+      trialEndsAt:localStorage.trialEndsAt||''
+    };
+  }
+  return null;
+});
+const[showTrialModal,setShowTrialModal]=React.useState(false);
+React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
+React.useEffect(()=>{
+  if(token&&!isSaasOwner){
+    api('/api/tenant/trial-status')
+      .then(r=>r.ok?r.json():null)
+      .then(info=>{
+        if(info&&info.is_trial){
+          setTrialInfo({
+            isTrial:true,
+            daysRemaining:info.daysRemaining,
+            trialEndsAt:info.trial_ends_at
+          });
+          localStorage.isTrial='true';
+          localStorage.trialDaysRemaining=String(info.daysRemaining);
+          localStorage.trialEndsAt=info.trial_ends_at||'';
+        }else{
+          setTrialInfo(null);
+          localStorage.removeItem('isTrial');
+          localStorage.removeItem('trialDaysRemaining');
+          localStorage.removeItem('trialEndsAt');
+        }
+      })
+      .catch(()=>{});
+  }
+},[token,api,isSaasOwner]);
+const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token){const isDirectLogin=hash==='#login'||hash==='login'||hash.includes('login');if(isDirectLogin){return <Login onLogin={t=>{localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onBack={()=>{window.location.hash='';setHash('');}}/>;}return <LandingPage onLogin={t=>{localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onOpenDirectLogin={()=>{window.location.hash='#login';setHash('#login');}}/>;}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main>
+{!isSaasOwner&&trialInfo?.isTrial&&(
+  <div className="trial-top-banner">
+    <div className="trial-banner-info">
+      <span className="trial-banner-badge">🧪 PRUEBA GRATIS (15 DÍAS)</span>
+      <span>
+        Tienes <strong>{trialInfo.daysRemaining!==undefined?(trialInfo.daysRemaining<=0?'0 días (Vence hoy)':`${trialInfo.daysRemaining} días`):'15 días'}</strong> restantes con <b>todos los módulos y servicios habilitados</b> para evaluar el sistema.
+      </span>
+    </div>
+    <div className="trial-banner-actions">
+      <button type="button" className="trial-btn-upgrade" onClick={()=>setShowTrialModal(true)}>
+        ⚡ Contratar Plan Definitivo
+      </button>
+      <a
+        href={`https://wa.me/593991234567?text=${encodeURIComponent(`Hola administración de FixmeTiendas! Estoy evaluando la plataforma en mi tienda "${localStorage.tenantName||'Mi Tienda'}" y me gustaría consultar sobre planes y módulos definitivos.`)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="trial-btn-wa"
+      >
+        💬 WhatsApp Soporte
+      </a>
+    </div>
+  </div>
+)}
+<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+{showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
+</div>}
+
+function StoreTrialUpgradeModal({tenantName, trialEndsAt, daysRemaining, onClose}:{tenantName:string; trialEndsAt?:string; daysRemaining?:number; onClose:()=>void}){
+  const [selectedPlan, setSelectedPlan] = React.useState('PRO');
+  const plans = [
+    { code: 'STARTER', name: 'Plan Básico / Inventario', price: 25, desc: 'Inventario multicentro, Kardex, Clientes y Reportes.' },
+    { code: 'PRO', name: 'Plan Comercial / POS & Caja', price: 49, desc: 'Todo lo básico + Punto de Venta (POS), Facturación SRI, Caja & Corte Z y Cotizaciones Web.', popular: true },
+    { code: 'WORKSHOP', name: 'Plan Taller & Servicio Técnico', price: 69, desc: 'Todo lo comercial + Órdenes de Servicio Técnico, Tracking QR y Delivery.' },
+    { code: 'ENTERPRISE', name: 'Plan Enterprise / Full APIs', price: 99, desc: 'Acceso Total ilimitado + Pasarelas DeUna QR, PayPhone con tarjeta de crédito y Webhooks API.' }
+  ];
+  const chosen = plans.find(p=>p.code===selectedPlan) || plans[1];
+  const waMsg = encodeURIComponent(`Hola administración de FixmeTiendas! Estoy evaluando la plataforma en mi tienda "${tenantName}" (Prueba 15 días) y deseo contratar el ${chosen.name} ($${chosen.price}/mes). ¿Podrían ayudarme a activar mi suscripción definitiva?`);
+  const waUrl = `https://wa.me/593991234567?text=${waMsg}`;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-content" onClick={e=>e.stopPropagation()} style={{maxWidth:650}}>
+        <div className="modal-header">
+          <div>
+            <span style={{fontSize:'11px',fontWeight:800,color:'#4f46e5',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+              🧪 PERÍODO DE PRUEBA ACTIVO (15 DÍAS)
+            </span>
+            <h3 style={{margin:'2px 0 0'}}>Contratar Plan Definitivo para {tenantName}</h3>
+            <small style={{color:'#64748b'}}>
+              Te quedan <strong>{daysRemaining!==undefined?(daysRemaining<=0?'0 días (Vence hoy)':`${daysRemaining} días`):'15 días'}</strong> de evaluación completa sin costo.
+            </small>
+          </div>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{margin:'14px 0 18px'}}>
+          <label style={{fontSize:'12.5px',fontWeight:700,display:'block',marginBottom:8}}>
+            Elige el plan que mejor se adapte a tu negocio:
+          </label>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:10}}>
+            {plans.map(p=>(
+              <div
+                key={p.code}
+                onClick={()=>setSelectedPlan(p.code)}
+                style={{
+                  padding:'12px 14px',
+                  borderRadius:10,
+                  border:selectedPlan===p.code?'2px solid #4f46e5':'1px solid #cbd5e1',
+                  background:selectedPlan===p.code?'#eef2ff':'#ffffff',
+                  cursor:'pointer',
+                  position:'relative',
+                  boxShadow:selectedPlan===p.code?'0 4px 12px rgba(79, 70, 229, 0.15)':'none'
+                }}
+              >
+                {p.popular&&(
+                  <span style={{position:'absolute',top:8,right:8,background:'#4f46e5',color:'#fff',fontSize:'9.5px',fontWeight:800,padding:'2px 6px',borderRadius:4}}>
+                    ★ RECOMENDADO
+                  </span>
+                )}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                  <strong style={{fontSize:'13px',color:selectedPlan===p.code?'#3730a3':'#0f172a'}}>{p.name.split('/')[0].trim()}</strong>
+                  <span style={{fontSize:'14px',fontWeight:900,color:'#059669'}}>${p.price}<small style={{fontSize:'10px'}}>/mes</small></span>
+                </div>
+                <p style={{fontSize:'11.5px',color:'#64748b',margin:'6px 0 0',lineHeight:1.35}}>{p.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 14px',marginBottom:16,fontSize:'12px',color:'#475569'}}>
+          💡 <b>Toda tu información se conserva:</b> Al activar tu plan definitivo se mantendrán intactos todos tus productos, clientes, ventas y órdenes registradas durante la prueba.
+        </div>
+
+        <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+          <button type="button" className="secondary-action" onClick={onClose}>Seguir Probando</button>
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="primary-action"
+            style={{display:'inline-flex',alignItems:'center',gap:8,background:'linear-gradient(135deg, #10b981, #059669)',textDecoration:'none',padding:'9px 18px',fontSize:'13px',fontWeight:700}}
+          >
+            💬 Solicitar Activación por WhatsApp →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Login({onLogin, onBack}:{onLogin:(t:string)=>void, onBack?:()=>void}){const[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.trim(),password})});if(r.ok){const data=await r.json();if(data.tenantId){tenantId=data.tenantId;localStorage.tenantId=data.tenantId;}if(data.branchId){branchId=data.branchId;localStorage.branchId=data.branchId;}if(data.tenantName){localStorage.tenantName=data.tenantName;}if(data.fullName){localStorage.fullName=data.fullName;}
+if(data.isTrial){
+  localStorage.isTrial='true';
+  if(data.trialDaysRemaining!==undefined&&data.trialDaysRemaining!==null){localStorage.trialDaysRemaining=String(data.trialDaysRemaining);}
+  if(data.trialEndsAt){localStorage.trialEndsAt=data.trialEndsAt;}
+}else{
+  localStorage.removeItem('isTrial');
+  localStorage.removeItem('trialDaysRemaining');
+  localStorage.removeItem('trialEndsAt');
+}
+onLogin(data.accessToken);}else{try{const data=await r.json();if(data&&(data.error==='TRIAL_EXPIRED'||data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Tu período de prueba ha finalizado o la tienda se encuentra suspendida. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card">{onBack&&<button type="button" onClick={onBack} style={{background:'none',border:'none',color:'#64748b',fontSize:'12px',cursor:'pointer',marginBottom:'14px',display:'inline-flex',alignItems:'center',gap:'4px',padding:0}}>← Volver al portal principal</button>}<div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="ejemplo@correo.com"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
   const [history, setHistory] = React.useState<Any[]>([]);
@@ -865,9 +1026,13 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
   const [warrantyDays, setWarrantyDays] = React.useState('0');
 
   // Payment methods
-  const [payMethod, setPayMethod] = React.useState<'CASH'|'CARD'|'TRANSFER'|'SPLIT'>('CASH');
+  const [payMethod, setPayMethod] = React.useState<'CASH'|'CARD'|'TRANSFER'|'SPLIT'|'DEUNA'|'PAYPHONE'>('CASH');
   const [cashTendered, setCashTendered] = React.useState('');
   const [splitAmounts, setSplitAmounts] = React.useState({ CASH: '', CARD: '', TRANSFER: '' });
+  const [showDeUnaModal, setShowDeUnaModal] = React.useState(false);
+  const [deUnaDetails, setDeUnaDetails] = React.useState<Any | null>(null);
+  const [showPayphoneModal, setShowPayphoneModal] = React.useState(false);
+  const [payphoneDetails, setPayphoneDetails] = React.useState<Any | null>(null);
 
   // Dual Invoice & Offline POS states
   const [invoiceType, setInvoiceType] = React.useState<'INTERNAL_TICKET' | 'SRI_INVOICE'>('INTERNAL_TICKET');
@@ -881,6 +1046,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
   const [showQuickCust, setShowQuickCust] = React.useState(false);
   const [discount, setDiscount] = React.useState('0');
   const [showThermalTicket, setShowThermalTicket] = React.useState(false);
+  const [ticketPaperWidth, setTicketPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
 
   const load = React.useCallback(() => {
     if (navigator.onLine) {
@@ -1014,10 +1180,174 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
     }
   };
 
+  async function executeCheckoutWithDeUna(deunaRes: Any) {
+    if (!cart.length || busy) return;
+    setBusy(true);
+    const selCustomer = customers.find(c => c.id === customerId);
+    const paymentsPayload = [{ method: 'TRANSFER', amount: grandTotal }];
+    const discountVal = Number(discount || 0);
+
+    const body = {
+      branchId,
+      customerId: customerId || null,
+      warrantyDays: Number(warrantyDays || 0),
+      channel,
+      fulfillmentType: fulfillment,
+      shippingCost: shippingFee,
+      delivery: fulfillment === 'DELIVERY' ? {
+        recipientName: delivery.recipientName,
+        recipientPhone: delivery.recipientPhone,
+        address: delivery.address,
+        notes: delivery.notes,
+        courier: delivery.courier,
+        shippingCost: shippingFee
+      } : null,
+      items: cart.map(i => ({ productId: i.id, quantity: i.quantity })),
+      payments: paymentsPayload,
+      invoiceType,
+      offlineFolio: null,
+      discount: discountVal
+    };
+
+    try {
+      const r = await api('/api/sales', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      setBusy(false);
+      if (r.ok) {
+        const createdSale = await r.json();
+        notify(invoiceType === 'SRI_INVOICE'
+          ? '¡Venta cobrada con DeUna y Factura SRI generada!'
+          : '¡Venta cobrada con DeUna QR exitosamente!');
+        setReceiptModal({
+          sale: createdSale,
+          items: [...cart],
+          subtotal,
+          discount: discountVal,
+          shippingFee,
+          grandTotal,
+          channel,
+          fulfillment,
+          delivery: { ...delivery },
+          customer: selCustomer,
+          payMethod: 'DEUNA',
+          deUnaDetails: deunaRes,
+          cashTendered: null,
+          change: null,
+          payments: paymentsPayload,
+          invoiceType
+        });
+        setCart([]);
+        setCashTendered('');
+        setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+        setDiscount('0');
+        setDeUnaDetails(null);
+        load();
+      } else {
+        notify(await r.text() || 'No se pudo registrar la venta tras el cobro');
+      }
+    } catch (e: any) {
+      setBusy(false);
+      notify('Error al registrar la venta: ' + e.message);
+    }
+  }
+
+  async function executeCheckoutWithPayphone(ppRes: Any) {
+    if (!cart.length || busy) return;
+    setBusy(true);
+    const selCustomer = customers.find(c => c.id === customerId);
+    const paymentsPayload = [{ method: 'CARD', amount: grandTotal }];
+    const discountVal = Number(discount || 0);
+
+    const body = {
+      branchId,
+      customerId: customerId || null,
+      warrantyDays: Number(warrantyDays || 0),
+      channel,
+      fulfillmentType: fulfillment,
+      shippingCost: shippingFee,
+      delivery: fulfillment === 'DELIVERY' ? {
+        recipientName: delivery.recipientName,
+        recipientPhone: delivery.recipientPhone,
+        address: delivery.address,
+        notes: delivery.notes,
+        courier: delivery.courier,
+        shippingCost: shippingFee
+      } : null,
+      items: cart.map(i => ({ productId: i.id, quantity: i.quantity })),
+      payments: paymentsPayload,
+      invoiceType,
+      offlineFolio: null,
+      discount: discountVal
+    };
+
+    try {
+      const r = await api('/api/sales', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      setBusy(false);
+      if (r.ok) {
+        const createdSale = await r.json();
+        notify(invoiceType === 'SRI_INVOICE'
+          ? '¡Venta cobrada con Tarjeta (Payphone) y Factura SRI generada!'
+          : '¡Venta cobrada con Tarjeta (Payphone) exitosamente!');
+        setReceiptModal({
+          sale: createdSale,
+          items: [...cart],
+          subtotal,
+          discount: discountVal,
+          shippingFee,
+          grandTotal,
+          channel,
+          fulfillment,
+          delivery: { ...delivery },
+          customer: selCustomer,
+          payMethod: 'PAYPHONE',
+          payphoneDetails: ppRes,
+          cashTendered: null,
+          change: null,
+          payments: paymentsPayload,
+          invoiceType
+        });
+        setCart([]);
+        setCashTendered('');
+        setSplitAmounts({ CASH: '', CARD: '', TRANSFER: '' });
+        setDiscount('0');
+        setPayphoneDetails(null);
+        load();
+      } else {
+        notify(await r.text() || 'No se pudo registrar la venta tras el cobro');
+      }
+    } catch (e: any) {
+      setBusy(false);
+      notify('Error al registrar la venta: ' + e.message);
+    }
+  }
+
   async function checkout() {
     if (!cart.length || busy) return;
     if (fulfillment === 'DELIVERY' && (!delivery.address || !delivery.address.trim())) {
       notify('Por favor ingresa la dirección de entrega a domicilio');
+      return;
+    }
+
+    if (payMethod === 'DEUNA') {
+      if (!deUnaDetails) {
+        setShowDeUnaModal(true);
+        return;
+      }
+      executeCheckoutWithDeUna(deUnaDetails);
+      return;
+    }
+
+    if (payMethod === 'PAYPHONE') {
+      if (!payphoneDetails) {
+        setShowPayphoneModal(true);
+        return;
+      }
+      executeCheckoutWithPayphone(payphoneDetails);
       return;
     }
 
@@ -1643,7 +1973,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
           {/* PAYMENT METHODS SELECTOR */}
           <div>
             <label style={{ marginBottom: '6px', display: 'block' }}>Forma de Pago</label>
-            <div className="pay-grid">
+            <div className="pay-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))' }}>
               <button
                 type="button"
                 className={`pay-card ${payMethod === 'CASH' ? 'active' : ''}`}
@@ -1663,10 +1993,98 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                 className={`pay-card ${payMethod === 'TRANSFER' ? 'active' : ''}`}
                 onClick={() => setPayMethod('TRANSFER')}
               >
-                <i>📲</i> Transf. / QR
+                <i>📲</i> Transf.
+              </button>
+              <button
+                type="button"
+                className={`pay-card ${payMethod === 'DEUNA' ? 'active' : ''}`}
+                onClick={() => setPayMethod('DEUNA')}
+                style={payMethod === 'DEUNA' ? { borderColor: '#00a896', background: '#f0fdfa', color: '#0f766e', fontWeight: 700 } : {}}
+              >
+                <i style={{ color: '#00a896' }}>📱</i> DeUna QR
+              </button>
+              <button
+                type="button"
+                className={`pay-card ${payMethod === 'PAYPHONE' ? 'active' : ''}`}
+                onClick={() => setPayMethod('PAYPHONE')}
+                style={payMethod === 'PAYPHONE' ? { borderColor: '#f97316', background: '#fff7ed', color: '#c2410c', fontWeight: 700 } : {}}
+              >
+                <i style={{ color: '#ea580c' }}>💳</i> Payphone
               </button>
             </div>
           </div>
+
+          {/* DEUNA QR HELPER */}
+          {payMethod === 'DEUNA' && (
+            <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '10px', padding: '12px', marginTop: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#0f766e', fontWeight: 700, fontSize: '13px' }}>
+                <span style={{ fontSize: '18px' }}>📱</span>
+                <span>Pago Digital DeUna (Banco Pichincha / Interbancario)</span>
+              </div>
+              <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#047857', lineHeight: 1.4 }}>
+                Al cobrar se generará un código QR dinámico por <b>${grandTotal.toFixed(2)}</b> para escanear con DeUna o cualquier banco de la red nacional.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowDeUnaModal(true)}
+                disabled={!cart.length || busy}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #00a896 0%, #028090 100%)',
+                  color: '#fff',
+                  border: 0,
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(0, 168, 150, 0.25)'
+                }}
+              >
+                <span>📱 Abrir Pantalla de Cobro QR DeUna</span>
+              </button>
+            </div>
+          )}
+
+          {/* PAYPHONE CARD HELPER */}
+          {payMethod === 'PAYPHONE' && (
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '12px', marginTop: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#c2410c', fontWeight: 700, fontSize: '13px' }}>
+                <span style={{ fontSize: '18px' }}>💳</span>
+                <span>Pago con Tarjetas Débito / Crédito (Payphone)</span>
+              </div>
+              <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#9a3412', lineHeight: 1.4 }}>
+                Se procesará el cobro de <b>${grandTotal.toFixed(2)}</b> con Visa, Mastercard, Diners o Discover mediante enlace seguro o simulación sandbox.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPayphoneModal(true)}
+                disabled={!cart.length || busy}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  color: '#fff',
+                  border: 0,
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <span>💳 Abrir Pasarela de Pago Payphone</span>
+              </button>
+            </div>
+          )}
 
           {/* CASH TENDER & CHANGE CALCULATION */}
           {payMethod === 'CASH' && (
@@ -1745,13 +2163,25 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
       {/* POST-SALE RECEIPT MODAL */}
       {receiptModal && (
         <div className="modal-overlay" onClick={() => setReceiptModal(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>🧾 Comprobante de Venta</h3>
-              <button className="close-button" onClick={() => setReceiptModal(null)}>✕</button>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: ticketPaperWidth === '58mm' ? '330px' : '420px', transition: 'max-width 0.2s' }}>
+            <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>🧾 Comprobante de Venta</h3>
+                <small style={{ color: '#64748b' }}>Formato térmico ({ticketPaperWidth})</small>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TicketFormatSelector
+                  value={ticketPaperWidth}
+                  onChange={w => {
+                    setTicketPaperWidth(w);
+                    setStoredPaperWidth(w);
+                  }}
+                />
+                <button className="close-button" onClick={() => setReceiptModal(null)}>✕</button>
+              </div>
             </div>
 
-            <div id="printable-ticket" className="ticket-preview">
+            <div id="printable-ticket" className={`ticket-preview paper-${ticketPaperWidth}`}>
               <h2>FIXMETIENDAS</h2>
               <div className="ticket-center">Comprobante de Venta y Despacho</div>
               <div className="ticket-divider"></div>
@@ -1823,7 +2253,23 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               <div style={{ fontSize: '14px', fontWeight: 800, margin: '4px 0' }}>
                 TOTAL PAGADO: ${receiptModal.grandTotal.toFixed(2)}
               </div>
-              <div>Forma de pago: {receiptModal.payMethod}</div>
+              {receiptModal.payMethod === 'DEUNA' || receiptModal.deUnaDetails ? (
+                <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#0f766e', fontSize: '11px', fontWeight: 700 }}>
+                  📱 Forma de pago: DeUna QR (Banco Pichincha / Interbancario)
+                  <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#0d9488', marginTop: '2px' }}>
+                    Ref: {receiptModal.deUnaDetails?.transactionId || 'DU-ONLINE'} · Aut: {receiptModal.deUnaDetails?.authorizationCode || 'AUTH-OK'}
+                  </div>
+                </div>
+              ) : receiptModal.payMethod === 'PAYPHONE' || receiptModal.payphoneDetails ? (
+                <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#c2410c', fontSize: '11px', fontWeight: 700 }}>
+                  💳 Forma de pago: Tarjeta {receiptModal.payphoneDetails?.cardBrand || 'CRÉDITO/DÉBITO'} (Payphone)
+                  <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#9a3412', marginTop: '2px' }}>
+                    Tarjeta: **** {receiptModal.payphoneDetails?.cardLastDigits || '4242'} · Aut: {receiptModal.payphoneDetails?.authorizationCode || 'PP-AUTH'} · Ref: {receiptModal.payphoneDetails?.clientTransactionId || receiptModal.payphoneDetails?.transactionId}
+                  </div>
+                </div>
+              ) : (
+                <div>Forma de pago: {receiptModal.payMethod}</div>
+              )}
               {receiptModal.cashTendered != null && (
                 <div>Efectivo recibido: ${receiptModal.cashTendered.toFixed(2)} · Cambio: ${receiptModal.change?.toFixed(2)}</div>
               )}
@@ -1839,8 +2285,12 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
               <button className="secondary-action" style={{ flex: 1, minWidth: '90px' }} onClick={() => setReceiptModal(null)}>
                 Cerrar
               </button>
-              <button className="primary-action" style={{ flex: 1, minWidth: '120px' }} onClick={() => window.print()}>
-                🖨️ Imprimir
+              <button
+                className="primary-action"
+                style={{ flex: 1, minWidth: '120px' }}
+                onClick={() => printTicketElement('printable-ticket', ticketPaperWidth)}
+              >
+                🖨️ Imprimir ({ticketPaperWidth})
               </button>
               <button
                 type="button"
@@ -1848,7 +2298,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
                 style={{ flex: 1, minWidth: '130px', background: '#f8fafc', fontWeight: 700 }}
                 onClick={() => setShowThermalTicket(true)}
               >
-                🧾 Formato 80mm
+                🧾 Formato Térmico Extendido
               </button>
               {(receiptModal.sale?.electronicInvoice?.id || receiptModal.sale?.electronicInvoiceId) && (
                 <button
@@ -1939,6 +2389,38 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
           tenantName={localStorage.tenantName || 'Fixme Tiendas'}
         />
       )}
+      {showDeUnaModal && (
+        <DeUnaModal
+          amount={grandTotal}
+          branchId={branchId}
+          customerName={customers.find(c => c.id === customerId)?.name}
+          customerPhone={customers.find(c => c.id === customerId)?.phone}
+          api={api}
+          onSuccess={(res) => {
+            setShowDeUnaModal(false);
+            setDeUnaDetails(res);
+            notify(`✅ Cobro DeUna aprobado (${res.authorizationCode})`);
+            executeCheckoutWithDeUna(res);
+          }}
+          onClose={() => setShowDeUnaModal(false)}
+        />
+      )}
+      {showPayphoneModal && (
+        <PayphoneModal
+          amount={grandTotal}
+          branchId={branchId}
+          customerEmail={customers.find(c => c.id === customerId)?.email}
+          customerPhone={customers.find(c => c.id === customerId)?.phone}
+          api={api}
+          onSuccess={(res) => {
+            setShowPayphoneModal(false);
+            setPayphoneDetails(res);
+            notify(`✅ Cobro Payphone aprobado (${res.cardBrand} **** ${res.cardLastDigits})`);
+            executeCheckoutWithPayphone(res);
+          }}
+          onClose={() => setShowPayphoneModal(false)}
+        />
+      )}
     </section>
   );
 }
@@ -1952,6 +2434,7 @@ function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [search, setSearch] = React.useState('');
   const [detailModal, setDetailModal] = React.useState<Any|null>(null);
   const [loadingDetail, setLoadingDetail] = React.useState(false);
+  const [detailPaperWidth, setDetailPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
   const [copied, setCopied] = React.useState(false);
   const [showRideInvoiceId, setShowRideInvoiceId] = React.useState<string | null>(null);
   const [issuingSriId, setIssuingSriId] = React.useState<string | null>(null);
@@ -2633,21 +3116,30 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
       {/* DETAILED SALE & 80MM THERMAL RECEIPT MODAL */}
       {detailModal && (
         <div className="modal-overlay" onClick={() => setDetailModal(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px', padding: '16px' }}>
-            <div className="modal-head no-print" style={{ marginBottom: '12px' }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: detailPaperWidth === '58mm' ? '330px' : '440px', padding: '16px', transition: 'max-width 0.2s' }}>
+            <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px' }}>
-                  🧾 Comprobante de Venta #{detailModal.id?.slice(0, 8).toUpperCase()}
+                  🧾 Comprobante #{detailModal.id?.slice(0, 8).toUpperCase()}
                 </h3>
                 <small style={{ color: '#64748b' }}>
-                  Formato estándar para ticketera térmica EPSON / POS-80
+                  Formato térmico ({detailPaperWidth})
                 </small>
               </div>
-              <button className="close-button" onClick={() => setDetailModal(null)}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TicketFormatSelector
+                  value={detailPaperWidth}
+                  onChange={w => {
+                    setDetailPaperWidth(w);
+                    setStoredPaperWidth(w);
+                  }}
+                />
+                <button className="close-button" onClick={() => setDetailModal(null)}>✕</button>
+              </div>
             </div>
 
-            {/* 80MM THERMAL PAPER ROLL RECEIPT */}
-            <div id="printable-sale-receipt" className="receipt-80mm-container">
+            {/* THERMAL PAPER ROLL RECEIPT */}
+            <div id="printable-sale-receipt" className={`receipt-80mm-container paper-${detailPaperWidth}`}>
               <div className="receipt-header">
                 <h2>FIXMETIENDAS</h2>
                 <p><b>RUC:</b> 1792345678001</p>
@@ -2913,10 +3405,11 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
               {/* DYNAMIC QR CODE FOR DIGITAL VERIFICATION */}
               <div className="receipt-qr-wrap">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=${detailPaperWidth === '58mm' ? '85x85' : '110x110'}&data=${encodeURIComponent(
                     `https://fixmetiendas.local/ticket/${detailModal.id}`
                   )}`}
                   alt="QR Verificación Comprobante"
+                  style={{ maxWidth: detailPaperWidth === '58mm' ? '80px' : '100px' }}
                 />
                 <div style={{ fontSize: '9px', color: '#64748b', marginTop: '3px' }}>
                   Escanee para validar ticket y garantía oficial
@@ -2937,9 +3430,9 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                   type="button"
                   className="primary-action"
                   style={{ flex: 1, padding: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  onClick={() => window.print()}
+                  onClick={() => printTicketElement('printable-sale-receipt', detailPaperWidth)}
                 >
-                  🖨️ Imprimir Térmico (80mm)
+                  🖨️ Imprimir Térmico ({detailPaperWidth})
                 </button>
                 {detailModal.electronic_invoice_id ? (
                   <button
@@ -3059,6 +3552,18 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   }
 }
 
+const ALL_MODULES_DEF = [
+  { key: 'INVENTORY', name: 'Inventario & Productos', icon: '📦', desc: 'Stock multi-sucursal, alertas de stock mínimo, seriales y kardex' },
+  { key: 'POS', name: 'Punto de Venta (POS)', icon: '💳', desc: 'Caja rápida, facturación electrónica SRI, tickets térmicos e IVA' },
+  { key: 'CASH_REGISTER', name: 'Caja Chica & Arqueos', icon: '💵', desc: 'Aperturas, cierres de turno, ingresos/egresos y control de efectivo' },
+  { key: 'QUOTES', name: 'Cotizaciones & Proformas', icon: '📑', desc: 'Emisión de cotizaciones con enlace público web directo para clientes' },
+  { key: 'WORK_ORDERS', name: 'Taller & Órdenes de Servicio', icon: '🛠️', desc: 'Recepción técnica, diagnóstico, repuestos y portal de seguimiento' },
+  { key: 'DELIVERIES', name: 'Logística & Envíos Delivery', icon: '🚚', desc: 'Despachos con motorizados, georreferenciación y tracking en vivo' },
+  { key: 'CUSTOMERS', name: 'Directorio de Clientes', icon: '👥', desc: 'Gestión de cartera, RUC/cédula, historial de compras y contactos' },
+  { key: 'REPORTS', name: 'Reportes & Analítica', icon: '📊', desc: 'Métricas de ventas, margen de ganancia, rotación y exportación' },
+  { key: 'APIS', name: 'Integraciones & Pagos Digitales', icon: '⚡', desc: 'DeUna QR bancario, PayPhone cobro con tarjeta de crédito, webhooks' }
+];
+
 function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, activeTab?:string, setTab?:(t:string)=>void}){
   const [tenants, setTenants] = React.useState<Any[]>([]);
   const [stats, setStats] = React.useState<Any>({
@@ -3066,11 +3571,15 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
     mrr: 0, collectedThisMonth: 0, totalUsers: 0, totalProducts: 0, totalOrders: 0
   });
   const [payments, setPayments] = React.useState<Any[]>([]);
+  const [plans, setPlans] = React.useState<Any[]>([]);
+  const [trials, setTrials] = React.useState<Any[]>([]);
+  const [trialFilter, setTrialFilter] = React.useState('ALL');
+  const [trialSearch, setTrialSearch] = React.useState('');
   const [filter, setFilter] = React.useState('ALL');
   const [search, setSearch] = React.useState('');
   const [loading, setLoading] = React.useState(true);
 
-  const currentTab = activeTab && ['platform-overview', 'platform-companies', 'platform-rates', 'platform-payments'].includes(activeTab)
+  const currentTab = activeTab && ['platform-overview', 'platform-companies', 'platform-trials', 'platform-rates', 'platform-plans', 'platform-payments'].includes(activeTab)
     ? activeTab : 'platform-companies';
 
   function switchTab(t: string) {
@@ -3083,6 +3592,22 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
   const [overview, setOverview] = React.useState<Any>({});
   const [users, setUsers] = React.useState<Any[]>([]);
   const [detailTab, setDetailTab] = React.useState<'payments'|'users'|'overview'>('payments');
+
+  // Convert Trial to Plan modal
+  const [convertModalTenant, setConvertModalTenant] = React.useState<Any|null>(null);
+  const [convertForm, setConvertForm] = React.useState<Any>({
+    planCode: 'PRO',
+    monthlyFee: '49.00',
+    billingCycle: 'MONTHLY',
+    modules: {} as Record<string, boolean>
+  });
+  const [converting, setConverting] = React.useState(false);
+
+  // Extend Trial modal
+  const [extendModalTenant, setExtendModalTenant] = React.useState<Any|null>(null);
+  const [extendDaysInput, setExtendDaysInput] = React.useState(15);
+  const [extendNotes, setExtendNotes] = React.useState('');
+  const [extending, setExtending] = React.useState(false);
 
   // Create company modal
   const [showCreateModal, setShowCreateModal] = React.useState(false);
@@ -3113,16 +3638,37 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
   // Official SaaS Receipt modal
   const [receiptModal, setReceiptModal] = React.useState<Any|null>(null);
 
+  // Plan Edit / Create Modal
+  const [editPlanModal, setEditPlanModal] = React.useState<Any|null>(null);
+  const [planForm, setPlanForm] = React.useState<Any>({
+    code: '', name: '', description: '', monthlyPrice: '49.00',
+    includedModules: ['INVENTORY', 'POS', 'CASH_REGISTER', 'QUOTES', 'CUSTOMERS', 'REPORTS'] as string[],
+    features: ['Acceso multi-usuario', 'Reportes en tiempo real'] as string[],
+    badge: '', isPopular: false, isActive: true, displayOrder: 10
+  });
+  const [newFeatureText, setNewFeatureText] = React.useState('');
+  const [savingPlan, setSavingPlan] = React.useState(false);
+
+  // Store Modules Customization Modal
+  const [modulesModalTenant, setModulesModalTenant] = React.useState<Any|null>(null);
+  const [tenantModulesData, setTenantModulesData] = React.useState<Any|null>(null);
+  const [loadingTenantModules, setLoadingTenantModules] = React.useState(false);
+  const [savingTenantModules, setSavingTenantModules] = React.useState(false);
+
   const load = React.useCallback(() => {
     setLoading(true);
     Promise.all([
       api('/api/platform/tenants').then(r => r.ok ? r.json() : []),
       api('/api/platform/stats').then(r => r.ok ? r.json() : {}),
-      api('/api/platform/payments').then(r => r.ok ? r.json() : [])
-    ]).then(([tenantsData, statsData, paymentsData]) => {
+      api('/api/platform/payments').then(r => r.ok ? r.json() : []),
+      api('/api/platform/plans').then(r => r.ok ? r.json() : []),
+      api('/api/platform/trials').then(r => r.ok ? r.json() : [])
+    ]).then(([tenantsData, statsData, paymentsData, plansData, trialsData]) => {
       setTenants(tenantsData);
       setStats(statsData);
       setPayments(paymentsData);
+      setPlans(plansData);
+      setTrials(trialsData);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [api]);
@@ -3177,6 +3723,152 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
     }
   }
 
+  function openCreatePlan() {
+    setEditPlanModal({ isNew: true });
+    setPlanForm({
+      code: '',
+      name: '',
+      description: '',
+      monthlyPrice: '49.00',
+      includedModules: ['INVENTORY', 'POS', 'CASH_REGISTER', 'QUOTES', 'CUSTOMERS', 'REPORTS'],
+      features: ['Control de inventario multi-sucursal', 'Facturación electrónica SRI ilimitada', 'Soporte prioritario'],
+      badge: '',
+      isPopular: false,
+      isActive: true,
+      displayOrder: (plans.length + 1) * 10
+    });
+    setNewFeatureText('');
+  }
+
+  function openEditPlan(plan: Any) {
+    setEditPlanModal(plan);
+    setPlanForm({
+      code: plan.code,
+      name: plan.name,
+      description: plan.description || '',
+      monthlyPrice: String(plan.monthly_price ?? plan.monthlyPrice ?? 49.00),
+      includedModules: Array.isArray(plan.included_modules) ? plan.included_modules : (plan.includedModules || []),
+      features: Array.isArray(plan.features) ? plan.features : [],
+      badge: plan.badge || '',
+      isPopular: !!plan.is_popular,
+      isActive: plan.is_active !== false,
+      displayOrder: plan.display_order ?? 10
+    });
+    setNewFeatureText('');
+  }
+
+  async function handleSavePlan(e: React.FormEvent) {
+    e.preventDefault();
+    if (!planForm.code.trim() || !planForm.name.trim()) {
+      notify?.('El código y el nombre del plan son obligatorios.');
+      return;
+    }
+    setSavingPlan(true);
+    const isNew = editPlanModal?.isNew;
+    const url = isNew ? '/api/platform/plans' : `/api/platform/plans/${encodeURIComponent(planForm.code)}`;
+    const method = isNew ? 'POST' : 'PUT';
+    const r = await api(url, {
+      method,
+      body: JSON.stringify({
+        code: planForm.code.toUpperCase().trim(),
+        name: planForm.name.trim(),
+        description: planForm.description,
+        monthlyPrice: parseFloat(planForm.monthlyPrice) || 0,
+        includedModules: planForm.includedModules,
+        features: planForm.features,
+        badge: planForm.badge.trim() || null,
+        isPopular: planForm.isPopular,
+        isActive: planForm.isActive,
+        displayOrder: parseInt(String(planForm.displayOrder), 10) || 10
+      })
+    });
+    setSavingPlan(false);
+    if (r.ok) {
+      notify?.(`✓ Plan "${planForm.name}" ${isNew ? 'creado' : 'actualizado'} con éxito.`);
+      setEditPlanModal(null);
+      load();
+    } else {
+      const err = await r.json().catch(() => ({}));
+      notify?.(`Error al guardar el plan: ${err.message || r.statusText}`);
+    }
+  }
+
+  async function handleDeletePlan(plan: Any) {
+    if (!window.confirm(`¿Confirmas eliminar o desactivar el plan "${plan.name}" (${plan.code})? Si hay empresas suscritas, se desactivará automáticamente para no interrumpir su servicio.`)) return;
+    const r = await api(`/api/platform/plans/${encodeURIComponent(plan.code)}`, { method: 'DELETE' });
+    if (r.ok) {
+      notify?.(`✓ Plan "${plan.name}" actualizado/eliminado con éxito.`);
+      load();
+    } else {
+      notify?.('Error al eliminar el plan.');
+    }
+  }
+
+  async function openModulesModal(t: Any) {
+    setModulesModalTenant(t);
+    setLoadingTenantModules(true);
+    setTenantModulesData(null);
+    try {
+      const res = await api(`/api/platform/tenants/${t.id}/modules`);
+      if (res.ok) {
+        const data = await res.json();
+        setTenantModulesData(data);
+      } else {
+        notify?.('Error al cargar módulos de la empresa.');
+      }
+    } catch {
+      notify?.('Error de conexión al cargar módulos.');
+    } finally {
+      setLoadingTenantModules(false);
+    }
+  }
+
+  function handleToggleTenantModule(moduleKey: string) {
+    if (!tenantModulesData) return;
+    const currentVal = !!tenantModulesData.modules?.[moduleKey];
+    setTenantModulesData({
+      ...tenantModulesData,
+      modules: {
+        ...tenantModulesData.modules,
+        [moduleKey]: !currentVal
+      }
+    });
+  }
+
+  async function handleSaveTenantModules() {
+    if (!modulesModalTenant || !tenantModulesData) return;
+    setSavingTenantModules(true);
+    const r = await api(`/api/platform/tenants/${modulesModalTenant.id}/modules`, {
+      method: 'PUT',
+      body: JSON.stringify(tenantModulesData.modules)
+    });
+    setSavingTenantModules(false);
+    if (r.ok) {
+      notify?.(`✓ Módulos de "${modulesModalTenant.name}" actualizados correctamente.`);
+      setModulesModalTenant(null);
+    } else {
+      notify?.('Error al guardar configuración de módulos.');
+    }
+  }
+
+  async function handleApplyPlanToTenant(planCode: string) {
+    if (!modulesModalTenant) return;
+    if (!window.confirm(`¿Aplicar los módulos predeterminados del plan "${planCode}" a la tienda "${modulesModalTenant.name}"? Los módulos activos se sincronizarán según la configuración de este plan.`)) return;
+    setSavingTenantModules(true);
+    const r = await api(`/api/platform/tenants/${modulesModalTenant.id}/apply-plan/${encodeURIComponent(planCode)}`, {
+      method: 'POST'
+    });
+    setSavingTenantModules(false);
+    if (r.ok) {
+      const data = await r.json();
+      setTenantModulesData(data);
+      notify?.(`✓ Plan "${planCode}" aplicado exitosamente a "${modulesModalTenant.name}".`);
+      load();
+    } else {
+      notify?.('Error al aplicar el plan.');
+    }
+  }
+
   async function handleSuspend(t: Any) {
     if (!window.confirm(`¿Confirmas suspender la tienda "${t.name}"? Los empleados y el gerente no podrán operar hasta que se reactive.`)) return;
     const r = await api(`/api/platform/tenants/${t.id}/suspend`, { method: 'PATCH' });
@@ -3201,6 +3893,82 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
       }
     } else {
       notify?.('No se pudo reactivar la tienda');
+    }
+  }
+
+  function openConvertModal(t: Any) {
+    setConvertModalTenant(t);
+    const chosenPlanCode = (t.intended_plan || t.plan || 'PRO').toUpperCase();
+    const foundPlan = plans.find(p => (p.code || '').toUpperCase() === chosenPlanCode);
+    const fee = foundPlan ? String(foundPlan.monthly_price ?? foundPlan.monthlyPrice ?? 49.00) : '49.00';
+    const planMods: string[] = foundPlan ? (foundPlan.included_modules || foundPlan.includedModules || []) : ['INVENTORY', 'POS', 'CASH_REGISTER', 'QUOTES', 'CUSTOMERS', 'REPORTS'];
+    const modsMap: Record<string, boolean> = {};
+    ALL_MODULES_DEF.forEach(m => {
+      modsMap[m.key] = planMods.includes(m.key);
+    });
+    setConvertForm({
+      planCode: chosenPlanCode,
+      monthlyFee: fee,
+      billingCycle: 'MONTHLY',
+      modules: modsMap
+    });
+  }
+
+  function handleConvertPlanChange(newCode: string) {
+    const foundPlan = plans.find(p => (p.code || '').toUpperCase() === newCode.toUpperCase());
+    const fee = foundPlan ? String(foundPlan.monthly_price ?? foundPlan.monthlyPrice ?? 49.00) : convertForm.monthlyFee;
+    const planMods: string[] = foundPlan ? (foundPlan.included_modules || foundPlan.includedModules || []) : [];
+    const modsMap: Record<string, boolean> = {};
+    ALL_MODULES_DEF.forEach(m => {
+      modsMap[m.key] = planMods.includes(m.key);
+    });
+    setConvertForm({
+      ...convertForm,
+      planCode: newCode,
+      monthlyFee: fee,
+      modules: modsMap
+    });
+  }
+
+  async function submitConvert(e: React.FormEvent) {
+    e.preventDefault();
+    if (!convertModalTenant) return;
+    setConverting(true);
+    const r = await api(`/api/platform/tenants/${convertModalTenant.id}/convert-trial`, {
+      method: 'POST',
+      body: JSON.stringify(convertForm)
+    });
+    setConverting(false);
+    if (r.ok) {
+      notify?.(`✓ Empresa "${convertModalTenant.name}" vinculada con éxito al plan ${convertForm.planCode} y activada formalmente.`);
+      setConvertModalTenant(null);
+      load();
+    } else {
+      notify?.('Error al convertir la empresa de prueba a plan definitivo.');
+    }
+  }
+
+  function openExtendModal(t: Any) {
+    setExtendModalTenant(t);
+    setExtendDaysInput(15);
+    setExtendNotes('');
+  }
+
+  async function submitExtendTrial(e: React.FormEvent) {
+    e.preventDefault();
+    if (!extendModalTenant) return;
+    setExtending(true);
+    const r = await api(`/api/platform/tenants/${extendModalTenant.id}/extend-trial`, {
+      method: 'POST',
+      body: JSON.stringify({ days: extendDaysInput, notes: extendNotes })
+    });
+    setExtending(false);
+    if (r.ok) {
+      notify?.(`✓ Período de prueba de "${extendModalTenant.name}" extendido por ${extendDaysInput} días adicionales.`);
+      setExtendModalTenant(null);
+      load();
+    } else {
+      notify?.('Error al extender días de prueba.');
     }
   }
 
@@ -3331,6 +4099,26 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
     return true;
   });
 
+  const filteredTrials = trials.filter(t => {
+    if (trialFilter === 'EXPIRING_SOON') {
+      if (t.daysRemaining < 0 || t.daysRemaining > 3) return false;
+    } else if (trialFilter === 'HEALTHY') {
+      if (t.daysRemaining <= 3) return false;
+    } else if (trialFilter === 'EXPIRED') {
+      if (t.daysRemaining >= 0) return false;
+    }
+    if (trialSearch.trim()) {
+      const q = trialSearch.toLowerCase();
+      const match = (t.name || '').toLowerCase().includes(q) ||
+                    (t.contact_name || '').toLowerCase().includes(q) ||
+                    (t.contact_email || '').toLowerCase().includes(q) ||
+                    (t.contact_phone || '').toLowerCase().includes(q) ||
+                    (t.intended_plan || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
   const dueSoonTenants = tenants.filter(t => t.subscription_status === 'ACTIVE' && getDaysUntilDue(t.days_until_due) <= 7);
 
   return (
@@ -3353,10 +4141,24 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
         </button>
         <button
           type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-trials' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-trials')}
+        >
+          🧪 Empresas de Prueba ({trials.length})
+        </button>
+        <button
+          type="button"
           className={`saas-nav-pill ${currentTab === 'platform-rates' ? 'active' : ''}`}
           onClick={() => switchTab('platform-rates')}
         >
           🏷️ Tarifas por Empresa
+        </button>
+        <button
+          type="button"
+          className={`saas-nav-pill ${currentTab === 'platform-plans' ? 'active' : ''}`}
+          onClick={() => switchTab('platform-plans')}
+        >
+          🧩 Planes & Módulos ({plans.length})
         </button>
         <button
           type="button"
@@ -3369,9 +4171,15 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
           <button className="secondary-action" onClick={load} style={{ padding: '6px 12px', fontSize: '12px' }}>
             🔄 Actualizar
           </button>
-          <button className="primary-action" onClick={() => setShowCreateModal(true)} style={{ padding: '6px 14px', fontSize: '12px' }}>
-            ＋ Nueva Empresa
-          </button>
+          {currentTab === 'platform-plans' ? (
+            <button className="primary-action" onClick={openCreatePlan} style={{ padding: '6px 14px', fontSize: '12px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}>
+              ＋ Nuevo Plan
+            </button>
+          ) : (
+            <button className="primary-action" onClick={() => setShowCreateModal(true)} style={{ padding: '6px 14px', fontSize: '12px' }}>
+              ＋ Nueva Empresa
+            </button>
+          )}
         </div>
       </div>
 
@@ -3502,6 +4310,9 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
                             </button>
                             <button className="secondary-action" onClick={() => openEditRate(t)} style={{ padding: '4px 8px', fontSize: '11px' }}>
                               ✏️ Tarifa
+                            </button>
+                            <button className="secondary-action" onClick={() => openModulesModal(t)} style={{ padding: '4px 8px', fontSize: '11px', color: '#4f46e5', borderColor: '#c7d2fe', background: '#eef2ff' }} title="Configurar módulos de esta tienda">
+                              🧩 Módulos
                             </button>
                             {waUrl && (
                               <a href={waUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', background: '#25d366', color: '#fff', padding: '4px 8px', borderRadius: 6, fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
@@ -3657,6 +4468,9 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
                       <button className="secondary-action" onClick={() => openEditRate(t)} style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700 }}>
                         🏷️ Tarifa
                       </button>
+                      <button className="secondary-action" onClick={() => openModulesModal(t)} style={{ padding: '6px 10px', fontSize: '12px', fontWeight: 700, color: '#4f46e5', borderColor: '#c7d2fe', background: '#eef2ff' }}>
+                        🧩 Módulos
+                      </button>
                       {isSuspended ? (
                         <button className="btn-action-reactivate" onClick={() => handleReactivate(t)}>
                           🟢 Reactivar
@@ -3675,6 +4489,231 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB: TRIAL STORES / EMPRESAS DE PRUEBA (15 DÍAS)
+          ========================================================================= */}
+      {currentTab === 'platform-trials' && (
+        <div>
+          {/* KPI Header */}
+          <div className="trial-kpi-grid">
+            <div className="platform-kpi-card" onClick={() => setTrialFilter('ALL')} style={{ cursor: 'pointer' }}>
+              <small>Empresas en Prueba</small>
+              <strong style={{ color: '#4338ca' }}>{trials.length}</strong>
+              <span>Evaluando la plataforma</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => setTrialFilter('HEALTHY')} style={{ cursor: 'pointer' }}>
+              <small>Pruebas Saludables</small>
+              <strong style={{ color: '#059669' }}>{trials.filter(t => t.daysRemaining > 3).length}</strong>
+              <span>Más de 3 días restantes</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => setTrialFilter('EXPIRING_SOON')} style={{ cursor: 'pointer' }}>
+              <small>Por Vencer (≤ 3 Días)</small>
+              <strong style={{ color: '#d97706' }}>{trials.filter(t => t.daysRemaining >= 0 && t.daysRemaining <= 3).length}</strong>
+              <span>Contactar para atar plan</span>
+            </div>
+            <div className="platform-kpi-card" onClick={() => setTrialFilter('EXPIRED')} style={{ cursor: 'pointer' }}>
+              <small>Pruebas Vencidas</small>
+              <strong style={{ color: '#dc2626' }}>{trials.filter(t => t.daysRemaining < 0).length}</strong>
+              <span>Requieren plan o extensión</span>
+            </div>
+          </div>
+
+          {/* Trial Filter and Search Toolbar */}
+          <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+              {[
+                ['ALL', `Todas (${trials.length})`],
+                ['EXPIRING_SOON', `Por Vencer (${trials.filter(t => t.daysRemaining >= 0 && t.daysRemaining <= 3).length})`],
+                ['HEALTHY', `En Curso (${trials.filter(t => t.daysRemaining > 3).length})`],
+                ['EXPIRED', `Vencidas (${trials.filter(t => t.daysRemaining < 0).length})`]
+              ].map(([k, label]) => (
+                <button
+                  key={k}
+                  className={trialFilter === k ? 'btn-filter active' : 'btn-filter'}
+                  onClick={() => setTrialFilter(k)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    border: trialFilter === k ? '1px solid #4338ca' : '1px solid #cbd5e1',
+                    background: trialFilter === k ? '#eef2ff' : '#ffffff',
+                    color: trialFilter === k ? '#4338ca' : '#475569',
+                    fontWeight: trialFilter === k ? 700 : 500,
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="🔍 Buscar por tienda, gerente, email, teléfono..."
+                value={trialSearch}
+                onChange={e => setTrialSearch(e.target.value)}
+                style={{ width: '280px', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+              />
+              <button className="secondary-action" onClick={load} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                🔄 Refrescar
+              </button>
+            </div>
+          </div>
+
+          {/* Trial Stores Table */}
+          <div className="panel table-panel">
+            <div className="panel-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>🧪 Directorio de Empresas en Período de Prueba (15 Días)</h3>
+                <p className="catalog-toolbar-p" style={{ margin: '4px 0 0 0' }}>
+                  Tiendas evaluando la plataforma con <b>todos los módulos y servicios habilitados</b>. Gestiona la extensión de días o átalas a su plan definitivo.
+                </p>
+              </div>
+            </div>
+
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Empresa & Negocio</th>
+                    <th>Plan de Interés</th>
+                    <th>Días Restantes</th>
+                    <th>Fin de Prueba</th>
+                    <th>Actividad en Prueba</th>
+                    <th>Gerente / Contacto</th>
+                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTrials.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                        No hay empresas de prueba registradas con los filtros actuales.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTrials.map(t => {
+                      const days = t.daysRemaining;
+                      const isExpired = days < 0;
+                      const isWarning = days >= 0 && days <= 3;
+                      const pillClass = isExpired ? 'expired' : isWarning ? 'warning' : 'healthy';
+
+                      const cleanPhone = (t.contact_phone || t.tenant_phone || '').replace(/[^0-9]/g, '');
+                      const waMsg = encodeURIComponent(`Hola ${t.contact_name || 'estimado cliente'}, te saludamos de la administración de FixmeTiendas. Vemos que estás en tu período de prueba para tu tienda "${t.name}". ¿Qué tal ha sido tu experiencia con la plataforma y qué plan o módulos te gustaría contratar?`);
+                      const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
+
+                      return (
+                        <tr key={t.id}>
+                          <td>
+                            <strong>{t.name}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {t.business_type || 'RETAIL'} · Creada: {t.created_at ? String(t.created_at).slice(0, 10) : '-'}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`plan-chip plan-chip-${(t.intended_plan || t.plan || 'pro').toLowerCase()}`}>
+                              {t.intended_plan || t.plan || 'PRO'}
+                            </span>
+                            <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: 600, marginTop: 2 }}>
+                              ✓ 9 Módulos Activos
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`trial-status-pill ${pillClass}`}>
+                              {isExpired
+                                ? `🚫 Vencida (${Math.abs(days)}d)`
+                                : isWarning
+                                ? `⚠️ ${days === 0 ? 'Vence hoy' : `${days}d restantes`}`
+                                : `⏱️ ${days}d restantes`}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 700, fontSize: '12px' }}>
+                              {t.trial_ends_at ? String(t.trial_ends_at).slice(0, 10) : '-'}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              <span className="trial-metric-tag" title="Productos agregados">
+                                📦 {t.product_count || 0} prod.
+                              </span>
+                              <span className="trial-metric-tag" title="Ventas realizadas">
+                                🛒 {t.sale_count || 0} ventas
+                              </span>
+                              <span className="trial-metric-tag" title="Órdenes de servicio">
+                                🛠️ {t.work_order_count || 0} ord.
+                              </span>
+                              <span className="trial-metric-tag" title="Clientes registrados">
+                                👥 {t.customer_count || 0} cli.
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, fontSize: '12.5px' }}>{t.contact_name || 'Sin nombre'}</div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>{t.contact_email || '-'}</div>
+                            <div style={{ fontSize: '11px', color: '#2563eb' }}>{t.contact_phone || '-'}</div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                className="primary-action"
+                                onClick={() => openConvertModal(t)}
+                                style={{ padding: '5px 11px', fontSize: '11.5px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', whiteSpace: 'nowrap' }}
+                                title="Atar empresa a plan y módulos definitivos"
+                              >
+                                ⚡ Atar a Plan
+                              </button>
+                              <button
+                                className="secondary-action"
+                                onClick={() => openExtendModal(t)}
+                                style={{ padding: '5px 9px', fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                                title="Extender período de prueba"
+                              >
+                                ⏱️ Extender
+                              </button>
+                              <button
+                                className="secondary-action"
+                                onClick={() => openModulesModal(t)}
+                                style={{ padding: '5px 9px', fontSize: '11.5px', color: '#4f46e5', borderColor: '#c7d2fe', background: '#eef2ff' }}
+                                title="Configurar módulos de esta tienda"
+                              >
+                                🧩 Módulos
+                              </button>
+                              {waUrl && (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    background: '#25d366',
+                                    color: '#fff',
+                                    padding: '5px 9px',
+                                    borderRadius: 6,
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    textDecoration: 'none'
+                                  }}
+                                  title="Enviar WhatsApp al gerente"
+                                >
+                                  💬 WA
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3783,14 +4822,24 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
                           <small style={{ color: '#64748b' }}>{t.billing_contact_phone || t.owner_phone || '-'}</small>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="primary-action"
-                            onClick={() => openEditRate(t)}
-                            style={{ padding: '5px 10px', fontSize: '11.5px', whiteSpace: 'nowrap' }}
-                          >
-                            ✏️ Modificar Tarifa
-                          </button>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                            <button
+                              type="button"
+                              className="primary-action"
+                              onClick={() => openEditRate(t)}
+                              style={{ padding: '5px 10px', fontSize: '11.5px', whiteSpace: 'nowrap' }}
+                            >
+                              ✏️ Modificar Tarifa
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary-action"
+                              onClick={() => openModulesModal(t)}
+                              style={{ padding: '5px 10px', fontSize: '11.5px', whiteSpace: 'nowrap', color: '#4f46e5', borderColor: '#c7d2fe', background: '#eef2ff', fontWeight: 700 }}
+                            >
+                              🧩 Módulos
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -3917,6 +4966,204 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB: PLANES Y MÓDULOS DE SUSCRIPCIÓN SAAS
+          ========================================================================= */}
+      {currentTab === 'platform-plans' && (
+        <div>
+          <div className="panel" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>🧩 Catálogo de Planes & Paquetes de Servicio SaaS</h3>
+                <p className="catalog-toolbar-p" style={{ margin: '4px 0 0 0' }}>
+                  Configura los planes comerciales para las tiendas, sus tarifas mensuales y los módulos activos por defecto.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={openCreatePlan}
+                  style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+                >
+                  ＋ Crear Nuevo Plan
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Grid of Plans */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: 24 }}>
+            {plans.map(p => {
+              const activeCount = tenants.filter(t => (t.plan || '').toUpperCase() === (p.code || '').toUpperCase()).length;
+              const incMods: string[] = Array.isArray(p.included_modules) ? p.included_modules : (p.includedModules || []);
+              const feats: string[] = Array.isArray(p.features) ? p.features : [];
+
+              return (
+                <div
+                  key={p.code}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    border: p.is_popular ? '2px solid #6366f1' : '1px solid #e2e8f0',
+                    padding: '24px',
+                    boxShadow: p.is_popular ? '0 10px 25px -5px rgba(99, 102, 241, 0.15)' : '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative'
+                  }}
+                >
+                  {p.is_popular && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-12px',
+                      right: '24px',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase'
+                    }}>
+                      ★ Más Popular
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>{p.name}</h3>
+                        {p.badge && (
+                          <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px' }}>
+                            {p.badge}
+                          </span>
+                        )}
+                      </div>
+                      <code style={{ fontSize: '11px', color: '#6366f1', fontWeight: 700, background: '#eef2ff', padding: '2px 6px', borderRadius: '4px' }}>
+                        CÓDIGO: {p.code}
+                      </code>
+                    </div>
+                    <div>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 8px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: p.is_active !== false ? '#dcfce7' : '#fee2e2',
+                        color: p.is_active !== false ? '#15803d' : '#b91c1c'
+                      }}>
+                        {p.is_active !== false ? '● Activo' : '○ Inactivo'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 16px 0', minHeight: '38px', lineHeight: 1.4 }}>
+                    {p.description || 'Sin descripción'}
+                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
+                    <span style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a' }}>
+                      ${Number(p.monthly_price ?? p.monthlyPrice ?? 0).toFixed(2)}
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '13px', fontWeight: 500 }}>/ mes + IVA</span>
+                  </div>
+
+                  {/* Active subscribers badge */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: '#f8fafc',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    marginBottom: 16,
+                    border: '1px solid #f1f5f9'
+                  }}>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Empresas suscritas:</span>
+                    <strong style={{ fontSize: '13px', color: activeCount > 0 ? '#0f172a' : '#94a3b8' }}>
+                      🏢 {activeCount} {activeCount === 1 ? 'empresa' : 'empresas'}
+                    </strong>
+                  </div>
+
+                  {/* Included Modules Section */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>MÓDULOS ACTIVOS ({incMods.length}/{ALL_MODULES_DEF.length}):</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {ALL_MODULES_DEF.map(mod => {
+                        const isInc = incMods.includes(mod.key);
+                        return (
+                          <span
+                            key={mod.key}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: '11px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontWeight: 600,
+                              background: isInc ? (mod.key === 'APIS' ? '#ede9fe' : '#eff6ff') : '#f8fafc',
+                              color: isInc ? (mod.key === 'APIS' ? '#6d28d9' : '#1d4ed8') : '#94a3b8',
+                              border: isInc ? (mod.key === 'APIS' ? '1px solid #c4b5fd' : '1px solid #bfdbfe') : '1px solid #e2e8f0',
+                              opacity: isInc ? 1 : 0.6
+                            }}
+                            title={mod.desc}
+                          >
+                            <span>{mod.icon}</span>
+                            <span>{mod.name.split(' ')[0]}</span>
+                            {isInc ? '✓' : '✕'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Commercial Features */}
+                  {feats.length > 0 && (
+                    <div style={{ marginBottom: 20, flex: 1 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        BENEFICIOS INCLUIDOS:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: '#475569', lineHeight: 1.5 }}>
+                        {feats.map((f, i) => (
+                          <li key={i}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, borderTop: '1px solid #f1f5f9', paddingTop: 14, marginTop: 'auto' }}>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => openEditPlan(p)}
+                      style={{ flex: 1, padding: '7px 12px', fontSize: '12px', textAlign: 'center' }}
+                    >
+                      ✏️ Editar Plan
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => handleDeletePlan(p)}
+                      style={{ padding: '7px 12px', fontSize: '12px', color: '#ef4444' }}
+                      title="Eliminar o desactivar plan"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -4167,7 +5414,7 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
               <button className="close-btn" onClick={() => setReceiptModal(null)}>✕</button>
             </div>
 
-            <div className="saas-receipt-container">
+            <div id="printable-saas-receipt" className="saas-receipt-container">
               <div className="saas-receipt-stamp">PAGADO</div>
               <div className="saas-receipt-header">
                 <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>
@@ -4219,7 +5466,7 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
               <button
                 type="button"
                 className="secondary-action"
-                onClick={() => window.print()}
+                onClick={() => printTicketElement('printable-saas-receipt')}
               >
                 🖨️ Imprimir / Guardar PDF
               </button>
@@ -4512,16 +5759,710 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
           </div>
         </div>
       )}
+
+      {/* =========================================================================
+          MODAL: EDIT OR CREATE PLAN
+          ========================================================================= */}
+      {editPlanModal && (
+        <div className="modal-backdrop" onClick={() => setEditPlanModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>{editPlanModal.isNew ? '＋ Crear Nuevo Plan de Suscripción' : `✏️ Editar Plan: ${planForm.name}`}</h3>
+                <small style={{ color: '#64748b' }}>Configura tarifas comerciales y módulos para FixmeTiendas SaaS</small>
+              </div>
+              <button className="close-btn" onClick={() => setEditPlanModal(null)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSavePlan}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 12 }}>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Código Único del Plan *</span>
+                  <input
+                    type="text"
+                    placeholder="Ej: ENTERPRISE"
+                    value={planForm.code}
+                    onChange={e => setPlanForm({ ...planForm, code: e.target.value.toUpperCase() })}
+                    disabled={!editPlanModal.isNew}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', textTransform: 'uppercase' }}
+                  />
+                  {!editPlanModal.isNew && <small style={{ color: '#64748b' }}>El código no puede cambiarse una vez creado.</small>}
+                </label>
+
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Nombre Comercial *</span>
+                  <input
+                    type="text"
+                    placeholder="Ej: Plan Enterprise Digital"
+                    value={planForm.name}
+                    onChange={e => setPlanForm({ ...planForm, name: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Precio Mensual ($ USD) *</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={planForm.monthlyPrice}
+                    onChange={e => setPlanForm({ ...planForm, monthlyPrice: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Badge / Etiqueta Visual</span>
+                  <input
+                    type="text"
+                    placeholder="Ej: RECOMENDADO, MÁS VENDIDO"
+                    value={planForm.badge}
+                    onChange={e => setPlanForm({ ...planForm, badge: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Descripción Comercial</span>
+                  <textarea
+                    rows={2}
+                    placeholder="Breve resumen del tipo de empresa al que va dirigido este plan..."
+                    value={planForm.description}
+                    onChange={e => setPlanForm({ ...planForm, description: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', resize: 'vertical' }}
+                  />
+                </label>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, gridColumn: '1 / -1', padding: '8px 12px', background: '#f8fafc', borderRadius: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={planForm.isPopular}
+                      onChange={e => setPlanForm({ ...planForm, isPopular: e.target.checked })}
+                    />
+                    <strong>Destacar como Más Popular</strong>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={planForm.isActive}
+                      onChange={e => setPlanForm({ ...planForm, isActive: e.target.checked })}
+                    />
+                    <strong>Plan Activo para Venta</strong>
+                  </label>
+                </div>
+              </div>
+
+              {/* Módulos que incluye el plan */}
+              <div style={{ marginBottom: 14 }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: 6 }}>
+                  Módulos Habilitados en este Plan:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  {ALL_MODULES_DEF.map(mod => {
+                    const isChecked = planForm.includedModules.includes(mod.key);
+                    return (
+                      <label
+                        key={mod.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          padding: '6px 8px',
+                          borderRadius: 6,
+                          background: isChecked ? (mod.key === 'APIS' ? '#ede9fe' : '#ffffff') : '#f1f5f9',
+                          border: isChecked ? (mod.key === 'APIS' ? '1px solid #8b5cf6' : '1px solid #3b82f6') : '1px solid transparent',
+                          fontWeight: isChecked ? 700 : 500
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => {
+                            const cur = [...planForm.includedModules];
+                            if (e.target.checked) {
+                              if (!cur.includes(mod.key)) cur.push(mod.key);
+                            } else {
+                              const idx = cur.indexOf(mod.key);
+                              if (idx >= 0) cur.splice(idx, 1);
+                            }
+                            setPlanForm({ ...planForm, includedModules: cur });
+                          }}
+                        />
+                        <span>{mod.icon}</span>
+                        <span>{mod.name.split(' ')[0]}</span>
+                        {mod.key === 'APIS' && <span style={{ fontSize: '10px', color: '#7c3aed', background: '#f5f3ff', padding: '1px 4px', borderRadius: 4 }}>API</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Features list */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: 6 }}>
+                  Características y Beneficios Promocionales:
+                </span>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="Ej: Pasarela de pagos PayPhone y DeUna incluida"
+                    value={newFeatureText}
+                    onChange={e => setNewFeatureText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newFeatureText.trim()) {
+                          setPlanForm({ ...planForm, features: [...planForm.features, newFeatureText.trim()] });
+                          setNewFeatureText('');
+                        }
+                      }
+                    }}
+                    style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '12.5px' }}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => {
+                      if (newFeatureText.trim()) {
+                        setPlanForm({ ...planForm, features: [...planForm.features, newFeatureText.trim()] });
+                        setNewFeatureText('');
+                      }
+                    }}
+                    style={{ padding: '8px 14px', fontSize: '12px' }}
+                  >
+                    ＋ Agregar
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {planForm.features.map((f: string, idx: number) => (
+                    <span
+                      key={idx}
+                      style={{
+                        background: '#e0f2fe',
+                        color: '#0369a1',
+                        padding: '4px 10px',
+                        borderRadius: 16,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      {f}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...planForm.features];
+                          updated.splice(idx, 1);
+                          setPlanForm({ ...planForm, features: updated });
+                        }}
+                        style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', padding: 0, fontSize: '12px', fontWeight: 700 }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+                <button type="button" className="secondary-action" onClick={() => setEditPlanModal(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={savingPlan}>
+                  {savingPlan ? 'Guardando Plan...' : (editPlanModal.isNew ? '＋ Guardar Nuevo Plan' : '✓ Guardar Cambios')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: TENANT MODULES OVERRIDE & PLAN PRESET
+          ========================================================================= */}
+      {modulesModalTenant && (
+        <div className="modal-backdrop" onClick={() => setModulesModalTenant(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>🧩 Módulos Activos de la Tienda</h3>
+                <small style={{ color: '#64748b' }}>Empresa: <strong>{modulesModalTenant.name}</strong> · Plan Actual: <strong style={{ color: '#2563eb' }}>{modulesModalTenant.plan || 'STARTER'}</strong></small>
+              </div>
+              <button className="close-btn" onClick={() => setModulesModalTenant(null)}>✕</button>
+            </div>
+
+            {loadingTenantModules ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Cargando configuración de módulos...</div>
+            ) : tenantModulesData ? (
+              <div>
+                {/* Fast Preset Box */}
+                <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 16 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>
+                    ⚡ Aplicar Preset de Módulos por Plan:
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select
+                      id="planSelectPreset"
+                      defaultValue={tenantModulesData.currentPlan || modulesModalTenant.plan || 'PRO'}
+                      style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    >
+                      {plans.map(p => (
+                        <option key={p.code} value={p.code}>
+                          Plan {p.name} (${Number(p.monthly_price ?? p.monthlyPrice ?? 0).toFixed(2)}/mes)
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => {
+                        const sel = (document.getElementById('planSelectPreset') as HTMLSelectElement)?.value;
+                        if (sel) handleApplyPlanToTenant(sel);
+                      }}
+                      disabled={savingTenantModules}
+                      style={{ padding: '7px 14px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                    >
+                      {savingTenantModules ? 'Aplicando...' : '⚡ Sincronizar Módulos'}
+                    </button>
+                  </div>
+                  <small style={{ display: 'block', color: '#64748b', marginTop: 6, fontSize: '11px' }}>
+                    Sincroniza en un clic los módulos contratados y actualiza el plan asignado a la empresa.
+                  </small>
+                </div>
+
+                {/* Individual Module Toggles */}
+                <div style={{ maxHeight: 340, overflowY: 'auto', paddingRight: 4 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: 8 }}>
+                    PERSONALIZACIÓN INDIVIDUAL DE MÓDULOS:
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {ALL_MODULES_DEF.map(mod => {
+                      const isEnabled = !!tenantModulesData.modules?.[mod.key];
+                      return (
+                        <div
+                          key={mod.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            background: isEnabled ? (mod.key === 'APIS' ? '#f5f3ff' : '#eff6ff') : '#f8fafc',
+                            border: isEnabled ? (mod.key === 'APIS' ? '1px solid #c4b5fd' : '1px solid #bfdbfe') : '1px solid #e2e8f0',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: '22px' }}>{mod.icon}</span>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <strong style={{ fontSize: '13px', color: '#0f172a' }}>{mod.name}</strong>
+                                {mod.key === 'APIS' && (
+                                  <span style={{ background: '#7c3aed', color: '#ffffff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: 4 }}>
+                                    PAGOS & APIS
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: 2 }}>{mod.desc}</div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTenantModule(mod.key)}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: 20,
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: isEnabled ? '#10b981' : '#cbd5e1',
+                                color: '#ffffff',
+                                minWidth: '80px',
+                                transition: 'background 0.2s ease'
+                              }}
+                            >
+                              {isEnabled ? '✓ Activo' : '✕ Inactivo'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+                  <button type="button" className="secondary-action" onClick={() => setModulesModalTenant(null)}>Cancelar</button>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={handleSaveTenantModules}
+                    disabled={savingTenantModules}
+                    style={{ padding: '8px 18px', fontSize: '13px' }}
+                  >
+                    {savingTenantModules ? 'Guardando...' : '✓ Guardar Cambios de Módulos'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CONVERT TRIAL TO DEFINITIVE PLAN & MODULES
+          ========================================================================= */}
+      {convertModalTenant && (
+        <div className="modal-backdrop" onClick={() => setConvertModalTenant(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
+            <div className="modal-header">
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  CONVERSIÓN DE PRUEBA A SUSCRIPCIÓN FORMAL
+                </span>
+                <h3 style={{ margin: '2px 0 0' }}>⚡ Atar a Plan Definitivo: {convertModalTenant.name}</h3>
+                <small style={{ color: '#64748b' }}>
+                  Plan de interés durante la prueba: <strong>{convertModalTenant.intended_plan || 'PRO'}</strong>
+                </small>
+              </div>
+              <button className="close-btn" onClick={() => setConvertModalTenant(null)}>✕</button>
+            </div>
+
+            <form onSubmit={submitConvert}>
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 14, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  🏢 Datos de la Empresa:
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Gerente: <strong>{convertModalTenant.contact_name || 'Sin nombre'}</strong> ({convertModalTenant.contact_email || '-'}) · Tel: {convertModalTenant.contact_phone || '-'}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Plan Definitivo *</span>
+                  <select
+                    value={convertForm.planCode}
+                    onChange={e => handleConvertPlanChange(e.target.value)}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                  >
+                    {plans.map(p => (
+                      <option key={p.code} value={p.code}>
+                        Plan {p.name} (${Number(p.monthly_price ?? p.monthlyPrice ?? 0).toFixed(2)}/mes)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Tarifa Mensual Pactada ($ USD) *</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={convertForm.monthlyFee}
+                    onChange={e => setConvertForm({ ...convertForm, monthlyFee: e.target.value })}
+                    required
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700 }}>Ciclo de Facturación *</span>
+                  <select
+                    value={convertForm.billingCycle}
+                    onChange={e => setConvertForm({ ...convertForm, billingCycle: e.target.value })}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  >
+                    <option value="MONTHLY">Mensual (Cobro cada 30 días)</option>
+                    <option value="QUARTERLY">Trimestral</option>
+                    <option value="SEMIANNUAL">Semestral</option>
+                    <option value="ANNUAL">Anual</option>
+                  </select>
+                </label>
+              </div>
+
+              {/* Modules selection */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a' }}>
+                    Módulos Habilitados para esta Empresa:
+                  </span>
+                  <small style={{ color: '#4f46e5', fontWeight: 600 }}>
+                    {Object.values(convertForm.modules || {}).filter(Boolean).length} de {ALL_MODULES_DEF.length} activos
+                  </small>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 6, maxHeight: 180, overflowY: 'auto', background: '#f8fafc', padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  {ALL_MODULES_DEF.map(m => {
+                    const isChecked = !!convertForm.modules?.[m.key];
+                    return (
+                      <label
+                        key={m.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: '11.5px',
+                          cursor: 'pointer',
+                          padding: '5px 8px',
+                          borderRadius: 6,
+                          background: isChecked ? (m.key === 'APIS' ? '#ede9fe' : '#ffffff') : '#f1f5f9',
+                          border: isChecked ? (m.key === 'APIS' ? '1px solid #8b5cf6' : '1px solid #3b82f6') : '1px solid transparent',
+                          fontWeight: isChecked ? 700 : 500
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => setConvertForm({
+                            ...convertForm,
+                            modules: {
+                              ...convertForm.modules,
+                              [m.key]: e.target.checked
+                            }
+                          })}
+                        />
+                        <span>{m.icon}</span>
+                        <span>{m.name.split(' ')[0]}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px 12px', borderRadius: 6, fontSize: '11.5px', color: '#166534', lineHeight: 1.4, marginBottom: 16 }}>
+                ✓ Al convertir, la tienda dejará el estado de prueba y pasará a ser una <b>Empresa Activa Definitiva</b>. Su fecha de próximo cobro se programará automáticamente en 30 días y se aplicarán los módulos seleccionados.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setConvertModalTenant(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={converting} style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', padding: '8px 20px', fontSize: '13px' }}>
+                  {converting ? 'Activando...' : '⚡ Confirmar y Atar a Plan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: EXTEND TRIAL DAYS
+          ========================================================================= */}
+      {extendModalTenant && (
+        <div className="modal-backdrop" onClick={() => setExtendModalTenant(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+            <div className="modal-header">
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  EXTENSIÓN DE PRUEBA
+                </span>
+                <h3 style={{ margin: '2px 0 0' }}>⏱️ Extender Prueba: {extendModalTenant.name}</h3>
+              </div>
+              <button className="close-btn" onClick={() => setExtendModalTenant(null)}>✕</button>
+            </div>
+
+            <form onSubmit={submitExtendTrial}>
+              <div style={{ background: '#fef3c7', border: '1px solid #fde68a', padding: 12, borderRadius: 8, marginBottom: 14, fontSize: '12px', color: '#92400e' }}>
+                Fin actual de prueba: <strong>{extendModalTenant.trial_ends_at ? String(extendModalTenant.trial_ends_at).slice(0, 10) : 'Pendiente'}</strong>
+                <div style={{ marginTop: 4 }}>
+                  Días restantes actuales: <strong>{extendModalTenant.daysRemaining} días</strong>
+                </div>
+              </div>
+
+              <label style={{ display: 'block', marginBottom: 14 }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                  Días adicionales a conceder:
+                </span>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  {[7, 15, 30].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setExtendDaysInput(d)}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: 6,
+                        border: extendDaysInput === d ? '2px solid #4f46e5' : '1px solid #cbd5e1',
+                        background: extendDaysInput === d ? '#eef2ff' : '#ffffff',
+                        color: extendDaysInput === d ? '#4338ca' : '#1e293b',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      +{d} días
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={extendDaysInput}
+                  onChange={e => setExtendDaysInput(parseInt(e.target.value, 10) || 1)}
+                  required
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontWeight: 700 }}
+                />
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 16 }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Motivo / Notas de la Extensión (opcional)</span>
+                <input
+                  type="text"
+                  placeholder="Ej: Solicitó más tiempo para capacitar a su personal..."
+                  value={extendNotes}
+                  onChange={e => setExtendNotes(e.target.value)}
+                  style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="secondary-action" onClick={() => setExtendModalTenant(null)}>Cancelar</button>
+                <button type="submit" className="primary-action" disabled={extending} style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', padding: '8px 18px', fontSize: '13px' }}>
+                  {extending ? 'Extendiendo...' : `⏱️ Confirmar +${extendDaysInput} Días`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void}){
-  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'|'sri'>('matrix');
+  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'|'sri'|'deuna'|'payphone'>('matrix');
   const [profile, setProfile] = React.useState<Any>({});
   const [users, setUsers] = React.useState<Any[]>([]);
   const [rolePerms, setRolePerms] = React.useState<Record<string, string[]>>({});
   const [savingMatrix, setSavingMatrix] = React.useState(false);
+
+  // DeUna Configuration state
+  const [deunaConfig, setDeunaConfig] = React.useState<Any>({
+    merchantId: 'DEUNA-DEMO-001',
+    merchantName: 'FixmeTiendas',
+    phoneNumber: '0999999999',
+    apiKey: 'sandbox_key_deuna_fixme',
+    apiSecret: 'sandbox_secret_deuna_fixme',
+    environment: 'SANDBOX',
+    enabled: true,
+    autoSimulate: false
+  });
+  const [loadingDeuna, setLoadingDeuna] = React.useState(false);
+  const [savingDeuna, setSavingDeuna] = React.useState(false);
+
+  const loadDeUna = React.useCallback(() => {
+    setLoadingDeuna(true);
+    api('/api/payments/deuna/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (cfg) {
+          setDeunaConfig({
+            merchantId: cfg.merchant_id || cfg.merchantId || '',
+            merchantName: cfg.merchant_name || cfg.merchantName || '',
+            phoneNumber: cfg.phone_number || cfg.phoneNumber || '',
+            apiKey: cfg.api_key || cfg.apiKey || '',
+            apiSecret: cfg.api_secret || cfg.apiSecret || '',
+            environment: cfg.environment || 'SANDBOX',
+            enabled: cfg.enabled !== false,
+            autoSimulate: !!cfg.auto_simulate
+          });
+        }
+      })
+      .finally(() => setLoadingDeuna(false));
+  }, [api]);
+
+  async function saveDeUnaConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingDeuna(true);
+    try {
+      const res = await api('/api/payments/deuna/config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          merchant_id: deunaConfig.merchantId,
+          merchant_name: deunaConfig.merchantName,
+          phone_number: deunaConfig.phoneNumber,
+          api_key: deunaConfig.apiKey,
+          api_secret: deunaConfig.apiSecret,
+          environment: deunaConfig.environment,
+          enabled: deunaConfig.enabled,
+          auto_simulate: deunaConfig.autoSimulate
+        })
+      });
+      if (res.ok) {
+        notify?.('Configuración de pagos DeUna QR actualizada correctamente');
+      } else {
+        notify?.('Error al guardar la configuración de DeUna');
+      }
+    } catch {
+      notify?.('Error de conexión al guardar DeUna');
+    } finally {
+      setSavingDeuna(false);
+    }
+  }
+
+  // Payphone (Cards) Configuration state
+  const [payphoneConfig, setPayphoneConfig] = React.useState<Any>({
+    token: '',
+    clientId: 'PAYPHONE-DEMO-001',
+    storeId: 'STORE-DEMO-001',
+    environment: 'SANDBOX',
+    enabled: true
+  });
+  const [loadingPayphone, setLoadingPayphone] = React.useState(false);
+  const [savingPayphone, setSavingPayphone] = React.useState(false);
+
+  const loadPayphone = React.useCallback(() => {
+    setLoadingPayphone(true);
+    api('/api/payments/payphone/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (cfg) {
+          setPayphoneConfig({
+            token: cfg.token || '',
+            clientId: cfg.client_id || cfg.clientId || '',
+            storeId: cfg.store_id || cfg.storeId || '',
+            environment: cfg.environment || 'SANDBOX',
+            enabled: cfg.enabled !== false
+          });
+        }
+      })
+      .finally(() => setLoadingPayphone(false));
+  }, [api]);
+
+  async function savePayphoneConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingPayphone(true);
+    try {
+      const res = await api('/api/payments/payphone/config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          token: payphoneConfig.token,
+          client_id: payphoneConfig.clientId,
+          store_id: payphoneConfig.storeId,
+          environment: payphoneConfig.environment,
+          enabled: payphoneConfig.enabled
+        })
+      });
+      if (res.ok) {
+        notify?.('Configuración de pagos Payphone (Tarjetas) actualizada correctamente');
+      } else {
+        notify?.('Error al guardar la configuración de Payphone');
+      }
+    } catch (err: any) {
+      notify?.('Error de conexión al guardar Payphone: ' + err.message);
+    } finally {
+      setSavingPayphone(false);
+    }
+  }
 
   // SRI Configuration state
   const [sriConfig, setSriConfig] = React.useState<Any>({
@@ -4790,6 +6731,34 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
           }}
         >
           🏛️ Facturación SRI (Ecuador)
+        </button>
+        <button
+          onClick={() => { setTab('deuna'); loadDeUna(); }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'deuna' ? '1px solid #00a896' : '1px solid #cbd5e1',
+            background: tab === 'deuna' ? '#f0fdfa' : '#ffffff',
+            color: tab === 'deuna' ? '#0f766e' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          📱 Pagos QR DeUna (Banco Pichincha)
+        </button>
+        <button
+          onClick={() => { setTab('payphone'); loadPayphone(); }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'payphone' ? '1px solid #f97316' : '1px solid #cbd5e1',
+            background: tab === 'payphone' ? '#fff7ed' : '#ffffff',
+            color: tab === 'payphone' ? '#c2410c' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          💳 Tarjetas Payphone (Visa / Mastercard)
         </button>
       </div>
 
@@ -5267,6 +7236,259 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
                 style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 700 }}
               >
                 {savingSri ? 'Guardando...' : '💾 Guardar Configuración SRI'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/* TAB 5: DEUNA QR PAYMENTS (BANCO PICHINCHA) */}
+      {tab === 'deuna' && (
+        <section className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <span className="eyebrow">PAGOS DIGITALES INTERBANCARIOS</span>
+              <h3 style={{ margin: '4px 0', fontSize: '18px', color: '#0f172a' }}>📱 Configuración DeUna QR (Banco Pichincha)</h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                Acepta pagos instantáneos con código QR interoperable en Ecuador (DeUna, Banco Pichincha, Cooperativas y banca nacional).
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{
+                background: deunaConfig.environment === 'PRODUCTION' ? '#dcfce7' : '#fef9c3',
+                color: deunaConfig.environment === 'PRODUCTION' ? '#15803d' : '#854d0e',
+                border: deunaConfig.environment === 'PRODUCTION' ? '1px solid #86efac' : '1px solid #fde047',
+                padding: '4px 12px',
+                borderRadius: 20,
+                fontSize: '11px',
+                fontWeight: 700
+              }}>
+                {deunaConfig.environment === 'PRODUCTION' ? '🟢 EN PRODUCCIÓN' : '🟡 EN MODO SANDBOX (PRUEBAS)'}
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={saveDeUnaConfig} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 8, padding: '12px 16px', fontSize: '12.5px', color: '#0f766e' }}>
+              <strong>🏦 Red Nacional Interbancaria:</strong> Los pagos generados con DeUna permiten a los clientes escanear desde su teléfono móvil con la app <b>DeUna</b>, app de <b>Banco Pichincha</b>, o cualquier entidad financiera conectada a la red de cobros QR dinámicos de Ecuador.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {/* BLOQUE 1: ESTADO Y COMERCIO */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  ⚙️ Parámetros de la Cuenta
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>
+                    <input
+                      type="checkbox"
+                      checked={deunaConfig.enabled}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, enabled: e.target.checked })}
+                    />
+                    Habilitar opción de pago con DeUna QR en POS y Cotizaciones
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Ambiente de Conexión
+                    <select
+                      value={deunaConfig.environment}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, environment: e.target.value })}
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    >
+                      <option value="SANDBOX">Pruebas / Sandbox (Simulación instantánea sin dinero real)</option>
+                      <option value="PRODUCTION">Producción (Cobros reales acreditados en Banco Pichincha)</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Nombre Comercial a mostrar al Cliente
+                    <input
+                      value={deunaConfig.merchantName}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, merchantName: e.target.value })}
+                      placeholder="FIXMETIENDAS"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Teléfono Celular DeUna del Negocio
+                    <input
+                      value={deunaConfig.phoneNumber}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, phoneNumber: e.target.value })}
+                      placeholder="0999999999"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* BLOQUE 2: CREDENCIALES DE API */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  🔐 Credenciales DeUna API (Banco Pichincha)
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    ID de Comercio (Merchant ID)
+                    <input
+                      value={deunaConfig.merchantId}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, merchantId: e.target.value })}
+                      placeholder="DEUNA-DEMO-001"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    API Key (Clave Pública)
+                    <input
+                      value={deunaConfig.apiKey}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, apiKey: e.target.value })}
+                      placeholder="sandbox_key_..."
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    API Secret (Clave Secreta)
+                    <input
+                      type="password"
+                      value={deunaConfig.apiSecret}
+                      onChange={e => setDeunaConfig({ ...deunaConfig, apiSecret: e.target.value })}
+                      placeholder="••••••••••••"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', fontSize: '11.5px', color: '#1e3a8a', marginTop: 'auto' }}>
+                    🧪 <b>Botón de Simulación:</b> En modo Sandbox, el Punto de Venta y el Portal de Cotizaciones incluyen un botón para simular la confirmación del pago en 1 clic para validar el flujo completo.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={savingDeuna}
+                style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 700, background: '#028090', borderColor: '#00a896' }}
+              >
+                {savingDeuna ? 'Guardando...' : '💾 Guardar Configuración DeUna'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/* TAB 5: PAYPHONE CARDS CONFIGURATION */}
+      {tab === 'payphone' && (
+        <section className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>💳</span> Configuración Pasarela de Pagos Payphone (Tarjetas de Crédito / Débito)
+              </h3>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                Conecta tu cuenta Payphone Developer para procesar cobros con Visa, Mastercard, Diners y Discover tanto en el Punto de Venta como en el Portal de Cotizaciones.
+              </p>
+            </div>
+            {loadingPayphone && <span style={{ fontSize: '12px', color: '#64748b' }}>Cargando parámetros...</span>}
+          </div>
+
+          <form onSubmit={savePayphoneConfig} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+              {/* BLOQUE 1: PARAMETROS OPERATIVOS */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  ⚙️ Parámetros del Servicio
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      className="matrix-checkbox"
+                      checked={payphoneConfig.enabled}
+                      onChange={e => setPayphoneConfig({ ...payphoneConfig, enabled: e.target.checked })}
+                    />
+                    Habilitar cobros con tarjeta Payphone en esta tienda
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Ambiente de Conexión
+                    <select
+                      value={payphoneConfig.environment}
+                      onChange={e => setPayphoneConfig({ ...payphoneConfig, environment: e.target.value })}
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    >
+                      <option value="SANDBOX">Pruebas / Sandbox (Simulación instantánea sin dinero real)</option>
+                      <option value="PRODUCTION">Producción (Cobros reales con tarjeta de crédito/débito)</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    ID de Tienda / Sucursal Payphone (Store ID)
+                    <input
+                      value={payphoneConfig.storeId}
+                      onChange={e => setPayphoneConfig({ ...payphoneConfig, storeId: e.target.value })}
+                      placeholder="STORE-DEMO-001"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '10px 12px', fontSize: '11.5px', color: '#9a3412', marginTop: 8 }}>
+                    💡 <b>Conciliación de Caja:</b> Todas las ventas cobradas con Payphone se registran automáticamente bajo la modalidad de pago <b>TARJETA</b> para cuadre automático con tu datáfono y arqueo de caja.
+                  </div>
+                </div>
+              </div>
+
+              {/* BLOQUE 2: CREDENCIALES DE API */}
+              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0f172a', borderBottom: '1px solid #cbd5e1', paddingBottom: 6 }}>
+                  🔐 Credenciales de API Payphone Developer
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    ID de Cliente (Client ID)
+                    <input
+                      value={payphoneConfig.clientId}
+                      onChange={e => setPayphoneConfig({ ...payphoneConfig, clientId: e.target.value })}
+                      placeholder="PAYPHONE-DEMO-001"
+                      required
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                    Token de Autenticación Privado (Bearer Token)
+                    <input
+                      type="password"
+                      value={payphoneConfig.token}
+                      onChange={e => setPayphoneConfig({ ...payphoneConfig, token: e.target.value })}
+                      placeholder="••••••••••••"
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                    />
+                  </label>
+
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', fontSize: '11.5px', color: '#1e3a8a', marginTop: 'auto' }}>
+                    🧪 <b>Simulador Sandbox:</b> En modo Sandbox, podrás probar cobros de prueba con botones para Visa Débito, Mastercard Internacional y Diners Club sin costo alguno.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={savingPayphone}
+                style={{ padding: '10px 24px', fontSize: '13px', fontWeight: 700, background: '#ea580c', borderColor: '#c2410c' }}
+              >
+                {savingPayphone ? 'Guardando...' : '💾 Guardar Configuración Payphone'}
               </button>
             </div>
           </form>
@@ -9261,7 +11483,7 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const maxChartVal = dailyTrend.reduce((m, d) => Math.max(m, Number(d.revenue || 0)), 10);
 
   return (
-    <>
+    <div id="printable-financial-report">
       <section className="inventory-hero">
         <div>
           <span className="eyebrow">INTELIGENCIA DE NEGOCIOS & FINANZAS</span>
@@ -9269,7 +11491,7 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <p>Supervisa ingresos reales, costo de venta (COGS), márgenes de ganancia y valorización del stock.</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="secondary-action" onClick={() => window.print()}>🖨️ Imprimir Reporte</button>
+          <button className="secondary-action" onClick={() => printTicketElement('printable-financial-report')}>🖨️ Imprimir Reporte</button>
           <button className="primary-action" onClick={load}>Actualizar</button>
         </div>
       </section>
@@ -9518,7 +11740,7 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           )}
         </div>
       </section>
-    </>
+    </div>
   );
 }
 function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(msg:string)=>void, go?:(page:string)=>void}){
@@ -9530,6 +11752,7 @@ function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Re
 
   // Modals
   const [selectedCert, setSelectedCert] = React.useState<Any|null>(null);
+  const [certPaperWidth, setCertPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
   const [claimTarget, setClaimTarget] = React.useState<Any|null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
   const [voidTarget, setVoidTarget] = React.useState<Any|null>(null);
@@ -10030,17 +12253,26 @@ function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Re
       {/* MODAL: Certificado Oficial Térmico 80mm + QR + WhatsApp */}
       {selectedCert && (
         <div className="modal-overlay" onClick={() => setSelectedCert(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: 420}}>
-            <div className="modal-header">
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: certPaperWidth === '58mm' ? 330 : 430, transition: 'max-width 0.2s'}}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div>
                 <h3 style={{margin: 0}}>📜 Certificado de Garantía</h3>
-                <small style={{color: '#64748b'}}>Ticket oficial 80mm para el cliente</small>
+                <small style={{color: '#64748b'}}>Ticket oficial ({certPaperWidth}) para el cliente</small>
               </div>
-              <button className="modal-close" onClick={() => setSelectedCert(null)}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TicketFormatSelector
+                  value={certPaperWidth}
+                  onChange={w => {
+                    setCertPaperWidth(w);
+                    setStoredPaperWidth(w);
+                  }}
+                />
+                <button className="modal-close" onClick={() => setSelectedCert(null)}>✕</button>
+              </div>
             </div>
 
             <div className="cert-container">
-              <div id="printable-warranty-cert" className="thermal-cert">
+              <div id="printable-warranty-cert" className={`thermal-cert paper-${certPaperWidth}`}>
                 <div className="cert-header">
                   <h4 className="cert-store">Fixme Tiendas</h4>
                   <p className="cert-subtitle">Servicio Técnico y Garantías Oficiales</p>
@@ -10106,10 +12338,11 @@ function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Re
                 {/* QR Code */}
                 <div className="cert-qr-wrap">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=${certPaperWidth === '58mm' ? '100x100' : '160x160'}&data=${encodeURIComponent(
                       `${window.location.origin}/public/warranties/verify?token=${selectedCert.tenant_id}.${selectedCert.warranty_code}`
                     )}`}
                     alt="QR Garantía"
+                    style={{ maxWidth: certPaperWidth === '58mm' ? '85px' : '130px', margin: '0 auto' }}
                   />
                   <div className="cert-qr-hint">Escanee para verificar vigencia oficial en línea</div>
                 </div>
@@ -10132,9 +12365,9 @@ function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Re
                 <button
                   type="button"
                   className="btn-print"
-                  onClick={() => window.print()}
+                  onClick={() => printTicketElement('printable-warranty-cert', certPaperWidth)}
                 >
-                  🖨️ Imprimir (80mm)
+                  🖨️ Imprimir ({certPaperWidth})
                 </button>
                 <button
                   type="button"

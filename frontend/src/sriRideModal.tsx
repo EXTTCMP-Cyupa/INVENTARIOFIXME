@@ -1,4 +1,5 @@
 import React from 'react';
+import { printTicketElement } from './ticketPrinter';
 
 interface SriRideModalProps {
   invoiceId: string;
@@ -287,7 +288,7 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
             type="button"
             className="primary-action"
             style={{ flex: 1, minWidth: '150px' }}
-            onClick={() => window.print()}
+            onClick={() => printTicketElement('printable-ride')}
           >
             🖨️ Imprimir RIDE (A4)
           </button>
