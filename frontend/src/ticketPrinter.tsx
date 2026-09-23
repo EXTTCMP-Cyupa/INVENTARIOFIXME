@@ -32,6 +32,124 @@ export function setStoredPaperWidth(format: TicketPaperWidth) {
   document.body.setAttribute('data-print-format', format);
 }
 
+export interface CompanyReceiptInfo {
+  storeName: string;
+  slogan: string;
+  legalName: string;
+  ruc: string;
+  matrixAddress: string;
+  branchAddress: string;
+  phone: string;
+  email: string;
+  taxRegime: string;
+  sriEnvText: string;
+}
+
+export function getCompanyReceiptInfo(
+  sale?: Record<string, any>,
+  companyProfile?: Record<string, any>
+): CompanyReceiptInfo {
+  const storeName =
+    sale?.storeName ||
+    sale?.store_name ||
+    companyProfile?.nombre_comercial ||
+    companyProfile?.nombreComercial ||
+    companyProfile?.name ||
+    localStorage.tenantName ||
+    'FIXMETIENDAS';
+
+  const slogan =
+    sale?.storeSlogan ||
+    sale?.store_slogan ||
+    companyProfile?.slogan ||
+    companyProfile?.catalog_description ||
+    localStorage.tenantSlogan ||
+    'Con la Mejor Innovación en Tecnología';
+
+  const legalName =
+    sale?.storeLegalName ||
+    sale?.store_legal_name ||
+    sale?.companyName ||
+    sale?.company_name ||
+    companyProfile?.sri_razon_social ||
+    companyProfile?.razonSocial ||
+    companyProfile?.legal_name ||
+    companyProfile?.legalName ||
+    localStorage.tenantLegalName ||
+    storeName;
+
+  const ruc =
+    sale?.storeRuc ||
+    sale?.store_ruc ||
+    companyProfile?.sri_ruc ||
+    companyProfile?.ruc ||
+    companyProfile?.tax_id ||
+    companyProfile?.taxId ||
+    localStorage.tenantRuc ||
+    '1790012345001';
+
+  const matrixAddress =
+    sale?.storeAddress ||
+    sale?.store_address ||
+    companyProfile?.sri_direccion_matriz ||
+    companyProfile?.direccionMatriz ||
+    companyProfile?.address ||
+    localStorage.tenantAddress ||
+    'Matriz Principal, Ecuador';
+
+  const branchAddress =
+    sale?.branchName ||
+    sale?.branch_name ||
+    sale?.storeBranchAddress ||
+    sale?.store_branch_address ||
+    companyProfile?.sri_direccion_establecimiento ||
+    companyProfile?.direccionEstablecimiento ||
+    'Principal';
+
+  const phone =
+    sale?.storePhone ||
+    sale?.store_phone ||
+    companyProfile?.phone ||
+    localStorage.tenantPhone ||
+    '0994175857';
+
+  const email =
+    sale?.storeEmail ||
+    sale?.store_email ||
+    companyProfile?.email ||
+    companyProfile?.billing_contact_email ||
+    localStorage.tenantEmail ||
+    'contacto@fixmetiendas.com';
+
+  const rawRegime =
+    sale?.storeTaxRegime ||
+    sale?.store_tax_regime ||
+    companyProfile?.sri_regimen_tributario ||
+    companyProfile?.regimenTributario ||
+    'GENERAL';
+  const taxRegime = String(rawRegime).replace(/_/g, ' ').toUpperCase();
+
+  const isProd =
+    sale?.storeSriEnv === 2 ||
+    sale?.ambiente_sri === 2 ||
+    companyProfile?.sri_ambiente === 2 ||
+    companyProfile?.ambienteSri === 2;
+  const sriEnvText = isProd ? 'Producción' : 'Pruebas';
+
+  return {
+    storeName,
+    slogan,
+    legalName,
+    ruc,
+    matrixAddress,
+    branchAddress,
+    phone,
+    email,
+    taxRegime,
+    sriEnvText
+  };
+}
+
 /**
  * Imprime cualquier elemento o ticket en un iframe aislado e independiente.
  * Esto elimina de raíz el problema de páginas en blanco en Chrome/Edge al imprimir
@@ -157,77 +275,352 @@ export function printTicketElement(elementId: string, customWidth?: TicketPaperW
       width: ${targetWidth} !important;
       max-width: ${targetWidth} !important;
       padding: ${isA4 ? '0' : (is58mm ? '0 1mm' : '0 2.5mm')} !important;
-      font-size: ${is58mm ? '9.5px' : '11.5px'} !important;
-      line-height: ${is58mm ? '1.25' : '1.35'} !important;
-      font-family: 'Courier New', Courier, monospace !important;
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+      -webkit-font-smoothing: antialiased !important;
+      -moz-osx-font-smoothing: grayscale !important;
+      text-rendering: geometricPrecision !important;
+      font-variant-numeric: tabular-nums !important;
+      font-feature-settings: "tnum" !important;
+      letter-spacing: -0.15px !important;
     }
 
-    /* Tipografía y espaciado térmico ultra-nítido */
-    .thermal-center { text-align: center !important; }
-    .receipt-header { text-align: center !important; margin-bottom: 8px !important; }
-    .receipt-header h2, .thermal-title {
-      font-size: ${is58mm ? '13px' : '16px'} !important;
-      font-weight: 900 !important;
-      margin: 0 0 2px 0 !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.5px !important;
+    /* MÁXIMO CONTRASTE TÉRMICO: NEGRO 100% SÓLIDO (#000000) Y SIN GRISES PARA EVITAR TRAMADO */
+    ${!isA4 ? `
+    #${elementId},
+    #${elementId} *,
+    .thermal-receipt, .thermal-receipt *,
+    .receipt-80mm-container, .receipt-80mm-container *,
+    .ticket-preview, .ticket-preview *,
+    .thermal-cert, .thermal-cert * {
+      color: #000000 !important;
+      -webkit-text-fill-color: #000000 !important;
+      text-shadow: none !important;
+      opacity: 1 !important;
     }
-    .receipt-header p, .thermal-sub {
-      font-size: ${is58mm ? '8.5px' : '10.5px'} !important;
-      margin: 1.5px 0 !important;
+
+    #${elementId} hr, #${elementId} tr, #${elementId} td, #${elementId} th,
+    #${elementId} div, #${elementId} span, #${elementId} p,
+    .receipt-divider-dash, .receipt-divider-double, .thermal-divider, .ticket-divider,
+    .cert-section, .cert-header, .cert-footer, .barcode-tag-card {
+      border-color: #000000 !important;
+    }
+
+    #${elementId} div, #${elementId} span, #${elementId} p, #${elementId} a, #${elementId} small,
+    .receipt-meta-row, .thermal-row, .cert-row, .cert-terms {
+      background-color: transparent !important;
+      background: transparent !important;
+    }
+
+    strong, b, th,
+    .receipt-section-title,
+    .receipt-total-row,
+    .thermal-row.total-highlight,
+    .receipt-header h2,
+    .thermal-title,
+    .ticket-preview h2,
+    .font-bold, .font-semibold, .font-black {
+      font-weight: 900 !important;
+    }
+
+    .receipt-meta-row > span:first-child,
+    .thermal-row > span:first-child,
+    .ticket-meta > span:first-child,
+    .cert-row > span:first-child {
+      font-weight: 800 !important;
+    }
+    ` : ''}
+
+    /* JERARQUÍA TIPOGRÁFICA ESC/POS FONT A TRADICIONAL */
+    .thermal-center, .ticket-center { text-align: center !important; }
+    .receipt-header { text-align: center !important; margin-bottom: 6px !important; }
+
+    /* 1. Nombre/logotipo del establecimiento (2x1, negrita, mayor tamaño visual) */
+    .receipt-header h2, .thermal-title, .ticket-preview h2 {
+      font-size: ${is58mm ? '20px' : '22px'} !important;
+      line-height: ${is58mm ? '24px' : '26px'} !important;
+      font-weight: 900 !important;
+      margin: 0 0 3px 0 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.2px !important;
+      text-align: center !important;
       color: #000000 !important;
     }
-    .receipt-divider-dash, .thermal-divider {
-      border-top: 1px dashed #000000 !important;
-      margin: ${is58mm ? '4px 0' : '6px 0'} !important;
-    }
-    .receipt-divider-double {
-      border-top: 2px dashed #000000 !important;
-      margin: ${is58mm ? '5px 0' : '8px 0'} !important;
-    }
-    .receipt-table, .thermal-table {
-      width: 100% !important;
-      border-collapse: collapse !important;
-      font-size: ${is58mm ? '8.5px' : '11px'} !important;
-      margin: 4px 0 !important;
+
+    /* 2. Encabezados y etiquetas (Font A, 1x1, Negrita) */
+    .receipt-section-title {
+      font-weight: 800 !important;
+      text-transform: uppercase !important;
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      margin: 5px 0 2px 0 !important;
+      letter-spacing: -0.15px !important;
+      color: #000000 !important;
     }
     .receipt-table th, .thermal-table th {
-      border-bottom: 1px dashed #000000 !important;
-      padding: 2px 0 !important;
+      border-bottom: 1.5px dashed #000000 !important;
+      padding: 2.5px 0 !important;
       font-weight: 800 !important;
       text-align: left !important;
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      text-transform: uppercase !important;
+      letter-spacing: -0.15px !important;
+      color: #000000 !important;
     }
-    .receipt-table td, .thermal-table td {
-      padding: 2px 0 !important;
-      vertical-align: top !important;
+    .receipt-meta-row strong, .thermal-row strong, .receipt-table td b, .thermal-table td b {
+      font-weight: 800 !important;
+      color: #000000 !important;
+    }
+
+    /* 3. Información general (Font A, 1x1, Peso normal) */
+    .receipt-header p, .thermal-sub {
+      font-size: ${is58mm ? '11.5px' : '12.5px'} !important;
+      line-height: ${is58mm ? '15px' : '16px'} !important;
+      margin: 1.5px 0 !important;
+      color: #000000 !important;
+      font-weight: normal !important;
+      letter-spacing: -0.15px !important;
     }
     .receipt-meta-row, .thermal-row {
       display: flex !important;
       justify-content: space-between !important;
-      font-size: ${is58mm ? '9px' : '11px'} !important;
-      margin: 1.5px 0 !important;
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      margin: 2px 0 !important;
+      font-weight: normal !important;
+      letter-spacing: -0.15px !important;
+      color: #000000 !important;
     }
+    .receipt-meta-row span, .thermal-row span {
+      font-weight: normal !important;
+      color: #000000 !important;
+    }
+
+    /* 4. Detalle de productos (Font A, 1x1, Monoespaciada, columnas alineadas) */
+    .receipt-table, .thermal-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      margin: 4px 0 !important;
+      font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+      font-variant-numeric: tabular-nums !important;
+      letter-spacing: -0.15px !important;
+      color: #000000 !important;
+    }
+    .receipt-table td, .thermal-table td {
+      font-size: ${is58mm ? '12px' : '13px'} !important;
+      line-height: ${is58mm ? '15px' : '17px'} !important;
+      padding: 2px 0 !important;
+      vertical-align: top !important;
+      font-weight: normal !important;
+      color: #000000 !important;
+    }
+
+    /* 5. Totales (Font A, 1x1, Etiquetas importantes en negrita) */
     .receipt-total-row, .thermal-row.total-highlight {
       display: flex !important;
       justify-content: space-between !important;
-      font-size: ${is58mm ? '12px' : '14px'} !important;
+      font-size: ${is58mm ? '13px' : '15px'} !important;
+      line-height: ${is58mm ? '17px' : '19px'} !important;
       font-weight: 900 !important;
       margin: 4px 0 !important;
+      letter-spacing: 0px !important;
+      color: #000000 !important;
     }
+
+    /* Líneas divisorias compactas */
+    .receipt-divider-dash, .thermal-divider, .ticket-divider {
+      border-top: 1.5px dashed #000000 !important;
+      margin: 4px 0 !important;
+    }
+    .receipt-divider-double {
+      border-top: 2px dashed #000000 !important;
+      margin: 5px 0 !important;
+    }
+
+    /* --- TECNAMAX REFERENCE TICKET FORMAT (58mm & 80mm) --- */
+    .receipt-header-fiscal {
+      text-align: center !important;
+      margin-bottom: 6px !important;
+      line-height: 1.25 !important;
+    }
+    .receipt-store-title {
+      font-size: ${is58mm ? '18px' : '20px'} !important;
+      font-weight: 900 !important;
+      margin: 0 0 1px 0 !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+      color: #000000 !important;
+      text-align: center !important;
+    }
+    .receipt-store-slogan {
+      font-size: 10px !important;
+      font-style: italic !important;
+      margin: 0 0 3px 0 !important;
+      color: #000000 !important;
+      text-align: center !important;
+    }
+    .receipt-company-line {
+      font-size: 10.5px !important;
+      line-height: 1.3 !important;
+      margin: 1px 0 !important;
+      color: #000000 !important;
+      text-align: center !important;
+    }
+
+    /* Fiscal & Customer Metadata List */
+    .receipt-meta-block {
+      width: 100% !important;
+      font-size: 11px !important;
+      line-height: 1.35 !important;
+      margin: 4px 0 !important;
+      color: #000000 !important;
+    }
+    .receipt-meta-entry {
+      display: flex !important;
+      justify-content: flex-start !important;
+      margin: 1.5px 0 !important;
+      font-size: 11px !important;
+      color: #000000 !important;
+    }
+    .receipt-meta-tag {
+      font-weight: 800 !important;
+      min-width: 82px !important;
+      text-transform: uppercase !important;
+      color: #000000 !important;
+      letter-spacing: -0.15px !important;
+    }
+    .receipt-meta-content {
+      flex: 1 !important;
+      word-break: break-word !important;
+      color: #000000 !important;
+    }
+
+    /* 2-Tier Product Table */
+    .receipt-products-table {
+      width: 100% !important;
+      margin: 4px 0 !important;
+      border-collapse: collapse !important;
+    }
+    .receipt-col-headers {
+      display: flex !important;
+      justify-content: space-between !important;
+      font-weight: 800 !important;
+      font-size: 11px !important;
+      border-bottom: 1.5px dashed #000000 !important;
+      padding: 3px 0 !important;
+      text-transform: uppercase !important;
+      letter-spacing: -0.15px !important;
+      color: #000000 !important;
+    }
+    .receipt-item-group {
+      border-bottom: 1px dashed #000000 !important;
+      padding: 3px 0 !important;
+      font-size: 11px !important;
+      color: #000000 !important;
+    }
+    .receipt-item-line-main {
+      display: flex !important;
+      gap: 5px !important;
+      line-height: 1.25 !important;
+      color: #000000 !important;
+    }
+    .receipt-item-sku-col {
+      font-weight: 700 !important;
+      min-width: 60px !important;
+      font-variant-numeric: tabular-nums !important;
+      color: #000000 !important;
+    }
+    .receipt-item-qty-col {
+      font-weight: 800 !important;
+      min-width: 25px !important;
+      text-align: center !important;
+      font-variant-numeric: tabular-nums !important;
+      color: #000000 !important;
+    }
+    .receipt-item-desc-col {
+      flex: 1 !important;
+      word-break: break-word !important;
+      color: #000000 !important;
+    }
+    .receipt-item-line-sub {
+      display: flex !important;
+      justify-content: flex-end !important;
+      gap: 16px !important;
+      font-size: 10.5px !important;
+      margin-top: 2px !important;
+      color: #000000 !important;
+      font-variant-numeric: tabular-nums !important;
+    }
+
+    /* Fiscal Totals Summary */
+    .receipt-fiscal-totals {
+      width: 100% !important;
+      margin: 5px 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-end !important;
+    }
+    .receipt-fiscal-row {
+      display: flex !important;
+      justify-content: space-between !important;
+      width: ${is58mm ? '88%' : '75%'} !important;
+      font-size: 11px !important;
+      margin: 1px 0 !important;
+      color: #000000 !important;
+    }
+    .receipt-fiscal-row.highlight {
+      width: ${is58mm ? '92%' : '80%'} !important;
+      font-size: 13.5px !important;
+      font-weight: 900 !important;
+      border-top: 1.5px dashed #000000 !important;
+      border-bottom: 1.5px dashed #000000 !important;
+      padding: 3px 0 !important;
+      margin-top: 3px !important;
+      color: #000000 !important;
+    }
+
+    /* Observations Block */
+    .receipt-obs-section {
+      font-size: 10.5px !important;
+      line-height: 1.35 !important;
+      margin: 4px 0 !important;
+      color: #000000 !important;
+    }
+
+    /* Warranty Clause Textual */
+    .receipt-warranty-box {
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      text-align: center !important;
+      line-height: 1.35 !important;
+      margin: 6px 0 !important;
+      text-transform: uppercase !important;
+      color: #000000 !important;
+    }
+
+    /* Códigos QR y pie de comprobante */
     .receipt-qr-wrap, .cert-qr-wrap {
       text-align: center !important;
-      margin: 8px 0 4px !important;
+      margin: 10px 0 6px !important;
     }
     .receipt-qr-wrap img, .cert-qr-wrap img, img {
-      max-width: ${is58mm ? '80px' : '105px'} !important;
-      max-height: ${is58mm ? '80px' : '105px'} !important;
+      max-width: ${is58mm ? '130px' : '160px'} !important;
+      max-height: ${is58mm ? '130px' : '160px'} !important;
+      width: ${is58mm ? '130px' : '160px'} !important;
+      height: ${is58mm ? '130px' : '160px'} !important;
       display: inline-block !important;
-      height: auto !important;
     }
     .receipt-footer-text {
       text-align: center !important;
-      font-size: ${is58mm ? '8.5px' : '10.5px'} !important;
+      font-size: ${is58mm ? '11px' : '12px'} !important;
+      line-height: ${is58mm ? '14px' : '16px'} !important;
       margin-top: 8px !important;
+      font-weight: normal !important;
+      letter-spacing: -0.15px !important;
     }
 
     /* Barcodes Grid */

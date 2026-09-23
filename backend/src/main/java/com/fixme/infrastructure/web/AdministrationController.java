@@ -28,24 +28,83 @@ public class AdministrationController {
   }
 
   @GetMapping("/profile")
-  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN')")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SUPER_ADMIN','SCOPE_SELLER','SCOPE_TECHNICIAN','SCOPE_DELIVERY','SCOPE_ACCOUNTANT')")
   public Map<String, Object> profile(@AuthenticationPrincipal Jwt j) {
     UUID t = tenant(j);
     ctx(t);
-    return db.queryForMap(
-        "select id,name,business_type,legal_name,tax_id,address,phone,logo_url,plan,subscription_status,limits from tenants where id=?",
+    Map<String, Object> tenantData = db.queryForMap(
+        "select id,name,business_type,legal_name,tax_id,address,phone,logo_url,plan,subscription_status,limits,monthly_fee,next_billing_date,catalog_description as slogan,billing_contact_email as email from tenants where id=?",
         t);
+    Map<String, Object> out = new LinkedHashMap<>(tenantData);
+
+    try {
+      List<Map<String, Object>> sriRows = db.queryForList(
+          "select ruc, razon_social, nombre_comercial, direccion_matriz, direccion_establecimiento, regimen_tributario, ambiente_sri from tenant_sri_config where tenant_id=?",
+          t);
+      if (!sriRows.isEmpty()) {
+        var sri = sriRows.get(0);
+        out.put("sri_ruc", sri.get("ruc"));
+        out.put("sri_razon_social", sri.get("razon_social"));
+        out.put("sri_nombre_comercial", sri.get("nombre_comercial"));
+        out.put("sri_direccion_matriz", sri.get("direccion_matriz"));
+        out.put("sri_direccion_establecimiento", sri.get("direccion_establecimiento"));
+        out.put("sri_regimen_tributario", sri.get("regimen_tributario"));
+        out.put("sri_ambiente", sri.get("ambiente_sri"));
+
+        if ((out.get("legal_name") == null || String.valueOf(out.get("legal_name")).isBlank()) && sri.get("razon_social") != null) {
+          out.put("legal_name", sri.get("razon_social"));
+        }
+        if ((out.get("tax_id") == null || String.valueOf(out.get("tax_id")).isBlank()) && sri.get("ruc") != null) {
+          out.put("tax_id", sri.get("ruc"));
+        }
+        if ((out.get("address") == null || String.valueOf(out.get("address")).isBlank()) && sri.get("direccion_matriz") != null) {
+          out.put("address", sri.get("direccion_matriz"));
+        }
+        if ((out.get("name") == null || "Demo tenant".equalsIgnoreCase(String.valueOf(out.get("name")))) && sri.get("nombre_comercial") != null) {
+          out.put("name", sri.get("nombre_comercial"));
+        }
+      }
+    } catch (Exception ignored) {}
+
+    return out;
   }
 
   @PatchMapping("/profile")
-  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_SUPER_ADMIN')")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_SUPER_ADMIN','SCOPE_MANAGER')")
   public Map<String, Object> update(@AuthenticationPrincipal Jwt j, @RequestBody Map<String, Object> x) {
     UUID t = tenant(j);
     ctx(t);
+
+    Object nameVal = x.get("name");
+    Object bTypeVal = x.get("businessType") != null ? x.get("businessType") : x.get("business_type");
+    Object legalNameVal = x.get("legalName") != null ? x.get("legalName") : x.get("legal_name");
+    Object taxIdVal = x.get("taxId") != null ? x.get("taxId") : x.get("tax_id");
+    Object addressVal = x.get("address");
+    Object phoneVal = x.get("phone");
+    Object logoUrlVal = x.get("logoUrl") != null ? x.get("logoUrl") : x.get("logo_url");
+    Object planVal = x.get("plan");
+    Object sloganVal = x.get("slogan") != null ? x.get("slogan") : x.get("catalog_description");
+    Object emailVal = x.get("email") != null ? x.get("email") : x.get("billing_contact_email");
+
     db.update(
-        "update tenants set name=coalesce(?,name),business_type=coalesce(?,business_type),legal_name=coalesce(?,legal_name),tax_id=coalesce(?,tax_id),address=coalesce(?,address),phone=coalesce(?,phone),logo_url=coalesce(?,logo_url),plan=coalesce(?,plan) where id=?",
-        x.get("name"), x.get("businessType"), x.get("legalName"), x.get("taxId"), x.get("address"), x.get("phone"),
-        x.get("logoUrl"), x.get("plan"), t);
+        "update tenants set name=coalesce(?,name),business_type=coalesce(?,business_type),legal_name=coalesce(?,legal_name),tax_id=coalesce(?,tax_id),address=coalesce(?,address),phone=coalesce(?,phone),logo_url=coalesce(?,logo_url),plan=coalesce(?,plan),catalog_description=coalesce(?,catalog_description),billing_contact_email=coalesce(?,billing_contact_email) where id=?",
+        nameVal, bTypeVal, legalNameVal, taxIdVal, addressVal, phoneVal,
+        logoUrlVal, planVal, sloganVal, emailVal, t);
+
+    if (taxIdVal != null || legalNameVal != null || nameVal != null || addressVal != null) {
+      try {
+        db.update("""
+            UPDATE tenant_sri_config
+            SET ruc = COALESCE(?, ruc),
+                razon_social = COALESCE(?, razon_social),
+                nombre_comercial = COALESCE(?, nombre_comercial),
+                direccion_matriz = COALESCE(?, direccion_matriz),
+                updated_at = now()
+            WHERE tenant_id = ?
+            """, taxIdVal, legalNameVal, nameVal, addressVal, t);
+      } catch (Exception ignored) {}
+    }
+
     return profile(j);
   }
 

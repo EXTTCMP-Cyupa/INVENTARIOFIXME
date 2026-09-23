@@ -8,7 +8,7 @@ import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptMo
 import { DeUnaModal } from './deunaModal';
 import { PayphoneModal } from './payphoneModal';
 import { LandingPage } from './landingPage';
-import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement } from './ticketPrinter';
+import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement, getCompanyReceiptInfo } from './ticketPrinter';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
 const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
@@ -23,7 +23,55 @@ const[trialInfo,setTrialInfo]=React.useState<{isTrial?:boolean;daysRemaining?:nu
   return null;
 });
 const[showTrialModal,setShowTrialModal]=React.useState(false);
+const [companyInfo, setCompanyInfo] = React.useState<Any>(() => ({
+  name: localStorage.tenantName || 'FIXMETIENDAS',
+  legalName: localStorage.tenantLegalName || localStorage.tenantName || 'FIXMETIENDAS',
+  ruc: localStorage.tenantRuc || '1790012345001',
+  address: localStorage.tenantAddress || 'Matriz Principal, Ecuador',
+  phone: localStorage.tenantPhone || '0994175857',
+  email: localStorage.tenantEmail || 'contacto@fixmetiendas.com',
+  slogan: localStorage.tenantSlogan || 'Con la Mejor Innovación en Tecnología'
+}));
+
 React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
+React.useEffect(() => {
+  if (token && !isSaasOwner) {
+    api('/api/administration/profile')
+      .then(r => r.ok ? r.json() : null)
+      .then((p: Any) => {
+        if (p) {
+          const lName = p.sri_razon_social || p.legal_name || p.name || localStorage.tenantName || 'FIXMETIENDAS';
+          const rucVal = p.sri_ruc || p.tax_id || localStorage.tenantRuc || '1790012345001';
+          const addr = p.sri_direccion_matriz || p.address || localStorage.tenantAddress || 'Matriz Principal, Ecuador';
+          const ph = p.phone || localStorage.tenantPhone || '0994175857';
+          const em = p.email || p.billing_contact_email || localStorage.tenantEmail || 'contacto@fixmetiendas.com';
+          const slog = p.slogan || p.catalog_description || localStorage.tenantSlogan || 'Con la Mejor Innovación en Tecnología';
+          const nm = p.name || localStorage.tenantName || 'FIXMETIENDAS';
+
+          localStorage.tenantName = nm;
+          localStorage.tenantLegalName = lName;
+          localStorage.tenantRuc = rucVal;
+          localStorage.tenantAddress = addr;
+          localStorage.tenantPhone = ph;
+          localStorage.tenantEmail = em;
+          localStorage.tenantSlogan = slog;
+
+          setCompanyInfo({
+            name: nm,
+            legalName: lName,
+            ruc: rucVal,
+            address: addr,
+            phone: ph,
+            email: em,
+            slogan: slog,
+            sriRegimen: p.sri_regimen_tributario,
+            sriAmbiente: p.sri_ambiente
+          });
+        }
+      })
+      .catch(() => {});
+  }
+}, [token, api, isSaasOwner]);
 React.useEffect(()=>{
   if(token&&!isSaasOwner){
     api('/api/tenant/trial-status')
@@ -72,7 +120,7 @@ const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'
     </div>
   </div>
 )}
-<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast}/>:page==='sales'&&visible.includes('sales')?<Sales api={api}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api}/>:page==='reports'&&visible.includes('reports')?<Reports api={api}/>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -1002,7 +1050,7 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
     </>
   );
 }
-function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
+function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promise<Response>, notify: (s:string)=>void, companyInfo?: Any}){
   const [products, setProducts] = React.useState<Any[]>([]);
   const [customers, setCustomers] = React.useState<Any[]>([]);
   const [cats, setCats] = React.useState<Any[]>([]);
@@ -2182,103 +2230,225 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
             </div>
 
             <div id="printable-ticket" className={`ticket-preview paper-${ticketPaperWidth}`}>
-              <h2>FIXMETIENDAS</h2>
-              <div className="ticket-center">Comprobante de Venta y Despacho</div>
-              <div className="ticket-divider"></div>
-              <div><strong>VENTA: #{receiptModal.sale?.id?.slice(0, 8)}</strong></div>
-              <div>Fecha: {new Date().toLocaleString()}</div>
-              {receiptModal.isOfflineSale ? (
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#92400e', fontSize: '11px', fontWeight: 700 }}>
-                  ⚠️ Venta registrada Offline (Folio: {receiptModal.sale?.offlineFolio}). Pendiente de sincronización.
-                </div>
-              ) : receiptModal.invoiceType === 'SRI_INVOICE' || receiptModal.sale?.invoiceNumber || receiptModal.sale?.electronicInvoice ? (
-                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#065f46', fontSize: '11px', fontWeight: 700 }}>
-                  🏛️ FACTURA ELECTRÓNICA SRI: {receiptModal.sale?.invoiceNumber || receiptModal.sale?.electronicInvoice?.numero_completo || 'EMITIDA'}
-                  {(receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso) && (
-                    <div style={{ fontSize: '9px', fontWeight: 'normal', color: '#047857', wordBreak: 'break-all', marginTop: '2px' }}>
-                      Clave Acceso: {receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '4px 6px', borderRadius: '4px', margin: '4px 0', color: '#64748b', fontSize: '10.5px' }}>
-                  🧾 Ticket de Venta Interno (Sin declaración de IVA)
-                </div>
-              )}
-              <div>Canal: {receiptModal.channel === 'ONLINE' ? 'Venta Online / Catálogo' : 'Venta en Local'}</div>
-              <div>Cliente: {receiptModal.customer ? receiptModal.customer.name : 'Consumidor Final'}</div>
-              {receiptModal.customer?.phone && <div>Teléfono: {receiptModal.customer.phone}</div>}
+              {/* CABECERA COMPACTA ESTILO TECNAMAX CON DATOS REALES DE LA EMPRESA */}
+              {(() => {
+                const comp = getCompanyReceiptInfo(receiptModal.sale, companyInfo);
+                const custName = receiptModal.customer?.name || (typeof receiptModal.customer === 'string' ? receiptModal.customer : '') || 'CONSUMIDOR FINAL';
+                const custRuc = receiptModal.customer?.identification || receiptModal.customer?.idNumber || receiptModal.customer?.identification_number || '9999999999999';
+                const custAddress = receiptModal.fulfillment === 'DELIVERY' && receiptModal.delivery?.address
+                  ? receiptModal.delivery.address
+                  : (receiptModal.customer?.address || 'QUITO, ECUADOR');
+                const custPhone = receiptModal.customer?.phone || receiptModal.delivery?.recipientPhone || '9999999999';
+                const custEmail = receiptModal.customer?.email || 'consumidor@final.com';
+                const sellerName = receiptModal.sale?.seller || receiptModal.sale?.sellerName || localStorage.fullName || 'VENDEDOR';
 
-              {receiptModal.fulfillment === 'DELIVERY' && (
-                <>
-                  <div className="ticket-divider"></div>
-                  <div><strong>🛵 DESPACHO A DOMICILIO</strong></div>
-                  {receiptModal.sale?.trackingNumber && (
-                    <div style={{ background: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', border: '1px solid #bbf7d0', color: '#166534', fontWeight: 700, fontSize: '11.5px' }}>
-                      📍 CÓDIGO DE SEGUIMIENTO: {receiptModal.sale.trackingNumber}
-                      <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#15803d', marginTop: '2px' }}>
-                        El cliente puede ver el estado y motorizado en vivo
+                return (
+                  <>
+                    <div className="receipt-header-fiscal">
+                      <div className="receipt-store-title">{comp.storeName}</div>
+                      <div className="receipt-store-slogan">{comp.slogan}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>{comp.legalName}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>RUC: {comp.ruc}</div>
+                      <div className="receipt-company-line">DIR MATRIZ: {comp.matrixAddress}</div>
+                      <div className="receipt-company-line">SUCURSAL: {comp.branchAddress}</div>
+                      <div className="receipt-company-line">Tlf: {comp.phone}</div>
+                      <div className="receipt-company-line">Email: {comp.email}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800, marginTop: '2px' }}>
+                        CONTRIBUYENTE RÉGIMEN {comp.taxRegime}
+                      </div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>
+                        NÚMERO: {receiptModal.sale?.invoiceNumber || `001-001-${(receiptModal.sale?.id || '00000000').slice(0, 8).toUpperCase()}`}
+                      </div>
+                      {(receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso) && (
+                        <div className="receipt-company-line" style={{ fontSize: '9px', wordBreak: 'break-all' }}>
+                          <strong>N AUTORIZACION:</strong> {receiptModal.sale?.accessKey || receiptModal.sale?.electronicInvoice?.clave_acceso}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="receipt-divider-dash" />
+
+                    {/* METADATOS Y CLIENTE (ETIQUETAS A LA IZQUIERDA EN NEGRITA) */}
+                    <div className="receipt-meta-block">
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">AMBIENTE:</span>
+                        <span className="receipt-meta-content">{comp.sriEnvText}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">RUC:</span>
+                        <span className="receipt-meta-content">{custRuc}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">NOMBRE:</span>
+                        <span className="receipt-meta-content">{custName}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">DIRECCIÓN:</span>
+                        <span className="receipt-meta-content">{custAddress}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">TELÉFONO:</span>
+                        <span className="receipt-meta-content">{custPhone}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">EMAIL:</span>
+                        <span className="receipt-meta-content">{custEmail}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">VENDEDOR:</span>
+                        <span className="receipt-meta-content">{sellerName}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">FECHA:</span>
+                        <span className="receipt-meta-content">
+                          {new Date().toLocaleDateString('es-EC', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {receiptModal.fulfillment === 'DELIVERY' && (
+                        <div className="receipt-meta-entry">
+                          <span className="receipt-meta-tag">DESPACHO:</span>
+                          <span className="receipt-meta-content">
+                            Motorizado Express {receiptModal.sale?.trackingNumber ? `(Guía: ${receiptModal.sale.trackingNumber})` : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <div className="receipt-divider-dash" />
+
+              {/* TABLA DE PRODUCTOS EN 2 NIVELES (COD - CANT - DETALLE / PRECIO - TOTAL) */}
+              <div className="receipt-products-table">
+                <div className="receipt-col-headers">
+                  <span style={{ minWidth: '60px' }}>COD</span>
+                  <span style={{ minWidth: '25px', textAlign: 'center' }}>CANT</span>
+                  <span style={{ flex: 1, textAlign: 'left', paddingLeft: '5px' }}>DETALLE</span>
+                </div>
+                {receiptModal.items.map((it: Any, idx: number) => {
+                  const qty = Number(it.quantity || 1);
+                  const price = Number(it.price || 0);
+                  const lineTotal = (qty * price).toFixed(2);
+                  const code = it.sku || it.barcode || `TEG${String(idx + 895).padStart(5, '0')}`;
+
+                  return (
+                    <div className="receipt-item-group" key={idx}>
+                      <div className="receipt-item-line-main">
+                        <span className="receipt-item-sku-col">{code}</span>
+                        <span className="receipt-item-qty-col">{qty}</span>
+                        <span className="receipt-item-desc-col">{it.name}</span>
+                      </div>
+                      <div className="receipt-item-line-sub">
+                        <span>PRECIO: ${price.toFixed(2)}</span>
+                        <span><strong>TOTAL: ${lineTotal}</strong></span>
                       </div>
                     </div>
-                  )}
-                  <div>Dirección: {receiptModal.delivery.address}</div>
-                  {receiptModal.delivery.recipientName && <div>Recibe: {receiptModal.delivery.recipientName}</div>}
-                  {receiptModal.delivery.recipientPhone && <div>Contacto: {receiptModal.delivery.recipientPhone}</div>}
-                  {receiptModal.delivery.notes && <div>Notas: {receiptModal.delivery.notes}</div>}
-                </>
-              )}
-
-              <div className="ticket-divider"></div>
-              <div><strong>DETALLE DE PRODUCTOS:</strong></div>
-              {receiptModal.items.map((it: Any, idx: number) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', margin: '2px 0' }}>
-                  <span>{it.quantity}x {it.name}</span>
-                  <span>${(Number(it.price) * it.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-
-              <div className="ticket-divider"></div>
-              {Number(receiptModal.discount || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#16a34a', margin: '2px 0' }}>
-                  <span>Descuento aplicado:</span>
-                  <span>-${Number(receiptModal.discount).toFixed(2)}</span>
-                </div>
-              )}
-              {receiptModal.shippingFee > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <span>Flete a domicilio:</span>
-                  <span>+${receiptModal.shippingFee.toFixed(2)}</span>
-                </div>
-              )}
-              <div style={{ fontSize: '14px', fontWeight: 800, margin: '4px 0' }}>
-                TOTAL PAGADO: ${receiptModal.grandTotal.toFixed(2)}
+                  );
+                })}
               </div>
-              {receiptModal.payMethod === 'DEUNA' || receiptModal.deUnaDetails ? (
-                <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#0f766e', fontSize: '11px', fontWeight: 700 }}>
-                  📱 Forma de pago: DeUna QR (Banco Pichincha / Interbancario)
-                  <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#0d9488', marginTop: '2px' }}>
+
+              <div className="receipt-divider-dash" />
+
+              {/* TOTALES FISCALES ALINEADOS A LA DERECHA */}
+              {(() => {
+                const total = Number(receiptModal.grandTotal || 0);
+                const discount = Number(receiptModal.discount || 0);
+                const shipping = Number(receiptModal.shippingFee || 0);
+                const tax = Number(receiptModal.tax || ((total - shipping) * 15 / 115));
+                const subtotal15 = Number(receiptModal.subtotal || ((total - shipping) - tax));
+                const subtotal0 = 0.00;
+                const subtotalSinImp = subtotal15 + subtotal0;
+
+                return (
+                  <div className="receipt-fiscal-totals">
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal 15%</span>
+                      <span>${subtotal15.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal 0%</span>
+                      <span>${subtotal0.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal sin Impuesto</span>
+                      <span>${subtotalSinImp.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Descuento %</span>
+                      <span>{discount > 0 ? `-$${discount.toFixed(2)}` : '$0.00'}</span>
+                    </div>
+                    {shipping > 0 && (
+                      <div className="receipt-fiscal-row">
+                        <span>Flete a Domicilio</span>
+                        <span>+${shipping.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="receipt-fiscal-row">
+                      <span>IVA 15%</span>
+                      <span>${tax.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row highlight">
+                      <span>Valor Total</span>
+                      <span>${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="receipt-divider-dash" />
+
+              {/* SECCIÓN DE OBSERVACIÓN Y FORMA DE PAGO */}
+              <div className="receipt-obs-section">
+                <div><strong>OBSERVACIÓN:</strong></div>
+                {receiptModal.payMethod === 'DEUNA' || receiptModal.deUnaDetails ? (
+                  <div>
+                    PAGO CON DEUNA QR (BANCO PICHINCHA)<br />
                     Ref: {receiptModal.deUnaDetails?.transactionId || 'DU-ONLINE'} · Aut: {receiptModal.deUnaDetails?.authorizationCode || 'AUTH-OK'}
                   </div>
-                </div>
-              ) : receiptModal.payMethod === 'PAYPHONE' || receiptModal.payphoneDetails ? (
-                <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', padding: '6px 8px', borderRadius: '6px', margin: '4px 0', color: '#c2410c', fontSize: '11px', fontWeight: 700 }}>
-                  💳 Forma de pago: Tarjeta {receiptModal.payphoneDetails?.cardBrand || 'CRÉDITO/DÉBITO'} (Payphone)
-                  <div style={{ fontSize: '9.5px', fontWeight: 'normal', color: '#9a3412', marginTop: '2px' }}>
-                    Tarjeta: **** {receiptModal.payphoneDetails?.cardLastDigits || '4242'} · Aut: {receiptModal.payphoneDetails?.authorizationCode || 'PP-AUTH'} · Ref: {receiptModal.payphoneDetails?.clientTransactionId || receiptModal.payphoneDetails?.transactionId}
+                ) : receiptModal.payMethod === 'PAYPHONE' || receiptModal.payphoneDetails ? (
+                  <div>
+                    PAGO CON TARJETA {receiptModal.payphoneDetails?.cardBrand || 'CRÉDITO/DÉBITO'}<br />
+                    Ref: {receiptModal.payphoneDetails?.authorizationCode || 'PP-AUTH'}
                   </div>
-                </div>
-              ) : (
-                <div>Forma de pago: {receiptModal.payMethod}</div>
-              )}
-              {receiptModal.cashTendered != null && (
-                <div>Efectivo recibido: ${receiptModal.cashTendered.toFixed(2)} · Cambio: ${receiptModal.change?.toFixed(2)}</div>
-              )}
+                ) : (
+                  <div>
+                    {receiptModal.payMethod === 'CASH' || !receiptModal.payMethod ? 'EFECTIVO' : receiptModal.payMethod.toUpperCase()}
+                    {receiptModal.cashTendered != null ? ` $${Number(receiptModal.cashTendered).toFixed(2)}` : ` $${receiptModal.grandTotal.toFixed(2)}`}
+                    {receiptModal.change != null && receiptModal.change > 0 ? ` · CAMBIO: $${receiptModal.change.toFixed(2)}` : ''}
+                  </div>
+                )}
+                {receiptModal.delivery?.notes && (
+                  <div style={{ marginTop: '2px' }}>Notas: {receiptModal.delivery.notes}</div>
+                )}
+              </div>
 
-              <div className="ticket-divider"></div>
-              <p style={{ fontSize: '9px', textAlign: 'center', color: '#64748b' }}>
-                ¡Gracias por su compra!<br />
-                Garantía y soporte garantizado por FixmeTiendas.
-              </p>
+              <div className="receipt-divider-dash" />
+
+              {/* CLÁUSULA OFICIAL DE GARANTÍA */}
+              <div className="receipt-warranty-box">
+                PARA TERMINOS DE GARANTIA DEBE PRESENTAR SU TICKET<br />
+                DE LO CONTRARIO NO TIENE GARANTIA EL PRODUCTO
+              </div>
+
+              {/* CÓDIGO QR PARA VALIDACIÓN DIGITAL */}
+              <div className="receipt-qr-wrap" style={{ textAlign: 'center', margin: '8px 0 4px' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                    `https://fixmetiendas.local/ticket/${receiptModal.sale?.id || 'TICKET'}`
+                  )}`}
+                  alt="QR Verificación"
+                  style={{
+                    width: ticketPaperWidth === '58mm' ? '120px' : '145px',
+                    height: ticketPaperWidth === '58mm' ? '120px' : '145px',
+                    display: 'inline-block',
+                    margin: '0 auto'
+                  }}
+                />
+                <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#000', marginTop: '3px' }}>
+                  Escanee para validar ticket y garantía oficial
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
@@ -2425,7 +2595,7 @@ function POS({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,noti
   );
 }
 
-function Sales({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
+function Sales({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Response>, companyInfo?: Any}){
   const [rows, setRows] = React.useState<Any[]>([]);
   const [filterChannel, setFilterChannel] = React.useState('ALL');
   const [filterFulfillment, setFilterFulfillment] = React.useState('ALL');
@@ -3140,291 +3310,244 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
 
             {/* THERMAL PAPER ROLL RECEIPT */}
             <div id="printable-sale-receipt" className={`receipt-80mm-container paper-${detailPaperWidth}`}>
-              <div className="receipt-header">
-                <h2>FIXMETIENDAS</h2>
-                <p><b>RUC:</b> 1792345678001</p>
-                <p><b>Sucursal:</b> {detailModal.branch_name || 'Principal'}</p>
-                <p>Quito, Ecuador · Tel: 0994175857</p>
-                <div className="receipt-divider-double" />
-                <div style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '0.5px' }}>
-                  COMPROBANTE DE VENTA & DESPACHO
-                </div>
-                <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                  CANAL: {detailModal.channel === 'ONLINE' ? 'VENTA EN LÍNEA / WHATSAPP' : 'VENTA EN TIENDA FÍSICA'}
-                </div>
-                {detailModal.invoice_number ? (
-                  <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 8px', borderRadius: '4px', margin: '6px 0', fontSize: '11px' }}>
-                    <div style={{ fontWeight: 800, color: '#065f46' }}>🏛️ FACTURA ELECTRÓNICA SRI N°: {detailModal.invoice_number}</div>
-                    <div style={{ fontSize: '9px', color: '#047857', wordBreak: 'break-all', marginTop: '2px' }}>
-                      Clave Acceso: {detailModal.invoice_access_key}
+              {/* CABECERA COMPACTA ESTILO TECNAMAX CON DATOS REALES DE LA EMPRESA */}
+              {(() => {
+                const comp = getCompanyReceiptInfo(detailModal, companyInfo);
+                const custName = detailModal.customer_name || detailModal.customer || 'CONSUMIDOR FINAL';
+                const custRuc = detailModal.customer_identification_number || detailModal.customer_identification || '9999999999999';
+                const custAddress = detailModal.delivery_address || detailModal.customer_address || 'QUITO, ECUADOR';
+                const custPhone = detailModal.customer_phone || detailModal.recipient_phone || '9999999999';
+                const custEmail = detailModal.customer_email || (detailModal.customer && typeof detailModal.customer === 'object' ? detailModal.customer.email : '') || 'consumidor@final.com';
+                const sellerName = detailModal.seller_name || detailModal.seller || localStorage.fullName || 'VENDEDOR';
+
+                return (
+                  <>
+                    <div className="receipt-header-fiscal">
+                      <div className="receipt-store-title">{comp.storeName}</div>
+                      <div className="receipt-store-slogan">{comp.slogan}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>{comp.legalName}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>RUC: {comp.ruc}</div>
+                      <div className="receipt-company-line">DIR MATRIZ: {comp.matrixAddress}</div>
+                      <div className="receipt-company-line">
+                        SUCURSAL: {comp.branchAddress}
+                      </div>
+                      <div className="receipt-company-line">Tlf: {comp.phone}</div>
+                      <div className="receipt-company-line">Email: {comp.email}</div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800, marginTop: '2px' }}>
+                        CONTRIBUYENTE RÉGIMEN {comp.taxRegime}
+                      </div>
+                      <div className="receipt-company-line" style={{ fontWeight: 800 }}>
+                        NÚMERO: {detailModal.invoice_number || `001-001-${(detailModal.id || '00000000').slice(0, 8).toUpperCase()}`}
+                      </div>
+                      {detailModal.invoice_access_key && (
+                        <div className="receipt-company-line" style={{ fontSize: '9px', wordBreak: 'break-all' }}>
+                          <strong>N AUTORIZACION:</strong> {detailModal.invoice_access_key}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: '9.5px', color: '#059669', marginTop: '2px' }}>
-                      Estado SRI: {detailModal.invoice_sri_status || 'AUTORIZADA'}
+
+                    <div className="receipt-divider-dash" />
+
+                    {/* METADATOS Y CLIENTE (ETIQUETAS A LA IZQUIERDA EN NEGRITA) */}
+                    <div className="receipt-meta-block">
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">AMBIENTE:</span>
+                        <span className="receipt-meta-content">{comp.sriEnvText}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">RUC:</span>
+                        <span className="receipt-meta-content">{custRuc}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">NOMBRE:</span>
+                        <span className="receipt-meta-content">{custName}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">DIRECCIÓN:</span>
+                        <span className="receipt-meta-content">{custAddress}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">TELÉFONO:</span>
+                        <span className="receipt-meta-content">{custPhone}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">EMAIL:</span>
+                        <span className="receipt-meta-content">{custEmail}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">VENDEDOR:</span>
+                        <span className="receipt-meta-content">{sellerName}</span>
+                      </div>
+                      <div className="receipt-meta-entry">
+                        <span className="receipt-meta-tag">FECHA:</span>
+                        <span className="receipt-meta-content">
+                          {new Date(detailModal.created_at || Date.now()).toLocaleDateString('es-EC', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {detailModal.fulfillment_type === 'DELIVERY' && (
+                        <div className="receipt-meta-entry">
+                          <span className="receipt-meta-tag">DESPACHO:</span>
+                          <span className="receipt-meta-content">
+                            {detailModal.courier || 'Motorizado Express'} {detailModal.tracking_number ? `(Guía: ${detailModal.tracking_number})` : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <div className="receipt-divider-dash" />
+
+              {/* TABLA DE PRODUCTOS EN 2 NIVELES (COD - CANT - DETALLE / PRECIO - TOTAL) */}
+              <div className="receipt-products-table">
+                <div className="receipt-col-headers">
+                  <span style={{ minWidth: '60px' }}>COD</span>
+                  <span style={{ minWidth: '25px', textAlign: 'center' }}>CANT</span>
+                  <span style={{ flex: 1, textAlign: 'left', paddingLeft: '5px' }}>DETALLE</span>
+                </div>
+                {(detailModal.items || []).map((it: Any, idx: number) => {
+                  const qty = Number(it.quantity || 1);
+                  const price = Number(it.unit_price || 0);
+                  const lineTotal = Number(it.line_total || (qty * price)).toFixed(2);
+                  const code = it.product_sku || it.sku || `TEG${String(idx + 895).padStart(5, '0')}`;
+
+                  return (
+                    <div className="receipt-item-group" key={idx}>
+                      <div className="receipt-item-line-main">
+                        <span className="receipt-item-sku-col">{code}</span>
+                        <span className="receipt-item-qty-col">{qty}</span>
+                        <span className="receipt-item-desc-col">{it.product_name || 'Artículo'}</span>
+                      </div>
+                      <div className="receipt-item-line-sub">
+                        <span>PRECIO: ${price.toFixed(2)}</span>
+                        <span><strong>TOTAL: ${lineTotal}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="receipt-divider-dash" />
+
+              {/* TOTALES FISCALES ALINEADOS A LA DERECHA */}
+              {(() => {
+                const total = Number(detailModal.total || 0);
+                const shipping = Number(detailModal.shipping_cost || 0);
+                const discount = Number(detailModal.discount || 0);
+                const tax = Number(detailModal.tax || ((total - shipping) * 15 / 115));
+                const subtotal15 = Number(detailModal.subtotal || ((total - shipping) - tax));
+                const subtotal0 = 0.00;
+                const subtotalSinImp = subtotal15 + subtotal0;
+
+                return (
+                  <div className="receipt-fiscal-totals">
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal 15%</span>
+                      <span>${subtotal15.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal 0%</span>
+                      <span>${subtotal0.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Subtotal sin Impuesto</span>
+                      <span>${subtotalSinImp.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row">
+                      <span>Descuento %</span>
+                      <span>{discount > 0 ? `-$${discount.toFixed(2)}` : '$0.00'}</span>
+                    </div>
+                    {shipping > 0 && (
+                      <div className="receipt-fiscal-row">
+                        <span>Flete a Domicilio</span>
+                        <span>+${shipping.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="receipt-fiscal-row">
+                      <span>IVA 15%</span>
+                      <span>${tax.toFixed(2)}</span>
+                    </div>
+                    <div className="receipt-fiscal-row highlight">
+                      <span>Valor Total</span>
+                      <span>${total.toFixed(2)}</span>
                     </div>
                   </div>
-                ) : detailModal.offline_folio ? (
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 6px', borderRadius: '4px', margin: '6px 0', color: '#92400e', fontSize: '10.5px', fontWeight: 700 }}>
-                    ⚠️ Venta Registrada Offline (Folio: {detailModal.offline_folio})
-                  </div>
+                );
+              })()}
+
+              <div className="receipt-divider-dash" />
+
+              {/* SECCIÓN DE OBSERVACIÓN Y FORMA DE PAGO */}
+              <div className="receipt-obs-section">
+                <div><strong>OBSERVACIÓN:</strong></div>
+                {(detailModal.payments && detailModal.payments.length > 0) ? (
+                  detailModal.payments.map((p: Any, pIdx: number) => (
+                    <div key={pIdx}>
+                      PAGO {String(p.payment_method || 'EFECTIVO').toUpperCase()}: ${Number(p.amount || 0).toFixed(2)}
+                    </div>
+                  ))
                 ) : (
-                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '3px 6px', borderRadius: '4px', margin: '6px 0', color: '#64748b', fontSize: '10px' }}>
-                    🧾 Ticket de Control Interno (No SRI)
-                  </div>
+                  <div>PAGO CONTADO EFECTIVO: ${Number(detailModal.total || 0).toFixed(2)}</div>
+                )}
+                {detailModal.delivery_notes && (
+                  <div style={{ marginTop: '2px' }}>Notas: {detailModal.delivery_notes}</div>
+                )}
+                {detailModal.tracking_number && (
+                  <div style={{ marginTop: '2px' }}>Tracking: {detailModal.tracking_number}</div>
                 )}
               </div>
 
               <div className="receipt-divider-dash" />
 
-              {/* TICKET METADATA */}
-              <div className="receipt-meta-row">
-                <span>TICKET N°:</span>
-                <strong>#{detailModal.id?.slice(0, 8).toUpperCase()}</strong>
-              </div>
-              <div className="receipt-meta-row">
-                <span>FECHA / HORA:</span>
-                <span>
-                  {new Date(detailModal.created_at).toLocaleDateString()} {new Date(detailModal.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-              <div className="receipt-meta-row">
-                <span>VENDEDOR / CAJERO:</span>
-                <strong>{detailModal.seller_name || detailModal.seller}</strong>
-              </div>
-              {detailModal.seller_role && (
-                <div className="receipt-meta-row">
-                  <span>ROL:</span>
-                  <span>{detailModal.seller_role}</span>
-                </div>
-              )}
-
-              <div className="receipt-divider-dash" />
-
-              {/* CUSTOMER FISCAL DATA */}
-              <div className="receipt-section-title">DATOS DEL CLIENTE:</div>
-              <div className="receipt-meta-row">
-                <span>CLIENTE:</span>
-                <strong>{detailModal.customer_name || detailModal.customer || 'Consumidor Final'}</strong>
-              </div>
-              <div className="receipt-meta-row">
-                <span>DOC. FISCAL:</span>
-                <span>
-                  {detailModal.customer_identification_type || 'C.I.'}: {detailModal.customer_identification_number || '9999999999999'}
-                </span>
-              </div>
-              {detailModal.customer_phone && (
-                <div className="receipt-meta-row">
-                  <span>TELÉFONO:</span>
-                  <span>{detailModal.customer_phone}</span>
-                </div>
-              )}
-              {detailModal.customer_address && (
-                <div className="receipt-meta-row">
-                  <span>DIRECCIÓN:</span>
-                  <span>{detailModal.customer_address}</span>
-                </div>
-              )}
-
-              {/* DELIVERY DISPATCH INFO IF APPLICABLE */}
-              {detailModal.fulfillment_type === 'DELIVERY' && (
-                <>
-                  <div className="receipt-divider-dash" />
-                  <div className="receipt-section-title">🛵 DESPACHO / ENTREGA A DOMICILIO:</div>
-                  <div className="receipt-meta-row">
-                    <span>COURIER / TRANSPORTE:</span>
-                    <strong>{detailModal.courier || 'Motorizado Express'}</strong>
+              {/* CLÁUSULA OFICIAL DE GARANTÍA */}
+              <div className="receipt-warranty-box">
+                PARA TERMINOS DE GARANTIA DEBE PRESENTAR SU TICKET<br />
+                DE LO CONTRARIO NO TIENE GARANTIA EL PRODUCTO
+                {detailModal.warranty_days ? (
+                  <div style={{ marginTop: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                    COBERTURA: {detailModal.warranty_days} DÍAS · CÓDIGO: {detailModal.warranty_code || `GAR-${detailModal.id?.slice(0, 6).toUpperCase()}`}
                   </div>
-                  {detailModal.tracking_number && (
-                    <div className="receipt-meta-row" style={{ alignItems: 'center' }}>
-                      <span>N° DE GUÍA / TRACKING:</span>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <strong style={{ color: '#2563eb' }}>{detailModal.tracking_number}</strong>
-                        <a
-                          href={`#tracking/${detailModal.tracking_number}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            fontSize: '10px',
-                            background: '#2563eb',
-                            color: '#fff',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            textDecoration: 'none',
-                            fontWeight: 700
-                          }}
-                          title="Abrir página pública de rastreo"
-                        >
-                          📍 Ver Rastreo
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                  {detailModal.tracking_url && (
-                    <div className="receipt-meta-row">
-                      <span>ENLACE GPS EN VIVO:</span>
-                      <a href={detailModal.tracking_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '10.5px' }}>
-                        Ver ruta en vivo
-                      </a>
-                    </div>
-                  )}
-                  {detailModal.recipient_name && (
-                    <div className="receipt-meta-row">
-                      <span>DESTINATARIO:</span>
-                      <span>{detailModal.recipient_name} ({detailModal.recipient_phone || 'S/T'})</span>
-                    </div>
-                  )}
-                  <div className="receipt-meta-row">
-                    <span>DIRECCIÓN DE ENTREGA:</span>
-                    <span>{detailModal.delivery_address || 'No especificada'}</span>
-                  </div>
-                  {detailModal.delivery_notes && (
-                    <div className="receipt-meta-row">
-                      <span>INSTRUCCIONES:</span>
-                      <span>{detailModal.delivery_notes}</span>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="receipt-divider-dash" />
-
-              {/* PRODUCTS BREAKDOWN TABLE */}
-              <div className="receipt-section-title">DETALLE DE ARTÍCULOS:</div>
-              <table className="receipt-table">
-                <thead>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th>CANT / PRODUCTO</th>
-                    <th style={{ textAlign: 'right' }}>P.UNIT</th>
-                    <th style={{ textAlign: 'right' }}>TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(detailModal.items || []).map((it: Any, idx: number) => {
-                    const unitP = Number(it.unit_price || 0);
-                    const subT = Number(it.line_total || (unitP * Number(it.quantity || 1)));
-                    const unitCost = Number(it.cost_price || it.unit_cost || 0);
-                    const itemProfit = Number(it.gross_profit || (subT - (unitCost * Number(it.quantity || 1))));
-
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px dotted #cbd5e1' }}>
-                        <td style={{ padding: '4px 0' }}>
-                          <b>{it.quantity}x</b> {it.product_name || 'Artículo'}
-                          {it.product_sku && (
-                            <small style={{ display: 'block', color: '#64748b', fontSize: '9.5px' }}>
-                              SKU: {it.product_sku}
-                            </small>
-                          )}
-                          {unitCost > 0 && (
-                            <small style={{ display: 'block', color: '#94a3b8', fontSize: '9px' }}>
-                              (Costo: ${unitCost.toFixed(2)} · Utilidad: +${itemProfit.toFixed(2)})
-                            </small>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          ${unitP.toFixed(2)}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          ${subT.toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              <div className="receipt-divider-dash" />
-
-              {/* TOTALS AND FINANCIALS */}
-              <div className="receipt-meta-row">
-                <span>SUBTOTAL PRODUCTOS:</span>
-                <span>${Number(detailModal.subtotal || 0).toFixed(2)}</span>
-              </div>
-              {Number(detailModal.shipping_cost || 0) > 0 && (
-                <div className="receipt-meta-row">
-                  <span>FLETE / ENVÍO DOMICILIO:</span>
-                  <span>+${Number(detailModal.shipping_cost || 0).toFixed(2)}</span>
-                </div>
-              )}
-              {Number(detailModal.tax || 0) > 0 && (
-                <div className="receipt-meta-row">
-                  <span>IVA (15%):</span>
-                  <span>+${Number(detailModal.tax || 0).toFixed(2)}</span>
-                </div>
-              )}
-
-              <div className="receipt-divider-double" />
-
-              <div className="receipt-total-row">
-                <span>TOTAL A PAGAR:</span>
-                <span>${Number(detailModal.total || 0).toFixed(2)}</span>
+                ) : null}
               </div>
 
-              {/* RETAIL PROFITABILITY AUDIT (COGS & PROFIT) */}
-              <div style={{ background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', margin: '6px 0', border: '1px solid #e2e8f0' }}>
-                <div className="receipt-meta-row" style={{ color: '#dc2626', fontSize: '10.5px' }}>
-                  <span>Inversión Mercadería (Costo):</span>
-                  <span>-${Number(detailModal.total_cost || 0).toFixed(2)}</span>
-                </div>
-                <div className="receipt-meta-row" style={{ color: '#059669', fontWeight: 800, fontSize: '11.5px' }}>
-                  <span>Ganancia Bruta Negocio:</span>
-                  <span>+${Number(detailModal.gross_profit || 0).toFixed(2)}</span>
-                </div>
-              </div>
-
-              <div className="receipt-divider-dash" />
-
-              {/* PAYMENTS RECORDED */}
-              <div className="receipt-section-title">MÉTODOS DE PAGO:</div>
-              {(detailModal.payments || []).map((p: Any, pIdx: number) => (
-                <div key={pIdx} className="receipt-meta-row">
-                  <span>● {p.payment_method || 'EFECTIVO'}:</span>
-                  <strong>${Number(p.amount || 0).toFixed(2)}</strong>
-                </div>
-              ))}
-
-              {/* WARRANTY BADGE & CLAUSE */}
-              {Number(detailModal.warranty_days || 0) > 0 && (
-                <>
-                  <div className="receipt-divider-dash" />
-                  <div className="receipt-section-title">🛡️ GARANTÍA TÉCNICA OFICIAL:</div>
-                  <div className="receipt-meta-row">
-                    <span>COBERTURA:</span>
-                    <strong>{detailModal.warranty_days} DÍAS CALENDARIO</strong>
-                  </div>
-                  <div className="receipt-meta-row">
-                    <span>CÓDIGO ÚNICO:</span>
-                    <strong style={{ color: '#2563eb' }}>
-                      {detailModal.warranty_code || `GAR-${detailModal.id?.slice(0, 6).toUpperCase()}`}
-                    </strong>
-                  </div>
-                  <p style={{ fontSize: '10px', color: '#475569', margin: '4px 0 0 0', lineHeight: 1.3 }}>
-                    * Válida ante defectos de fábrica y funcionamiento. Conserve este comprobante original. No cubre caídas, roturas o derrame de líquidos.
-                  </p>
-                </>
-              )}
-
-              {/* DYNAMIC QR CODE FOR DIGITAL VERIFICATION */}
-              <div className="receipt-qr-wrap">
+              {/* CÓDIGO QR PARA VALIDACIÓN DIGITAL */}
+              <div className="receipt-qr-wrap" style={{ textAlign: 'center', margin: '8px 0 4px' }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=${detailPaperWidth === '58mm' ? '85x85' : '110x110'}&data=${encodeURIComponent(
-                    `https://fixmetiendas.local/ticket/${detailModal.id}`
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                    `https://fixmetiendas.local/ticket/${detailModal.id || 'TICKET'}`
                   )}`}
-                  alt="QR Verificación Comprobante"
-                  style={{ maxWidth: detailPaperWidth === '58mm' ? '80px' : '100px' }}
+                  alt="QR Verificación"
+                  style={{
+                    width: detailPaperWidth === '58mm' ? '120px' : '145px',
+                    height: detailPaperWidth === '58mm' ? '120px' : '145px',
+                    display: 'inline-block',
+                    margin: '0 auto'
+                  }}
                 />
-                <div style={{ fontSize: '9px', color: '#64748b', marginTop: '3px' }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#000', marginTop: '3px' }}>
                   Escanee para validar ticket y garantía oficial
                 </div>
               </div>
+            </div>
 
-              <div className="receipt-divider-double" />
-              <div className="receipt-footer-text">
-                <p style={{ margin: 0, fontWeight: 700 }}>¡Gracias por confiar en FixmeTiendas!</p>
-                <p style={{ margin: '2px 0 0', fontSize: '9.5px' }}>Tecnología y Servicio Especializado</p>
+            {/* AUDITORÍA INTERNA DE RENTABILIDAD (SÓLO PANTALLA - NUNCA SE IMPRIME AL CLIENTE) */}
+            <div className="no-print" style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', margin: '12px 0 4px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                🔒 Auditoría Interna del Negocio (Solo visible en pantalla)
+              </div>
+              <div className="receipt-meta-row" style={{ color: '#dc2626', fontSize: '11px' }}>
+                <span>Inversión Mercadería (Costo):</span>
+                <strong>-${Number(detailModal.total_cost || 0).toFixed(2)}</strong>
+              </div>
+              <div className="receipt-meta-row" style={{ color: '#059669', fontWeight: 800, fontSize: '12px' }}>
+                <span>Ganancia Bruta Negocio:</span>
+                <strong>+${Number(detailModal.gross_profit || 0).toFixed(2)}</strong>
               </div>
             </div>
 
             {/* ACTION BUTTONS (NO-PRINT) */}
-            <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+            <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
@@ -6338,9 +6461,19 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
   );
 }
 
-function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void}){
+function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, onCompanyUpdate?:(c:Any)=>void}){
   const [tab, setTab] = React.useState<'matrix'|'users'|'profile'|'sri'|'deuna'|'payphone'>('matrix');
   const [profile, setProfile] = React.useState<Any>({});
+  const [profileForm, setProfileForm] = React.useState<Any>({
+    name: '',
+    legal_name: '',
+    tax_id: '',
+    phone: '',
+    email: '',
+    slogan: '',
+    address: ''
+  });
+  const [savingProfile, setSavingProfile] = React.useState(false);
   const [users, setUsers] = React.useState<Any[]>([]);
   const [rolePerms, setRolePerms] = React.useState<Record<string, string[]>>({});
   const [savingMatrix, setSavingMatrix] = React.useState(false);
@@ -6571,10 +6704,93 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
   ];
 
   const load = React.useCallback(() => {
-    api('/api/administration/profile').then(r => r.ok ? r.json() : {}).then(setProfile);
+    api('/api/administration/profile').then(r => r.ok ? r.json() : {}).then((p: Any) => {
+      setProfile(p);
+      const initialName = (p.name && p.name !== 'Demo tenant') ? p.name : (p.sri_nombre_comercial || p.name || localStorage.tenantName || 'FIXMETIENDAS');
+      const initialLegal = p.legal_name || p.sri_razon_social || p.sri_nombre_comercial || localStorage.tenantLegalName || '';
+      const initialRuc = p.tax_id || p.sri_ruc || localStorage.tenantRuc || '1790012345001';
+      const initialPhone = p.phone || localStorage.tenantPhone || '0994175857';
+      const initialEmail = p.email || p.billing_contact_email || localStorage.tenantEmail || 'contacto@fixmetiendas.com';
+      const initialSlogan = p.slogan || p.catalog_description || localStorage.tenantSlogan || 'Con la Mejor Innovación en Tecnología';
+      const initialAddress = p.address || p.sri_direccion_matriz || p.sri_direccion_establecimiento || localStorage.tenantAddress || 'Matriz Principal, Ecuador';
+
+      setProfileForm({
+        name: initialName,
+        legal_name: initialLegal,
+        legalName: initialLegal,
+        tax_id: initialRuc,
+        taxId: initialRuc,
+        phone: initialPhone,
+        email: initialEmail,
+        slogan: initialSlogan,
+        address: initialAddress
+      });
+    });
     api('/api/administration/users').then(r => r.ok ? r.json() : []).then(setUsers);
     api('/api/administration/role-permissions').then(r => r.ok ? r.json() : {}).then(setRolePerms);
   }, [api]);
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const payload = {
+        name: profileForm.name,
+        legal_name: profileForm.legal_name,
+        legalName: profileForm.legal_name,
+        tax_id: profileForm.tax_id,
+        taxId: profileForm.tax_id,
+        phone: profileForm.phone,
+        email: profileForm.email,
+        slogan: profileForm.slogan,
+        catalog_description: profileForm.slogan,
+        address: profileForm.address
+      };
+      const res = await api('/api/administration/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile(updated);
+        const savedName = updated.name || profileForm.name;
+        const savedLegal = updated.legal_name || updated.sri_razon_social || profileForm.legal_name;
+        const savedRuc = updated.tax_id || updated.sri_ruc || profileForm.tax_id;
+        const savedPhone = updated.phone || profileForm.phone;
+        const savedEmail = updated.email || updated.billing_contact_email || profileForm.email;
+        const savedSlogan = updated.slogan || updated.catalog_description || profileForm.slogan;
+        const savedAddr = updated.address || updated.sri_direccion_matriz || profileForm.address;
+
+        setProfileForm({
+          name: savedName,
+          legal_name: savedLegal,
+          legalName: savedLegal,
+          tax_id: savedRuc,
+          taxId: savedRuc,
+          phone: savedPhone,
+          email: savedEmail,
+          slogan: savedSlogan,
+          address: savedAddr
+        });
+        if (savedName) localStorage.setItem('tenantName', savedName);
+        if (savedLegal) localStorage.setItem('tenantLegalName', savedLegal);
+        if (savedRuc) localStorage.setItem('tenantRuc', savedRuc);
+        if (savedPhone) localStorage.setItem('tenantPhone', savedPhone);
+        if (savedEmail) localStorage.setItem('tenantEmail', savedEmail);
+        if (savedSlogan) localStorage.setItem('tenantSlogan', savedSlogan);
+        if (savedAddr) localStorage.setItem('tenantAddress', savedAddr);
+        localStorage.setItem('companyProfile', JSON.stringify(updated));
+        if (onCompanyUpdate) onCompanyUpdate(updated);
+        notify?.('✓ Perfil de la empresa y datos de comprobantes actualizados con éxito');
+      } else {
+        notify?.('Error al guardar el perfil de la empresa');
+      }
+    } catch (err: any) {
+      notify?.('Error de conexión al guardar el perfil: ' + (err?.message || ''));
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   React.useEffect(() => {
     load();
@@ -6976,15 +7192,148 @@ function Administration({api, notify}:{api:(u:string,o?:RequestInit)=>Promise<Re
       {/* TAB 3: PROFILE */}
       {tab === 'profile' && (
         <section className="panel">
-          <h3>Perfil de la Empresa y Estado de Suscripción</h3>
-          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, marginTop: 12 }}>
-            <p style={{ margin: '0 0 8px 0', fontSize: '16px' }}>
-              <b>{profile.legal_name || profile.name || 'Fixme Store'}</b>
-            </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>🏢 Perfil de la Empresa y Membrete de Comprobantes</h3>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                Configura los datos fiscales y comerciales de tu negocio. Esta información se imprime automáticamente en los tickets y facturas térmicas (58mm y 80mm).
+              </p>
+            </div>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={load}
+              style={{ fontSize: '12px' }}
+            >
+              🔄 Recargar Datos
+            </button>
+          </div>
+
+          <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Nombre Comercial de la Tienda *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.name}
+                  onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder="Ej: TECNAMAX"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Nombre público que aparece en el título principal del ticket.</small>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Razón Social / Propietario Legal *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.legal_name}
+                  onChange={e => setProfileForm({ ...profileForm, legal_name: e.target.value })}
+                  placeholder="Ej: JAMYER CAROLINA MONTILLA LOPEZ"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Nombre del titular de la actividad o persona jurídica.</small>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  R.U.C. / C.I. de la Empresa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.tax_id}
+                  onChange={e => setProfileForm({ ...profileForm, tax_id: e.target.value })}
+                  placeholder="Ej: 1761056884001"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Número de identificación tributaria ante el SRI.</small>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Teléfono / WhatsApp de Contacto
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.phone}
+                  onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  placeholder="Ej: 0968988607"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Aparece en el membrete y pie de ticket para soporte del cliente.</small>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Correo Electrónico de Facturación / Contacto
+                </label>
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
+                  placeholder="Ej: contacto@tecnamax.com"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Email institucional que figura en los comprobantes.</small>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Slogan o Subtítulo del Comprobante
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.slogan}
+                  onChange={e => setProfileForm({ ...profileForm, slogan: e.target.value })}
+                  placeholder="Ej: Servicio Técnico Especializado en Telefonía Móvil"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+                <small style={{ color: '#64748b', fontSize: '11px' }}>Subtítulo visible bajo el nombre comercial en el ticket.</small>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                Dirección Matriz / Dirección Comercial Completa *
+              </label>
+              <textarea
+                required
+                rows={2}
+                value={profileForm.address}
+                onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
+                placeholder="Ej: Av. Martha Bucaram OE-112 y Emilio Uzcategui, Chillogallo, Quito"
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '14px', resize: 'vertical' }}
+              />
+              <small style={{ color: '#64748b', fontSize: '11px' }}>Ubicación física que saldrá impresa como matriz en el comprobante.</small>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={savingProfile}
+                style={{ padding: '10px 24px', fontSize: '14px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
+                {savingProfile ? '💾 Guardando Cambios...' : '💾 Guardar Datos de la Empresa'}
+              </button>
+            </div>
+          </form>
+
+          {/* Estado de Suscripción */}
+          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, marginTop: 24, border: '1px solid #e2e8f0' }}>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#1e293b' }}>
+              Estado del Servicio y Suscripción SaaS
+            </h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: '13px', color: '#475569', marginBottom: 14 }}>
               <div>Tipo de Negocio: <strong>{profile.business_type || 'RETAIL'}</strong></div>
               <div>Plan Contratado: <strong>{profile.plan || 'STARTER'}</strong></div>
-              <div>Teléfono: <strong>{profile.phone || 'No registrado'}</strong></div>
               <div>Estado de tienda: <strong style={{ color: profile.subscription_status === 'SUSPENDED' ? '#dc2626' : '#059669' }}>{profile.subscription_status || 'ACTIVA'}</strong></div>
             </div>
 
@@ -10746,11 +11095,12 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
     </>
   );
 }
-function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
+function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Response>, companyInfo?: Any}){
   const [r,setR]=React.useState<Any[]>([]);
   const [customers,setCustomers]=React.useState<Any[]>([]);
   const [techs,setTechs]=React.useState<Any[]>([]);
   const [showCreate,setShowCreate]=React.useState(false);
+  const [viewMode,setViewMode]=React.useState<'kanban'|'list'>('kanban');
   const [filterStatus,setFilterStatus]=React.useState('ALL');
   const [filterTech,setFilterTech]=React.useState('ALL');
   const [search,setSearch]=React.useState('');
@@ -11170,6 +11520,25 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
             <option value="UNASSIGNED">Sin técnico asignado ({r.filter(o=>!o.assigned_technician_id).length})</option>
           </select>
 
+          <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
+            <button
+              type="button"
+              className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`}
+              onClick={() => setViewMode('kanban')}
+              style={{fontSize:'12px',padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:'6px'}}
+            >
+              📊 Tablero Kanban
+            </button>
+            <button
+              type="button"
+              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+              style={{fontSize:'12px',padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:'6px'}}
+            >
+              📋 Lista Detallada
+            </button>
+          </div>
+
           <div className="search-box">
             <span>🔍</span>
             <input placeholder="Buscar orden, cliente, técnico, modelo o serie..." value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -11185,86 +11554,333 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         ))}
       </div>
 
-      {filtered.length?<div className="order-list">
-        {filtered.map(o=>{
-          const sla=getSlaInfo(o);
-          return (
-            <article className="order-card" key={o.id}>
-              <div style={{flex:1}}>
-                <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px',flexWrap:'wrap'}}>
-                  <span className="order-folio" style={{fontSize:'11px',padding:'3px 8px'}}>{o.order_number||'OT'}</span>
-                  <span className={`status-badge status-${String(o.status).toLowerCase()}`}>{statusLabel(o.status)}</span>
-                  <span className={`sla-badge ${sla.cls}`}>{sla.label}</span>
-                  <span className="tech-chip">👨‍🔧 {o.technician_name||'Sin técnico'}</span>
-                  <small style={{color:'#98a1b2'}}>{o.created_at?new Date(o.created_at).toLocaleDateString():''}</small>
+      {viewMode === 'kanban' ? (
+        <div className="mywork-kanban" style={{ marginTop: '16px' }}>
+          {[
+            {
+              id: 'diag',
+              title: '🔍 En Diagnóstico',
+              color: '#2563eb',
+              subtitle: 'Evaluación y presupuesto preliminar',
+              items: filtered.filter(o => ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status)),
+              emptyText: 'No hay equipos en diagnóstico'
+            },
+            {
+              id: 'quoted',
+              title: '💰 Presupuestadas',
+              color: '#d97706',
+              subtitle: 'Esperando autorización del cliente',
+              items: filtered.filter(o => ['QUOTED', 'REJECTED'].includes(o.status)),
+              emptyText: 'No hay presupuestos pendientes'
+            },
+            {
+              id: 'in_progress',
+              title: '⚙️ En Taller / Reparación',
+              color: '#7c3aed',
+              subtitle: 'Presupuesto aprobado y en trabajo',
+              items: filtered.filter(o => ['APPROVED', 'IN_PROGRESS', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status)),
+              emptyText: 'No hay reparaciones en curso'
+            },
+            {
+              id: 'ready',
+              title: '✅ Listas para Retiro',
+              color: '#059669',
+              subtitle: 'Equipos finalizados para entrega',
+              items: filtered.filter(o => ['COMPLETED', 'DELIVERED', 'LISTO_ENTREGA', 'ENTREGADO'].includes(o.status)),
+              emptyText: 'No hay equipos listos'
+            }
+          ].map(col => (
+            <div className="kanban-column" key={col.id}>
+              <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.color}` }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: col.color, fontSize: '13px' }}>{col.title}</div>
+                  <small style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{col.subtitle}</small>
                 </div>
+                <span className="kanban-badge" style={{ background: `${col.color}15`, color: col.color }}>
+                  {col.items.length}
+                </span>
+              </div>
 
-                <strong>{o.device_brand||''} {o.device_model||o.description||'Dispositivo'}</strong>
-                <small style={{display:'block',marginTop:'2px'}}>
-                  👤 {o.customer_name||'Cliente'} {o.customer_phone?`· 📞 ${o.customer_phone}`:''} {o.serial_number?`· 🔢 Serie: ${o.serial_number}`:''}
-                </small>
+              <div className="kanban-col-body">
+                {col.items.map(o => {
+                  const sla = getSlaInfo(o);
+                  return (
+                    <article className="kanban-card" key={o.id}>
+                      <div className="kanban-card-top">
+                        <span className="order-folio" style={{ fontSize: '11px', padding: '2px 6px' }}>{o.order_number || 'OT'}</span>
+                        <span className={`sla-badge ${sla.cls}`} style={{ fontSize: '10px', padding: '2px 6px' }}>{sla.label}</span>
+                      </div>
 
-                <div className="order-card-meta" style={{marginTop:'8px'}}>
-                  <div>
-                    <small>Falla reportada</small>
-                    <strong>{o.reported_fault||o.description||'Sin detalle'}</strong>
-                  </div>
-                  <div>
-                    <small>Diagnóstico</small>
-                    <strong>{o.diagnosis||'Pendiente de evaluación'}</strong>
-                  </div>
-                  <div>
-                    <small>Cotización total</small>
-                    <strong style={{color:'#3157d5'}}>${Number(o.quote||0).toFixed(2)}</strong>
-                  </div>
-                </div>
+                      <div className="kanban-device-title" style={{ fontSize: '13px', fontWeight: 800 }}>
+                        📱 {o.device_brand || ''} {o.device_model || o.description || 'Dispositivo'}
+                      </div>
 
-                {o.items&&o.items.length>0&&(
-                  <div style={{marginTop:'8px',display:'flex',gap:'6px',flexWrap:'wrap'}}>
-                    {o.items.map((it:Any,idx:number)=>(
-                      <span key={idx} className="order-folio" style={{fontSize:'10px',padding:'2px 7px',background:it.itemType==='LABOR'?'#e0e7ff':'#fef3c7',color:it.itemType==='LABOR'?'#3730a3':'#92400e'}}>
-                        {it.quantity}x {it.name} (${Number(it.subtotal||it.quantity*it.unitPrice||0).toFixed(2)})
-                      </span>
-                    ))}
+                      <div className="kanban-card-customer">
+                        <span>👤 {o.customer_name || 'Cliente'}</span>
+                        {o.customer_phone && <span style={{ color: '#2563eb' }}>📞 {o.customer_phone}</span>}
+                      </div>
+
+                      <div className="kanban-card-fault">
+                        <strong>Falla:</strong> {o.reported_fault || o.description || 'Sin detalle'}
+                      </div>
+
+                      {o.diagnosis && (
+                        <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic', background: '#f8fafc', padding: '4px 6px', borderRadius: 4 }}>
+                          <b>Diag:</b> {o.diagnosis}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>👨‍🔧 {o.technician_name || 'Sin técnico'}</span>
+                        <strong style={{ fontSize: '13px', color: '#2563eb' }}>${Number(o.quote || 0).toFixed(2)}</strong>
+                      </div>
+
+                      {/* QUICK ACTION BUTTON */}
+                      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status) && (
+                          <button
+                            type="button"
+                            className="primary-action"
+                            style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center', background: '#2563eb' }}
+                            onClick={() => openEditModal(o)}
+                          >
+                            💰 Fijar Presupuesto
+                          </button>
+                        )}
+
+                        {o.status === 'QUOTED' && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              className="primary-action"
+                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
+                              onClick={() => updateStatus(o.id, 'APPROVED')}
+                            >
+                              👍 Autorizar
+                            </button>
+                            <a
+                              className="btn-sm btn-wa-sm"
+                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center' }}
+                              href={getWaLink(o)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              💬 Presupuesto
+                            </a>
+                          </div>
+                        )}
+
+                        {['APPROVED', 'IN_PROGRESS', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status) && (
+                          <button
+                            type="button"
+                            className="primary-action"
+                            style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
+                            onClick={() => updateStatus(o.id, 'COMPLETED')}
+                          >
+                            ✅ Marcar Listo para Retiro
+                          </button>
+                        )}
+
+                        {['COMPLETED', 'LISTO_ENTREGA'].includes(o.status) && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              className="primary-action"
+                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#4338ca' }}
+                              onClick={() => updateStatus(o.id, 'DELIVERED')}
+                            >
+                              🤝 Entregar
+                            </button>
+                            <a
+                              className="btn-sm btn-wa-sm"
+                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center' }}
+                              href={getWaLink(o)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              💬 Avisar Retiro
+                            </a>
+                          </div>
+                        )}
+
+                        {/* SECONDARY ROW ACTIONS */}
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => setQrModal(o)} title="QR">
+                            📱 QR
+                          </button>
+                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => openEditModal(o)} title="Editar en Taller">
+                            🛠️ Taller
+                          </button>
+                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => setTicketModal(o)} title="Imprimir Ticket">
+                            🖨️ Ticket
+                          </button>
+                          <select
+                            value={o.status}
+                            onChange={e => updateStatus(o.id, e.target.value)}
+                            style={{ fontSize: '10.5px', padding: '2px 4px', borderRadius: 6, border: '1px solid #cbd5e1', maxWidth: '85px' }}
+                          >
+                            <option value="OPEN">Abierta</option>
+                            <option value="DIAGNOSIS">Diagnóstico</option>
+                            <option value="QUOTED">Cotizada</option>
+                            <option value="APPROVED">Aprobada</option>
+                            <option value="IN_PROGRESS">Taller</option>
+                            <option value="COMPLETED">Listo</option>
+                            <option value="CANCELLED">Cancelada</option>
+                          </select>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+                {col.items.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '24px 10px', color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
+                    {col.emptyText}
                   </div>
                 )}
               </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* LIST VIEW */
+        filtered.length ? (
+          <div className="order-list" style={{ marginTop: '16px' }}>
+            {filtered.map(o => {
+              const sla = getSlaInfo(o);
+              return (
+                <article className="order-card" key={o.id}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <span className="order-folio" style={{ fontSize: '11px', padding: '3px 8px' }}>{o.order_number || 'OT'}</span>
+                      <span className={`status-badge status-${String(o.status).toLowerCase()}`}>{statusLabel(o.status)}</span>
+                      <span className={`sla-badge ${sla.cls}`}>{sla.label}</span>
+                      <span className="tech-chip">👨‍🔧 {o.technician_name || 'Sin técnico'}</span>
+                      <small style={{ color: '#98a1b2' }}>{o.created_at ? new Date(o.created_at).toLocaleDateString() : ''}</small>
+                    </div>
 
-              <div className="order-actions">
-                <button className="btn-sm btn-primary-sm" onClick={()=>setQrModal(o)} title="Ver QR de seguimiento">
-                  📱 QR / Link
-                </button>
+                    <strong>{o.device_brand || ''} {o.device_model || o.description || 'Dispositivo'}</strong>
+                    <small style={{ display: 'block', marginTop: '2px' }}>
+                      👤 {o.customer_name || 'Cliente'} {o.customer_phone ? `· 📞 ${o.customer_phone}` : ''} {o.serial_number ? `· 🔢 Serie: ${o.serial_number}` : ''}
+                    </small>
 
-                <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer" title="Enviar enlace por WhatsApp">
-                  💬 WhatsApp
-                </a>
+                    <div className="order-card-meta" style={{ marginTop: '8px' }}>
+                      <div>
+                        <small>Falla reportada</small>
+                        <strong>{o.reported_fault || o.description || 'Sin detalle'}</strong>
+                      </div>
+                      <div>
+                        <small>Diagnóstico</small>
+                        <strong>{o.diagnosis || 'Pendiente de evaluación'}</strong>
+                      </div>
+                      <div>
+                        <small>Cotización total</small>
+                        <strong style={{ color: '#3157d5' }}>${Number(o.quote || 0).toFixed(2)}</strong>
+                      </div>
+                    </div>
 
-                <button className="btn-sm btn-secondary-sm" onClick={()=>openEditModal(o)} title="Actualizar diagnóstico, técnico, ítems y precio">
-                  🛠️ Taller
-                </button>
+                    {o.items && o.items.length > 0 && (
+                      <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {o.items.map((it: Any, idx: number) => (
+                          <span key={idx} className="order-folio" style={{ fontSize: '10px', padding: '2px 7px', background: it.itemType === 'LABOR' ? '#e0e7ff' : '#fef3c7', color: it.itemType === 'LABOR' ? '#3730a3' : '#92400e' }}>
+                            {it.quantity}x {it.name} (${Number(it.subtotal || it.quantity * it.unitPrice || 0).toFixed(2)})
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                <button className="btn-sm btn-secondary-sm" onClick={()=>setTicketModal(o)} title="Imprimir comprobante">
-                  🖨️ Ticket
-                </button>
+                    {/* QUICK TRANSITION BAR IN LIST */}
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {['OPEN', 'DIAGNOSIS'].includes(o.status) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-primary-sm"
+                          onClick={() => openEditModal(o)}
+                        >
+                          💰 Fijar Presupuesto
+                        </button>
+                      )}
+                      {o.status === 'QUOTED' && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-sm btn-primary-sm"
+                            style={{ background: '#059669', color: '#fff' }}
+                            onClick={() => updateStatus(o.id, 'APPROVED')}
+                          >
+                            👍 Autorizar Presupuesto
+                          </button>
+                          <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer">
+                            💬 Enviar Presupuesto por WhatsApp
+                          </a>
+                        </>
+                      )}
+                      {['APPROVED', 'IN_PROGRESS'].includes(o.status) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-primary-sm"
+                          style={{ background: '#059669', color: '#fff' }}
+                          onClick={() => updateStatus(o.id, 'COMPLETED')}
+                        >
+                          ✅ Marcar Listo para Retiro
+                        </button>
+                      )}
+                      {o.status === 'COMPLETED' && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-sm btn-primary-sm"
+                            style={{ background: '#4338ca', color: '#fff' }}
+                            onClick={() => updateStatus(o.id, 'DELIVERED')}
+                          >
+                            🤝 Entregar a Cliente
+                          </button>
+                          <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer">
+                            💬 Avisar Retiro
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-                <select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)}>
-                  <option value="OPEN">Abierta</option>
-                  <option value="DIAGNOSIS">En diagnóstico</option>
-                  <option value="QUOTED">Cotizada</option>
-                  <option value="APPROVED">Aprobada</option>
-                  <option value="IN_PROGRESS">En reparación</option>
-                  <option value="COMPLETED">Listo para retiro</option>
-                  <option value="CANCELLED">Cancelada</option>
-                </select>
-              </div>
-            </article>
-          );
-        })}
-      </div>:<div className="empty">
-        <b>📋</b>
-        <p>No hay órdenes de servicio en este criterio.</p>
-        <small>Registra una nueva orden o cambia los filtros.</small>
-      </div>}
+                  <div className="order-actions">
+                    <button className="btn-sm btn-primary-sm" onClick={() => setQrModal(o)} title="Ver QR de seguimiento">
+                      📱 QR / Link
+                    </button>
+
+                    <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer" title="Enviar enlace por WhatsApp">
+                      💬 WhatsApp
+                    </a>
+
+                    <button className="btn-sm btn-secondary-sm" onClick={() => openEditModal(o)} title="Actualizar diagnóstico, técnico, ítems y precio">
+                      🛠️ Taller
+                    </button>
+
+                    <button className="btn-sm btn-secondary-sm" onClick={() => setTicketModal(o)} title="Imprimir comprobante">
+                      🖨️ Ticket
+                    </button>
+
+                    <select value={o.status} onChange={e => updateStatus(o.id, e.target.value)}>
+                      <option value="OPEN">Abierta</option>
+                      <option value="DIAGNOSIS">En diagnóstico</option>
+                      <option value="QUOTED">Cotizada</option>
+                      <option value="APPROVED">Aprobada</option>
+                      <option value="IN_PROGRESS">En reparación</option>
+                      <option value="COMPLETED">Listo para retiro</option>
+                      <option value="CANCELLED">Cancelada</option>
+                    </select>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty">
+            <b>📋</b>
+            <p>No hay órdenes de servicio en este criterio.</p>
+            <small>Registra una nueva orden o cambia los filtros.</small>
+          </div>
+        )
+      )}
     </section>
 
     {/* MODAL QR Y ENLACE DE CLIENTE */}
@@ -11438,12 +12054,13 @@ function Orders({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       </div>
     </div>}
 
-    {/* MODAL COMPROBANTE DE RECEPCIÓN TALLER (80mm) */}
+    {/* MODAL COMPROBANTE DE RECEPCIÓN TALLER (80mm / 58mm) */}
     {ticketModal && (
       <WorkOrderReceiptModal
         order={ticketModal}
         onClose={() => setTicketModal(null)}
-        tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+        tenantName={companyInfo?.name || localStorage.tenantName || 'Fixme Tiendas'}
+        companyProfile={companyInfo}
       />
     )}
   </>;
@@ -11473,11 +12090,27 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const storePct = totalRev > 0 ? ((storeRev / totalRev) * 100).toFixed(0) : '0';
   const onlinePct = totalRev > 0 ? ((onlineRev / totalRev) * 100).toFixed(0) : '0';
 
-  const payMethods = r.paymentMethods || {};
-  const cashAmount = Number(payMethods.CASH?.amount || 0);
-  const cardAmount = Number(payMethods.CARD?.amount || 0);
-  const transferAmount = Number(payMethods.TRANSFER?.amount || 0);
+  // Normalize paymentMethods array from backend
+  const payMethodsList: Any[] = Array.isArray(r.paymentMethods) ? r.paymentMethods : [];
+  const cashObj = payMethodsList.find((p: Any) => String(p.payment_method).toUpperCase() === 'CASH') || (r.paymentMethods && typeof r.paymentMethods === 'object' && r.paymentMethods.CASH ? r.paymentMethods.CASH : null);
+  const cardObj = payMethodsList.find((p: Any) => String(p.payment_method).toUpperCase() === 'CARD') || (r.paymentMethods && typeof r.paymentMethods === 'object' && r.paymentMethods.CARD ? r.paymentMethods.CARD : null);
+  const transferObj = payMethodsList.find((p: Any) => ['TRANSFER', 'DEUNA', 'PAYPHONE'].includes(String(p.payment_method).toUpperCase())) || (r.paymentMethods && typeof r.paymentMethods === 'object' && r.paymentMethods.TRANSFER ? r.paymentMethods.TRANSFER : null);
+
+  const cashAmount = Number(cashObj?.total || cashObj?.amount || 0);
+  const cardAmount = Number(cardObj?.total || cardObj?.amount || 0);
+  const transferAmount = Number(transferObj?.total || transferObj?.amount || 0);
   const paySum = (cashAmount + cardAmount + transferAmount) || 1;
+
+  // Logistics / Fulfillment calculations
+  const pickupObj = r.fulfillmentBreakdown?.PICKUP || {};
+  const deliveryObj = r.fulfillmentBreakdown?.DELIVERY || {};
+  const pickupCount = Number(typeof pickupObj === 'object' && pickupObj !== null ? pickupObj.count : pickupObj) || 0;
+  const deliveryCount = Number(typeof deliveryObj === 'object' && deliveryObj !== null ? deliveryObj.count : deliveryObj) || 0;
+  const pickupRev = Number(typeof pickupObj === 'object' && pickupObj !== null ? pickupObj.revenue : 0) || 0;
+  const deliveryRev = Number(typeof deliveryObj === 'object' && deliveryObj !== null ? deliveryObj.revenue : 0) || 0;
+  const totalOrdersCount = (pickupCount + deliveryCount) || 1;
+  const pickupPct = ((pickupCount / totalOrdersCount) * 100).toFixed(0);
+  const deliveryPct = ((deliveryCount / totalOrdersCount) * 100).toFixed(0);
 
   // Max value for SVG chart scaling
   const maxChartVal = dailyTrend.reduce((m, d) => Math.max(m, Number(d.revenue || 0)), 10);
@@ -11672,19 +12305,19 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           <div className="dist-item">
             <div className="dist-labels">
               <span>🏬 Retiro en Tienda</span>
-              <span>{r.fulfillmentBreakdown?.PICKUP || 0} pedidos</span>
+              <span>{pickupCount} pedidos (${pickupRev.toFixed(2)})</span>
             </div>
             <div className="dist-track">
-              <div className="dist-bar" style={{ width: '80%', background: '#64748b' }}></div>
+              <div className="dist-bar" style={{ width: `${pickupPct}%`, background: '#64748b' }}></div>
             </div>
           </div>
           <div className="dist-item" style={{ marginTop: '12px' }}>
             <div className="dist-labels">
               <span>🛵 Entrega a Domicilio</span>
-              <span>{r.fulfillmentBreakdown?.DELIVERY || 0} pedidos</span>
+              <span>{deliveryCount} pedidos (${deliveryRev.toFixed(2)})</span>
             </div>
             <div className="dist-track">
-              <div className="dist-bar" style={{ width: '40%', background: '#3157d5' }}></div>
+              <div className="dist-bar" style={{ width: `${deliveryPct}%`, background: '#3157d5' }}></div>
             </div>
           </div>
         </div>
@@ -11713,16 +12346,17 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
             </thead>
             <tbody>
               {topProducts.map((p, idx) => {
-                const rev = Number(p.revenue || 0);
-                const cost = Number(p.cogs || 0);
-                const profit = Number(p.profit || 0);
+                const rev = Number(p.total_revenue || p.revenue || 0);
+                const cost = Number(p.total_cost || p.cogs || 0);
+                const profit = Number(p.total_profit || p.profit || 0);
+                const units = Number(p.qty_sold || p.unitsSold || 0);
                 const margin = rev > 0 ? ((profit / rev) * 100) : 0;
 
                 return (
                   <tr key={p.id || idx}>
                     <td><b>{p.name}</b></td>
                     <td><span className="sku-label">{p.sku}</span></td>
-                    <td><strong>{p.unitsSold}</strong> unids</td>
+                    <td><strong>{units}</strong> unids</td>
                     <td style={{ fontWeight: 700 }}>${rev.toFixed(2)}</td>
                     <td style={{ color: '#f43f5e' }}>${cost.toFixed(2)}</td>
                     <td style={{ fontWeight: 800, color: '#10b981' }}>+${profit.toFixed(2)}</td>
@@ -12336,15 +12970,22 @@ function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Re
                 </div>
 
                 {/* QR Code */}
-                <div className="cert-qr-wrap">
+                <div className="cert-qr-wrap" style={{ textAlign: 'center', margin: '10px 0 6px' }}>
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=${certPaperWidth === '58mm' ? '100x100' : '160x160'}&data=${encodeURIComponent(
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
                       `${window.location.origin}/public/warranties/verify?token=${selectedCert.tenant_id}.${selectedCert.warranty_code}`
                     )}`}
                     alt="QR Garantía"
-                    style={{ maxWidth: certPaperWidth === '58mm' ? '85px' : '130px', margin: '0 auto' }}
+                    style={{
+                      width: certPaperWidth === '58mm' ? '125px' : '155px',
+                      height: certPaperWidth === '58mm' ? '125px' : '155px',
+                      margin: '0 auto',
+                      display: 'block'
+                    }}
                   />
-                  <div className="cert-qr-hint">Escanee para verificar vigencia oficial en línea</div>
+                  <div className="cert-qr-hint" style={{ fontSize: certPaperWidth === '58mm' ? '10px' : '11px', marginTop: '4px', fontWeight: 600 }}>
+                    Escanee para verificar vigencia oficial en línea
+                  </div>
                 </div>
 
                 <div className="cert-footer">

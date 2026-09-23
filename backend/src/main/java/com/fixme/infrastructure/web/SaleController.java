@@ -114,6 +114,23 @@ public class SaleController {
       }
     } catch (Exception ignored) {}
 
+    try {
+      var tenList = jdbc.queryForList("SELECT t.name, t.legal_name, t.tax_id, t.address, t.phone, t.billing_contact_email, t.catalog_description, sc.ruc, sc.razon_social, sc.nombre_comercial, sc.direccion_matriz, sc.direccion_establecimiento, sc.regimen_tributario, sc.ambiente_sri FROM tenants t LEFT JOIN tenant_sri_config sc ON sc.tenant_id = t.id WHERE t.id = ?", t);
+      if (!tenList.isEmpty()) {
+        var tenRow = tenList.get(0);
+        resp.put("storeName", tenRow.get("name"));
+        resp.put("storeLegalName", tenRow.get("razon_social") != null ? tenRow.get("razon_social") : (tenRow.get("legal_name") != null ? tenRow.get("legal_name") : tenRow.get("name")));
+        resp.put("storeRuc", tenRow.get("ruc") != null ? tenRow.get("ruc") : (tenRow.get("tax_id") != null ? tenRow.get("tax_id") : "1790012345001"));
+        resp.put("storeAddress", tenRow.get("direccion_matriz") != null ? tenRow.get("direccion_matriz") : (tenRow.get("address") != null ? tenRow.get("address") : "Matriz Principal"));
+        resp.put("storeBranchAddress", tenRow.get("direccion_establecimiento"));
+        resp.put("storePhone", tenRow.get("phone") != null ? tenRow.get("phone") : "0994175857");
+        resp.put("storeEmail", tenRow.get("billing_contact_email") != null ? tenRow.get("billing_contact_email") : "contacto@fixmetiendas.com");
+        resp.put("storeSlogan", tenRow.get("catalog_description"));
+        resp.put("storeTaxRegime", tenRow.get("regimen_tributario") != null ? tenRow.get("regimen_tributario") : "GENERAL");
+        resp.put("storeSriEnv", tenRow.get("ambiente_sri"));
+      }
+    } catch (Exception ignored) {}
+
     // Auto-issue SRI electronic invoice if requested
     if ("SRI_INVOICE".equals(invType)) {
       try {
@@ -253,6 +270,16 @@ public class SaleController {
                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id) AS total_cost,
                (s.total - COALESCE(s.shipping_cost, 0) - (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si WHERE si.sale_id = s.id)) AS gross_profit,
                b.name AS branch_name,
+               ten.name AS store_name,
+               COALESCE(tsc.razon_social, ten.legal_name, ten.name) AS store_legal_name,
+               COALESCE(tsc.ruc, ten.tax_id, '1790012345001') AS store_ruc,
+               COALESCE(tsc.direccion_matriz, ten.address, 'Matriz Central') AS store_address,
+               tsc.direccion_establecimiento AS store_branch_address,
+               COALESCE(ten.phone, '0994175857') AS store_phone,
+               COALESCE(ten.billing_contact_email, 'contacto@fixmetiendas.com') AS store_email,
+               ten.catalog_description AS store_slogan,
+               COALESCE(tsc.regimen_tributario, 'GENERAL') AS store_tax_regime,
+               COALESCE(tsc.ambiente_sri, 1) AS store_sri_env,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller,
                COALESCE(NULLIF(u.full_name, ''), u.email) AS seller_name,
                u.email AS seller_email, u.role AS seller_role,
@@ -266,6 +293,8 @@ public class SaleController {
                (SELECT w.id FROM warranties w WHERE w.sale_id = s.id LIMIT 1) AS warranty_id
         FROM sales s
         JOIN app_users u ON u.id = s.user_id
+        JOIN tenants ten ON ten.id = s.tenant_id
+        LEFT JOIN tenant_sri_config tsc ON tsc.tenant_id = s.tenant_id
         LEFT JOIN branches b ON b.id = s.branch_id
         LEFT JOIN customers c ON c.id = s.customer_id
         LEFT JOIN deliveries d ON d.sale_id = s.id

@@ -52,10 +52,10 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 .qr-url-box{background:#f1f5f9;padding:10px 14px;border-radius:10px;font-size:12px;word-break:break-all;text-align:center;color:#334155;width:100%}
 
 /* PRINT RECEIPT */
-.ticket-preview{background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:20px;font-family:monospace;font-size:12px;line-height:1.4;color:#0f172a}
-.ticket-preview h2{text-align:center;font-size:16px;margin:0 0 4px}
-.ticket-preview .ticket-center{text-align:center}
-.ticket-divider{border-top:1px dashed #94a3b8;margin:10px 0}
+.ticket-preview{background:#fff;border:1px dashed #000000;border-radius:8px;padding:20px;font-family:'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace;font-size:12px;line-height:1.4;color:#000000}
+.ticket-preview h2{text-align:center;font-size:18px;font-weight:900;margin:0 0 4px;color:#000000}
+.ticket-preview .ticket-center{text-align:center;color:#000000}
+.ticket-divider{border-top:1.5px dashed #000000;margin:8px 0}
 
 /* ==========================================================================
    UNIFIED PRINT ENGINE: THERMAL 80MM / 58MM, SRI RIDE, PROFORMAS & RECIBOS
@@ -107,14 +107,71 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 }
 
 /* Screen previews for thermal formats */
+/* Screen previews for thermal formats */
+.thermal-receipt,
+.receipt-80mm-container,
+.ticket-preview,
+.thermal-cert {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.thermal-receipt *,
+.receipt-80mm-container *,
+.ticket-preview *,
+.thermal-cert * {
+  color: #000000;
+}
+
+.thermal-receipt strong,
+.receipt-80mm-container strong,
+.ticket-preview strong,
+.thermal-cert strong,
+.thermal-receipt b,
+.receipt-80mm-container b,
+.ticket-preview b,
+.thermal-cert b,
+.thermal-table th,
+.receipt-table th,
+.receipt-section-title,
+.thermal-title,
+.receipt-header h2,
+.ticket-preview h2,
+.cert-store {
+  font-weight: 800 !important;
+  color: #000000 !important;
+}
+
+.receipt-meta-row > span:first-child,
+.thermal-row > span:first-child,
+.cert-row > span:first-child {
+  font-weight: 800 !important;
+  color: #000000 !important;
+}
+
+.receipt-divider-dash,
+.receipt-divider-double,
+.thermal-divider,
+.ticket-divider,
+.cert-section,
+.cert-header,
+.cert-footer {
+  border-color: #000000 !important;
+}
+
 .thermal-receipt.paper-58mm,
 .receipt-80mm-container.paper-58mm,
 .ticket-preview.paper-58mm,
 .thermal-cert.paper-58mm {
-  max-width: 275px !important;
-  padding: 12px 10px !important;
-  font-size: 10px !important;
-  line-height: 1.25 !important;
+  max-width: 290px !important;
+  padding: 14px 12px !important;
+  font-size: 12px !important;
+  line-height: 15px !important;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+  letter-spacing: -0.15px !important;
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" !important;
+  color: #000000 !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   transition: max-width 0.2s ease, padding 0.2s ease;
 }
@@ -123,43 +180,308 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 .receipt-80mm-container.paper-80mm,
 .ticket-preview.paper-80mm,
 .thermal-cert.paper-80mm {
-  max-width: 360px !important;
-  padding: 18px 14px !important;
-  font-size: 12px !important;
-  line-height: 1.35 !important;
+  max-width: 380px !important;
+  padding: 20px 16px !important;
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+  letter-spacing: -0.15px !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #000000 !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   transition: max-width 0.2s ease, padding 0.2s ease;
 }
 
-.paper-58mm .thermal-title {
-  font-size: 13px !important;
+/* 1. Nombre/logotipo del establecimiento (2x1, negrita) */
+.paper-58mm .thermal-title,
+.paper-58mm .receipt-header h2,
+.paper-58mm .ticket-preview h2 {
+  font-size: 20px !important;
+  line-height: 24px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.2px !important;
+  text-transform: uppercase !important;
+  color: #000000 !important;
 }
-.paper-58mm .thermal-sub {
-  font-size: 9px !important;
+
+.paper-80mm .thermal-title,
+.paper-80mm .receipt-header h2,
+.paper-80mm .ticket-preview h2 {
+  font-size: 22px !important;
+  line-height: 26px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.2px !important;
+  text-transform: uppercase !important;
+  color: #000000 !important;
 }
-.paper-58mm .thermal-row {
-  font-size: 9.5px !important;
-}
-.paper-58mm .thermal-row.total-highlight {
+
+/* 2. Encabezados y etiquetas (Font A, 1x1, Negrita) */
+.paper-58mm .receipt-section-title,
+.paper-80mm .receipt-section-title {
   font-size: 12px !important;
+  line-height: 15px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: -0.15px !important;
+  color: #000000 !important;
 }
-.paper-58mm .thermal-table {
-  font-size: 9px !important;
+.paper-58mm .thermal-row strong,
+.paper-58mm .receipt-meta-row strong,
+.paper-58mm .receipt-table th,
+.paper-58mm .thermal-table th,
+.paper-58mm .receipt-table td b,
+.paper-58mm .thermal-table td b,
+.paper-80mm .thermal-row strong,
+.paper-80mm .receipt-meta-row strong,
+.paper-80mm .receipt-table th,
+.paper-80mm .thermal-table th,
+.paper-80mm .receipt-table td b,
+.paper-80mm .thermal-table td b {
+  font-weight: 800 !important;
+  color: #000000 !important;
 }
-.paper-58mm .receipt-header h2 {
-  font-size: 14px !important;
+
+/* 3. Información general (Font A, 1x1, Peso normal) */
+.paper-58mm .thermal-sub,
+.paper-58mm .receipt-header p,
+.paper-80mm .thermal-sub,
+.paper-80mm .receipt-header p {
+  font-size: 11.5px !important;
+  line-height: 15px !important;
+  font-weight: normal !important;
+  letter-spacing: -0.15px !important;
+  color: #000000 !important;
 }
-.paper-58mm .receipt-meta-row {
-  font-size: 9.5px !important;
+.paper-58mm .thermal-row,
+.paper-58mm .receipt-meta-row,
+.paper-80mm .thermal-row,
+.paper-80mm .receipt-meta-row {
+  font-size: 12px !important;
+  line-height: 15px !important;
+  font-weight: normal !important;
+  letter-spacing: -0.15px !important;
+  color: #000000 !important;
 }
-.paper-58mm .receipt-table {
-  font-size: 9.5px !important;
+
+/* 4. Detalle de productos (Font A, 1x1, Monoespaciada, columnas alineadas) */
+.paper-58mm .thermal-table,
+.paper-58mm .receipt-table,
+.paper-80mm .thermal-table,
+.paper-80mm .receipt-table {
+  font-size: 12px !important;
+  line-height: 15px !important;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.15px !important;
+  color: #000000 !important;
+}
+.paper-58mm .thermal-table th,
+.paper-58mm .receipt-table th,
+.paper-80mm .thermal-table th,
+.paper-80mm .receipt-table th {
+  font-size: 12px !important;
+  line-height: 15px !important;
+  font-weight: 800 !important;
+  color: #000000 !important;
+}
+.paper-58mm .thermal-table td,
+.paper-58mm .receipt-table td,
+.paper-80mm .thermal-table td,
+.paper-80mm .receipt-table td {
+  font-size: 12px !important;
+  line-height: 15px !important;
+  font-weight: normal !important;
+  color: #000000 !important;
+}
+
+/* 5. Totales (Font A, 1x1, Etiquetas importantes en negrita) */
+.paper-58mm .thermal-row.total-highlight,
+.paper-58mm .receipt-total-row,
+.paper-80mm .thermal-row.total-highlight,
+.paper-80mm .receipt-total-row {
+  font-size: 13px !important;
+  line-height: 17px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0px !important;
+  color: #000000 !important;
 }
 .paper-58mm .receipt-qr-wrap img,
 .paper-58mm .cert-qr-wrap img,
 .paper-58mm img {
-  max-width: 85px !important;
-  max-height: 85px !important;
+  max-width: 130px !important;
+  max-height: 130px !important;
+  width: 130px !important;
+  height: 130px !important;
+}
+
+/* --- TECNAMAX REFERENCE TICKET FORMAT (58mm & 80mm) --- */
+.receipt-header-fiscal {
+  text-align: center !important;
+  margin-bottom: 6px !important;
+  line-height: 1.25 !important;
+}
+.receipt-store-title {
+  font-size: 19px !important;
+  font-weight: 900 !important;
+  margin: 0 0 1px 0 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: #000000 !important;
+  text-align: center !important;
+}
+.paper-58mm .receipt-store-title {
+  font-size: 18px !important;
+}
+.receipt-store-slogan {
+  font-size: 10px !important;
+  font-style: italic !important;
+  margin: 0 0 3px 0 !important;
+  color: #000000 !important;
+  text-align: center !important;
+}
+.receipt-company-line {
+  font-size: 10.5px !important;
+  line-height: 1.3 !important;
+  margin: 1px 0 !important;
+  color: #000000 !important;
+  text-align: center !important;
+}
+
+/* Fiscal & Customer Metadata List */
+.receipt-meta-block {
+  width: 100% !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  margin: 4px 0 !important;
+  color: #000000 !important;
+}
+.receipt-meta-entry {
+  display: flex !important;
+  justify-content: flex-start !important;
+  margin: 1.5px 0 !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+}
+.receipt-meta-tag {
+  font-weight: 800 !important;
+  min-width: 82px !important;
+  text-transform: uppercase !important;
+  color: #000000 !important;
+  letter-spacing: -0.15px !important;
+}
+.receipt-meta-content {
+  flex: 1 !important;
+  word-break: break-word !important;
+  color: #000000 !important;
+}
+
+/* 2-Tier Product Table */
+.receipt-products-table {
+  width: 100% !important;
+  margin: 4px 0 !important;
+  border-collapse: collapse !important;
+}
+.receipt-col-headers {
+  display: flex !important;
+  justify-content: space-between !important;
+  font-weight: 800 !important;
+  font-size: 11px !important;
+  border-bottom: 1.5px dashed #000000 !important;
+  padding: 3px 0 !important;
+  text-transform: uppercase !important;
+  letter-spacing: -0.15px !important;
+  color: #000000 !important;
+}
+.receipt-item-group {
+  border-bottom: 1px dashed #000000 !important;
+  padding: 3px 0 !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+}
+.receipt-item-line-main {
+  display: flex !important;
+  gap: 5px !important;
+  line-height: 1.25 !important;
+  color: #000000 !important;
+}
+.receipt-item-sku-col {
+  font-weight: 700 !important;
+  min-width: 60px !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #000000 !important;
+}
+.receipt-item-qty-col {
+  font-weight: 800 !important;
+  min-width: 25px !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #000000 !important;
+}
+.receipt-item-desc-col {
+  flex: 1 !important;
+  word-break: break-word !important;
+  color: #000000 !important;
+}
+.receipt-item-line-sub {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 16px !important;
+  font-size: 10.5px !important;
+  margin-top: 2px !important;
+  color: #000000 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Fiscal Totals Summary */
+.receipt-fiscal-totals {
+  width: 100% !important;
+  margin: 5px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+}
+.receipt-fiscal-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  width: 75% !important;
+  font-size: 11px !important;
+  margin: 1px 0 !important;
+  color: #000000 !important;
+}
+.paper-58mm .receipt-fiscal-row {
+  width: 88% !important;
+}
+.receipt-fiscal-row.highlight {
+  width: 80% !important;
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  border-top: 1.5px dashed #000000 !important;
+  border-bottom: 1.5px dashed #000000 !important;
+  padding: 3px 0 !important;
+  margin-top: 3px !important;
+  color: #000000 !important;
+}
+.paper-58mm .receipt-fiscal-row.highlight {
+  width: 92% !important;
+}
+
+/* Observations Block */
+.receipt-obs-section {
+  font-size: 10.5px !important;
+  line-height: 1.35 !important;
+  margin: 4px 0 !important;
+  color: #000000 !important;
+}
+
+/* Warranty Clause Textual */
+.receipt-warranty-box {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  line-height: 1.35 !important;
+  margin: 6px 0 !important;
+  text-transform: uppercase !important;
+  color: #000000 !important;
 }
 
 /* ==========================================================================
@@ -278,6 +600,51 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     print-color-adjust: exact !important;
   }
 
+  /* FORZAR NEGRO 100% SÓLIDO (#000000) Y MÁXIMO CONTRASTE EN IMPRESIÓN */
+  #printable-ticket, #printable-ticket *,
+  #printable-sale-receipt, #printable-sale-receipt *,
+  #printable-thermal, #printable-thermal *,
+  #printable-work-receipt, #printable-work-receipt *,
+  #printable-z-report, #printable-z-report *,
+  #printable-warranty-cert, #printable-warranty-cert * {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+    background-color: transparent !important;
+  }
+
+  #printable-ticket hr, #printable-ticket tr, #printable-ticket td, #printable-ticket th,
+  #printable-sale-receipt hr, #printable-sale-receipt tr, #printable-sale-receipt td, #printable-sale-receipt th,
+  #printable-thermal hr, #printable-thermal tr, #printable-thermal td, #printable-thermal th,
+  #printable-work-receipt hr, #printable-work-receipt tr, #printable-work-receipt td, #printable-work-receipt th,
+  #printable-z-report hr, #printable-z-report tr, #printable-z-report td, #printable-z-report th,
+  #printable-warranty-cert hr, #printable-warranty-cert tr, #printable-warranty-cert td, #printable-warranty-cert th,
+  .receipt-divider-dash, .receipt-divider-double, .thermal-divider, .ticket-divider,
+  .cert-section, .cert-header, .cert-footer, .barcode-tag-card {
+    border-color: #000000 !important;
+  }
+
+  strong, b, th,
+  .receipt-section-title,
+  .receipt-total-row,
+  .thermal-row.total-highlight,
+  .receipt-header h2,
+  .thermal-title,
+  .ticket-preview h2,
+  .font-bold, .font-semibold, .font-black {
+    font-weight: 900 !important;
+    color: #000000 !important;
+  }
+
+  .receipt-meta-row > span:first-child,
+  .thermal-row > span:first-child,
+  .ticket-meta > span:first-child,
+  .cert-row > span:first-child {
+    font-weight: 800 !important;
+    color: #000000 !important;
+  }
+
   /* 6. Base positioning for all thermal receipts */
   #printable-ticket,
   #printable-sale-receipt,
@@ -293,8 +660,11 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    font-family: 'Courier New', Courier, monospace !important;
+    font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
     box-sizing: border-box !important;
+    -webkit-font-smoothing: antialiased !important;
+    text-rendering: geometricPrecision !important;
+    font-variant-numeric: tabular-nums !important;
   }
 
   /* 6.A. Thermal Printers (80mm / 72mm printable area) - DEFAULT */
@@ -313,9 +683,10 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   body.printing-80mm #printable-warranty-cert {
     width: 72mm !important;
     max-width: 72mm !important;
-    padding: 2mm 3mm !important;
-    font-size: 11.5px !important;
-    line-height: 1.35 !important;
+    padding: 0 2mm !important;
+    font-size: 13px !important;
+    line-height: 17px !important;
+    font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
   }
 
   /* 6.B. Thermal Printers (58mm / 48mm printable area) - MINI / PORTABLE */
@@ -334,61 +705,132 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   body.printing-58mm #printable-warranty-cert {
     width: 48mm !important;
     max-width: 48mm !important;
-    padding: 1mm 1.5mm !important;
-    font-size: 9.5px !important;
-    line-height: 1.22 !important;
+    padding: 0 1mm !important;
+    font-size: 12px !important;
+    line-height: 15px !important;
+    font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: geometricPrecision !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" !important;
+    letter-spacing: -0.15px !important;
   }
 
-  /* 58mm compact typography & spacing in print */
+  /* 58mm ESC/POS Font A hierarchy in print */
+  /* 1. Nombre/logotipo del establecimiento (2x1, negrita) */
   .paper-58mm .thermal-title,
-  body.printing-58mm .thermal-title {
-    font-size: 12px !important;
-    margin-bottom: 2px !important;
+  body.printing-58mm .thermal-title,
+  .paper-58mm .receipt-header h2,
+  body.printing-58mm .receipt-header h2,
+  .paper-58mm .ticket-preview h2,
+  body.printing-58mm .ticket-preview h2 {
+    font-size: 20px !important;
+    line-height: 24px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.2px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 3px !important;
   }
+
+  /* 2. Encabezados y etiquetas (Font A, 1x1, Negrita) */
+  .paper-58mm .receipt-section-title,
+  body.printing-58mm .receipt-section-title {
+    font-size: 12px !important;
+    line-height: 15px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: -0.15px !important;
+    margin: 5px 0 2px 0 !important;
+  }
+  .paper-58mm .thermal-row strong,
+  body.printing-58mm .thermal-row strong,
+  .paper-58mm .receipt-meta-row strong,
+  body.printing-58mm .receipt-meta-row strong,
+  .paper-58mm .thermal-table th,
+  body.printing-58mm .thermal-table th,
+  .paper-58mm .receipt-table th,
+  body.printing-58mm .receipt-table th,
+  .paper-58mm .thermal-table td b,
+  body.printing-58mm .thermal-table td b,
+  .paper-58mm .receipt-table td b,
+  body.printing-58mm .receipt-table td b {
+    font-weight: 700 !important;
+  }
+
+  /* 3. Información general (Font A, 1x1, Peso normal) */
   .paper-58mm .thermal-sub,
-  body.printing-58mm .thermal-sub {
-    font-size: 8.5px !important;
-    margin: 1px 0 !important;
+  body.printing-58mm .thermal-sub,
+  .paper-58mm .receipt-header p,
+  body.printing-58mm .receipt-header p {
+    font-size: 11.5px !important;
+    line-height: 15px !important;
+    font-weight: normal !important;
+    margin: 1.5px 0 !important;
+    letter-spacing: -0.15px !important;
+    color: #000000 !important;
   }
   .paper-58mm .thermal-row,
-  body.printing-58mm .thermal-row {
-    font-size: 9px !important;
-    margin: 1.5px 0 !important;
-  }
-  .paper-58mm .thermal-row.total-highlight,
-  body.printing-58mm .thermal-row.total-highlight {
-    font-size: 11.5px !important;
-    margin: 4px 0 !important;
-  }
-  .paper-58mm .thermal-table,
-  body.printing-58mm .thermal-table {
-    font-size: 8.5px !important;
-    margin: 3px 0 !important;
-  }
-  .paper-58mm .thermal-table th,
-  .paper-58mm .thermal-table td,
-  body.printing-58mm .thermal-table th,
-  body.printing-58mm .thermal-table td {
-    padding: 2px 0 !important;
-  }
-  .paper-58mm .receipt-header h2,
-  body.printing-58mm .receipt-header h2 {
-    font-size: 13px !important;
-  }
+  body.printing-58mm .thermal-row,
   .paper-58mm .receipt-meta-row,
   body.printing-58mm .receipt-meta-row {
-    font-size: 9px !important;
+    font-size: 12px !important;
+    line-height: 15px !important;
+    font-weight: normal !important;
+    margin: 2px 0 !important;
+    letter-spacing: -0.15px !important;
   }
+
+  /* 4. Detalle de productos (Font A, 1x1, Monoespaciada, columnas alineadas) */
+  .paper-58mm .thermal-table,
+  body.printing-58mm .thermal-table,
   .paper-58mm .receipt-table,
   body.printing-58mm .receipt-table {
-    font-size: 8.5px !important;
+    font-size: 12px !important;
+    line-height: 15px !important;
+    margin: 4px 0 !important;
+    font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace !important;
+    font-variant-numeric: tabular-nums !important;
+    letter-spacing: -0.15px !important;
+  }
+  .paper-58mm .thermal-table th,
+  body.printing-58mm .thermal-table th,
+  .paper-58mm .receipt-table th,
+  body.printing-58mm .receipt-table th {
+    font-size: 12px !important;
+    line-height: 15px !important;
+    padding: 2.5px 0 !important;
+    font-weight: 700 !important;
+  }
+  .paper-58mm .thermal-table td,
+  body.printing-58mm .thermal-table td,
+  .paper-58mm .receipt-table td,
+  body.printing-58mm .receipt-table td {
+    font-size: 12px !important;
+    line-height: 15px !important;
+    padding: 2px 0 !important;
+    font-weight: normal !important;
+  }
+
+  /* 5. Totales (Font A, 1x1, Etiquetas importantes en negrita) */
+  .paper-58mm .thermal-row.total-highlight,
+  body.printing-58mm .thermal-row.total-highlight,
+  .paper-58mm .receipt-total-row,
+  body.printing-58mm .receipt-total-row {
+    font-size: 13px !important;
+    line-height: 17px !important;
+    font-weight: 800 !important;
+    margin: 4px 0 !important;
+    letter-spacing: 0px !important;
   }
   .paper-58mm .receipt-qr-wrap img,
   .paper-58mm .cert-qr-wrap img,
   .paper-58mm img,
   body.printing-58mm img {
-    max-width: 80px !important;
-    max-height: 80px !important;
+    max-width: 130px !important;
+    max-height: 130px !important;
+    width: 130px !important;
+    height: 130px !important;
   }
   .paper-58mm .thermal-divider,
   body.printing-58mm .thermal-divider,
@@ -1311,48 +1753,48 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   width: 100%;
   max-width: 360px;
   background: #ffffff;
-  border: 1px dashed #94a3b8;
-  border-radius: 12px;
+  border: 1px dashed #000000;
+  border-radius: 8px;
   padding: 18px 16px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-  color: #0f172a;
-  font-family: system-ui, -apple-system, sans-serif;
+  color: #000000;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace;
   box-sizing: border-box;
 }
 .cert-header {
   text-align: center;
-  border-bottom: 1px dashed #cbd5e1;
+  border-bottom: 1.5px dashed #000000;
   padding-bottom: 12px;
   margin-bottom: 12px;
 }
 .cert-store {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #0f172a;
+  color: #000000;
   margin: 0 0 2px;
 }
 .cert-subtitle {
-  font-size: 10px;
-  color: #64748b;
+  font-size: 10.5px;
+  color: #000000;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 8px;
 }
 .cert-code-badge {
   display: inline-block;
-  background: #0f172a;
+  background: #000000;
   color: #ffffff;
   font-family: monospace;
   font-weight: 800;
   font-size: 15px;
   letter-spacing: 0.1em;
   padding: 4px 12px;
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .cert-section {
-  border-bottom: 1px dashed #cbd5e1;
+  border-bottom: 1.5px dashed #000000;
   padding-bottom: 10px;
   margin-bottom: 10px;
   font-size: 12px;
@@ -1362,24 +1804,27 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   justify-content: space-between;
   margin-bottom: 4px;
   font-size: 11.5px;
+  color: #000000;
 }
 .cert-row span {
-  color: #64748b;
+  color: #000000;
+  font-weight: 700;
 }
 .cert-row strong {
-  color: #0f172a;
+  color: #000000;
   text-align: right;
   max-width: 60%;
   word-break: break-word;
+  font-weight: 800;
 }
 .cert-terms {
   font-size: 10px;
-  color: #64748b;
+  color: #000000;
   line-height: 1.4;
-  background: #f8fafc;
+  background: transparent;
   padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  border: 1px dashed #000000;
   margin: 8px 0;
 }
 .cert-qr-wrap {
@@ -1389,21 +1834,22 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 .cert-qr-wrap img {
   width: 120px;
   height: 120px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #000000;
   padding: 4px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #fff;
 }
 .cert-qr-hint {
   font-size: 10px;
-  color: #94a3b8;
+  color: #000000;
+  font-weight: 600;
   margin-top: 4px;
 }
 .cert-footer {
   text-align: center;
-  font-size: 9px;
-  color: #94a3b8;
-  border-top: 1px dashed #cbd5e1;
+  font-size: 9.5px;
+  color: #000000;
+  border-top: 1.5px dashed #000000;
   padding-top: 8px;
 }
 
@@ -1724,10 +2170,10 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 
 .receipt-80mm-container {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px dashed #000000;
   border-radius: 8px;
   padding: 20px 16px;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace;
   font-size: 12px;
   line-height: 1.35;
   color: #000000;
@@ -1742,20 +2188,21 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 }
 
 .receipt-header h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   margin: 0 0 2px 0;
   letter-spacing: 0.5px;
+  color: #000000;
 }
 
 .receipt-header p {
   margin: 2px 0;
   font-size: 11px;
-  color: #334155;
+  color: #000000;
 }
 
 .receipt-divider-dash {
-  border-top: 1px dashed #475569;
+  border-top: 1.5px dashed #000000;
   margin: 8px 0;
 }
 
@@ -1767,8 +2214,9 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
 .receipt-section-title {
   font-weight: 800;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 11.5px;
   margin: 6px 0 3px 0;
+  color: #000000;
 }
 
 .receipt-meta-row {
@@ -1776,6 +2224,17 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   justify-content: space-between;
   font-size: 11.5px;
   margin: 2px 0;
+  color: #000000;
+}
+
+.receipt-meta-row > span:first-child {
+  font-weight: 800;
+  color: #000000;
+}
+
+.receipt-meta-row strong {
+  font-weight: 800;
+  color: #000000;
 }
 
 .receipt-table {
@@ -1783,25 +2242,32 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   border-collapse: collapse;
   font-size: 11px;
   margin: 6px 0;
+  color: #000000;
 }
 
 .receipt-table th {
-  border-bottom: 1px dashed #000;
+  border-bottom: 1.5px dashed #000000;
   padding: 3px 0;
-  font-weight: 700;
+  font-weight: 800;
+  color: #000000;
 }
 
 .receipt-table td {
   padding: 3px 0;
   vertical-align: top;
+  color: #000000;
 }
 
 .receipt-total-row {
   display: flex;
   justify-content: space-between;
-  font-size: 13.5px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 900;
   margin: 4px 0;
+  color: #000000;
+  border-top: 1.5px dashed #000000;
+  border-bottom: 1.5px dashed #000000;
+  padding: 3px 0;
 }
 
 .receipt-qr-wrap {
@@ -3145,30 +3611,32 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   margin: 0 auto;
   padding: 16px 14px;
   background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  font-family: 'Courier New', Courier, monospace;
+  border: 1px dashed #000000;
+  border-radius: 8px;
+  font-family: 'FontA11', 'FontA12', 'FontA', 'Receipt', 'Merchant Copy', 'Consolas', 'Courier New', Courier, monospace;
   font-size: 12px;
   line-height: 1.35;
-  color: #0f172a;
+  color: #000000;
   box-shadow: 0 4px 16px rgba(0,0,0,0.06);
 }
 .thermal-center {
   text-align: center;
+  color: #000000;
 }
 .thermal-title {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 900;
   margin: 0 0 4px;
   text-transform: uppercase;
+  color: #000000;
 }
 .thermal-sub {
   font-size: 11px;
-  color: #475569;
+  color: #000000;
   margin: 2px 0;
 }
 .thermal-divider {
-  border-top: 1px dashed #64748b;
+  border-top: 1.5px dashed #000000;
   margin: 8px 0;
 }
 .thermal-table {
@@ -3176,28 +3644,45 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   border-collapse: collapse;
   font-size: 11px;
   margin: 6px 0;
+  color: #000000;
 }
 .thermal-table th {
   text-align: left;
-  border-bottom: 1px dashed #94a3b8;
+  border-bottom: 1.5px dashed #000000;
   padding: 4px 0;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #000000;
 }
 .thermal-table td {
   padding: 4px 0;
   border-bottom: 0;
   font-size: 11px;
+  color: #000000;
 }
 .thermal-row {
   display: flex;
   justify-content: space-between;
   margin: 3px 0;
   font-size: 11px;
+  color: #000000;
+}
+.thermal-row > span:first-child {
+  font-weight: 800;
+  color: #000000;
+}
+.thermal-row strong {
+  font-weight: 800;
+  color: #000000;
 }
 .thermal-row.total-highlight {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 900;
   margin: 6px 0;
+  color: #000000;
+  border-top: 1.5px dashed #000000;
+  border-bottom: 1.5px dashed #000000;
+  padding: 3px 0;
 }
 
 /* BARCODE TAGS GRID */
@@ -3208,25 +3693,27 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   padding: 12px;
 }
 .barcode-tag-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1.5px solid #000000;
+  border-radius: 6px;
   padding: 12px 10px;
   text-align: center;
   background: #fff;
   font-family: monospace;
+  color: #000000;
 }
 .barcode-tag-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 4px;
+  color: #000000;
 }
 .barcode-tag-price {
   font-size: 14px;
-  font-weight: 800;
-  color: #2563eb;
+  font-weight: 900;
+  color: #000000;
   margin-bottom: 6px;
 }
 .barcode-bars {

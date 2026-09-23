@@ -4,7 +4,8 @@ import {
   TicketPaperWidth,
   getStoredPaperWidth,
   setStoredPaperWidth,
-  printTicketElement
+  printTicketElement,
+  getCompanyReceiptInfo
 } from './ticketPrinter';
 
 type Any = Record<string, any>;
@@ -28,9 +29,10 @@ export function ThermalTicketModal({
     setStoredPaperWidth(w);
   };
 
+  const comp = getCompanyReceiptInfo(sale, { name: tenantName });
   const items = sale.items || [];
   const payments = sale.payments || [];
-  const storeName = tenantName || localStorage.tenantName || 'Fixme Tienda';
+  const storeName = comp.storeName;
   const subtotal = items.reduce(
     (acc: number, it: Any) => acc + (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 1)),
     0
@@ -55,135 +57,232 @@ export function ThermalTicketModal({
           </div>
         </div>
 
-        <div id="printable-thermal" className={`thermal-receipt paper-${paperWidth}`}>
-          <div className="thermal-center">
-            <h2 className="thermal-title">{storeName}</h2>
-            <div className="thermal-sub">
-              COMPROBANTE DE VENTA {sale.invoiceType === 'SRI_INVOICE' ? 'ELECTRÓNICA' : 'INTERNA'}
+        <div id="printable-thermal" className={`receipt-80mm-container paper-${paperWidth}`}>
+          {/* CABECERA COMPACTA ESTILO TECNAMAX CON DATOS REALES DE LA EMPRESA */}
+          <div className="receipt-header-fiscal">
+            <div className="receipt-store-title">{comp.storeName}</div>
+            <div className="receipt-store-slogan">{comp.slogan}</div>
+            <div className="receipt-company-line" style={{ fontWeight: 800 }}>{comp.legalName}</div>
+            <div className="receipt-company-line" style={{ fontWeight: 800 }}>RUC: {comp.ruc}</div>
+            <div className="receipt-company-line">DIR MATRIZ: {comp.matrixAddress}</div>
+            <div className="receipt-company-line">
+              SUCURSAL: {comp.branchAddress}
             </div>
-            <div className="thermal-sub">RUC: {sale.storeRuc || '1790012345001'}</div>
-            <div className="thermal-sub">Matriz: {sale.storeAddress || 'Av. Principal Local 1'}</div>
-            <div className="thermal-sub">Tel: {sale.storePhone || '0991234567'}</div>
-            <div className="thermal-divider" />
-            <div className="thermal-row">
-              <span>Ticket N°:</span>
-              <strong>{sale.orderNumber || sale.id?.slice(0, 8).toUpperCase()}</strong>
+            <div className="receipt-company-line">Tlf: {comp.phone}</div>
+            <div className="receipt-company-line">Email: {comp.email}</div>
+            <div className="receipt-company-line" style={{ fontWeight: 800, marginTop: '2px' }}>
+              CONTRIBUYENTE RÉGIMEN {comp.taxRegime}
             </div>
-            <div className="thermal-row">
-              <span>Fecha:</span>
-              <span>{new Date(sale.createdAt || sale.created_at || Date.now()).toLocaleString()}</span>
+            <div className="receipt-company-line" style={{ fontWeight: 800 }}>
+              NÚMERO: {sale.invoiceNumber || sale.invoice_number || `001-001-${(sale.orderNumber || sale.id || '00000000').slice(0, 8).toUpperCase()}`}
             </div>
-            <div className="thermal-row">
-              <span>Cliente:</span>
-              <strong>{sale.customerName || sale.customer_name || 'CONSUMIDOR FINAL'}</strong>
-            </div>
-            {(sale.customerIdentification || sale.customer_identification) && (
-              <div className="thermal-row">
-                <span>Cédula/RUC:</span>
-                <span>{sale.customerIdentification || sale.customer_identification}</span>
+            {(sale.accessKey || sale.invoice_access_key) && (
+              <div className="receipt-company-line" style={{ fontSize: '9px', wordBreak: 'break-all' }}>
+                <strong>N AUTORIZACION:</strong> {sale.accessKey || sale.invoice_access_key}
               </div>
             )}
-            <div className="thermal-divider" />
           </div>
 
-          <table className="thermal-table">
-            <thead>
-              <tr>
-                <th style={{ width: '18%' }}>Cant</th>
-                <th>Descripción</th>
-                <th style={{ textAlign: 'right', width: '25%' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it: Any, idx: number) => {
-                const qty = Number(it.quantity || 1);
-                const p = Number(it.unitPrice || it.price || 0);
+          <div className="receipt-divider-dash" />
+
+          {/* METADATOS Y CLIENTE (ETIQUETAS A LA IZQUIERDA EN NEGRITA) */}
+          <div className="receipt-meta-block">
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">AMBIENTE:</span>
+              <span className="receipt-meta-content">{comp.sriEnvText}</span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">RUC:</span>
+              <span className="receipt-meta-content">
+                {sale.customerIdentification || sale.customer_identification || '9999999999999'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">NOMBRE:</span>
+              <span className="receipt-meta-content">
+                {sale.customerName || sale.customer_name || 'CONSUMIDOR FINAL'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">DIRECCIÓN:</span>
+              <span className="receipt-meta-content">
+                {sale.customerAddress || sale.customer_address || 'QUITO, ECUADOR'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">TELÉFONO:</span>
+              <span className="receipt-meta-content">
+                {sale.customerPhone || sale.customer_phone || '9999999999'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">EMAIL:</span>
+              <span className="receipt-meta-content">
+                {sale.customerEmail || sale.customer_email || 'consumidor@final.com'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">VENDEDOR:</span>
+              <span className="receipt-meta-content">
+                {sale.sellerName || sale.seller_name || sale.seller || localStorage.fullName || 'VENDEDOR'}
+              </span>
+            </div>
+            <div className="receipt-meta-entry">
+              <span className="receipt-meta-tag">FECHA:</span>
+              <span className="receipt-meta-content">
+                {new Date(sale.createdAt || sale.created_at || Date.now()).toLocaleDateString('es-EC', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+            {(sale.fulfillmentType === 'DELIVERY' || sale.deliveryTrackingCode) && (
+              <div className="receipt-meta-entry">
+                <span className="receipt-meta-tag">DESPACHO:</span>
+                <span className="receipt-meta-content">
+                  Motorizado Express {sale.deliveryTrackingCode ? `(Guía: ${sale.deliveryTrackingCode})` : ''}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="receipt-divider-dash" />
+
+          {/* TABLA DE PRODUCTOS EN 2 NIVELES (COD - CANT - DETALLE / PRECIO - TOTAL) */}
+          <div className="receipt-products-table">
+            <div className="receipt-col-headers">
+              <span style={{ minWidth: '60px' }}>COD</span>
+              <span style={{ minWidth: '25px', textAlign: 'center' }}>CANT</span>
+              <span style={{ flex: 1, textAlign: 'left', paddingLeft: '5px' }}>DETALLE</span>
+            </div>
+            {items.map((it: Any, idx: number) => {
+              const qty = Number(it.quantity || 1);
+              const p = Number(it.unitPrice || it.price || 0);
+              const lineTotal = (qty * p).toFixed(2);
+              const code = it.productSku || it.sku || it.barcode || `TEG${String(idx + 895).padStart(5, '0')}`;
+              const name = it.productName || it.name || it.sku || 'Artículo';
+
+              return (
+                <div className="receipt-item-group" key={idx}>
+                  <div className="receipt-item-line-main">
+                    <span className="receipt-item-sku-col">{code}</span>
+                    <span className="receipt-item-qty-col">{qty}</span>
+                    <span className="receipt-item-desc-col">{name}</span>
+                  </div>
+                  <div className="receipt-item-line-sub">
+                    <span>PRECIO: ${p.toFixed(2)}</span>
+                    <span><strong>TOTAL: ${lineTotal}</strong></span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="receipt-divider-dash" />
+
+          {/* TOTALES FISCALES ALINEADOS A LA DERECHA */}
+          {(() => {
+            const subtotal15 = sale.invoiceType === 'SRI_INVOICE' || tax > 0 ? (total - shipping - tax) : subtotal;
+            const subtotal0 = 0.00;
+            const subtotalSinImp = subtotal15 + subtotal0;
+
+            return (
+              <div className="receipt-fiscal-totals">
+                <div className="receipt-fiscal-row">
+                  <span>Subtotal 15%</span>
+                  <span>${subtotal15.toFixed(2)}</span>
+                </div>
+                <div className="receipt-fiscal-row">
+                  <span>Subtotal 0%</span>
+                  <span>${subtotal0.toFixed(2)}</span>
+                </div>
+                <div className="receipt-fiscal-row">
+                  <span>Subtotal sin Impuesto</span>
+                  <span>${subtotalSinImp.toFixed(2)}</span>
+                </div>
+                <div className="receipt-fiscal-row">
+                  <span>Descuento %</span>
+                  <span>{discount > 0 ? `-$${discount.toFixed(2)}` : '$0.00'}</span>
+                </div>
+                {shipping > 0 && (
+                  <div className="receipt-fiscal-row">
+                    <span>Flete a Domicilio</span>
+                    <span>+${shipping.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="receipt-fiscal-row">
+                  <span>IVA 15%</span>
+                  <span>${tax.toFixed(2)}</span>
+                </div>
+                <div className="receipt-fiscal-row highlight">
+                  <span>Valor Total</span>
+                  <span>${total.toFixed(2)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="receipt-divider-dash" />
+
+          {/* SECCIÓN DE OBSERVACIÓN Y FORMA DE PAGO */}
+          <div className="receipt-obs-section">
+            <div><strong>OBSERVACIÓN:</strong></div>
+            {payments.length > 0 ? (
+              payments.map((pm: Any, idx: number) => {
+                const methodStr = pm.method === 'CASH'
+                  ? 'EFECTIVO'
+                  : pm.method === 'CARD'
+                  ? 'TARJETA'
+                  : pm.method === 'TRANSFER'
+                  ? 'TRANSFERENCIA'
+                  : String(pm.method || pm.payment_method || 'EFECTIVO').toUpperCase();
                 return (
-                  <tr key={idx}>
-                    <td>{qty}x</td>
-                    <td>{it.productName || it.name || it.sku}</td>
-                    <td style={{ textAlign: 'right' }}>${(qty * p).toFixed(2)}</td>
-                  </tr>
+                  <div key={idx}>
+                    PAGO {methodStr}: ${Number(pm.amount || 0).toFixed(2)}
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
-
-          <div className="thermal-divider" />
-          <div className="thermal-row">
-            <span>Subtotal:</span>
-            <span>${subtotal.toFixed(2)}</span>
+              })
+            ) : (
+              <div>PAGO CONTADO EFECTIVO: ${total.toFixed(2)}</div>
+            )}
+            {change > 0 && (
+              <div style={{ marginTop: '2px' }}>CAMBIO: ${change.toFixed(2)}</div>
+            )}
+            {sale.deliveryTrackingCode && (
+              <div style={{ marginTop: '2px' }}>Tracking: {sale.deliveryTrackingCode}</div>
+            )}
+            {sale.deliveryNotes && (
+              <div style={{ marginTop: '2px' }}>Notas: {sale.deliveryNotes}</div>
+            )}
           </div>
-          {discount > 0 && (
-            <div className="thermal-row" style={{ color: '#b91c1c' }}>
-              <span>Descuento:</span>
-              <span>-${discount.toFixed(2)}</span>
-            </div>
-          )}
-          {sale.invoiceType === 'SRI_INVOICE' && (
-            <div className="thermal-row">
-              <span>IVA (15%):</span>
-              <span>${tax.toFixed(2)}</span>
-            </div>
-          )}
-          {shipping > 0 && (
-            <div className="thermal-row">
-              <span>Envío / Delivery:</span>
-              <span>${shipping.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="thermal-row total-highlight">
-            <span>TOTAL:</span>
-            <span>${total.toFixed(2)}</span>
+
+          <div className="receipt-divider-dash" />
+
+          {/* CLÁUSULA OFICIAL DE GARANTÍA */}
+          <div className="receipt-warranty-box">
+            PARA TERMINOS DE GARANTIA DEBE PRESENTAR SU TICKET<br />
+            DE LO CONTRARIO NO TIENE GARANTIA EL PRODUCTO
+            {sale.warrantyDays > 0 ? (
+              <div style={{ marginTop: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                COBERTURA: {sale.warrantyDays} DÍAS · CONSERVE SU COMPROBANTE
+              </div>
+            ) : null}
           </div>
-          <div className="thermal-divider" />
 
-          {payments.length > 0 && (
-            <div>
-              <div className="thermal-sub" style={{ fontWeight: 700 }}>FORMA DE PAGO:</div>
-              {payments.map((pm: Any, idx: number) => (
-                <div className="thermal-row" key={idx}>
-                  <span>
-                    {pm.method === 'CASH'
-                      ? 'Efectivo'
-                      : pm.method === 'CARD'
-                      ? 'Tarjeta'
-                      : pm.method === 'TRANSFER'
-                      ? 'Transferencia'
-                      : pm.method}
-                  </span>
-                  <span>${Number(pm.amount || 0).toFixed(2)}</span>
-                </div>
-              ))}
-              {change > 0 && (
-                <div className="thermal-row">
-                  <span>Cambio / Vuelto:</span>
-                  <span>${change.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="thermal-divider" />
+          {/* CÓDIGO QR PARA VALIDACIÓN DIGITAL */}
+          <div className="receipt-qr-wrap" style={{ textAlign: 'center', margin: '8px 0 4px' }}>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                `https://fixmetiendas.local/ticket/${sale.orderNumber || sale.id || 'TICKET'}`
+              )}`}
+              alt="QR Verificación"
+              style={{
+                width: paperWidth === '58mm' ? '120px' : '145px',
+                height: paperWidth === '58mm' ? '120px' : '145px',
+                display: 'inline-block',
+                margin: '0 auto'
+              }}
+            />
+            <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#000', marginTop: '3px' }}>
+              Escanee para validar ticket y garantía oficial
             </div>
-          )}
-
-          {sale.warrantyDays > 0 && (
-            <div className="thermal-center thermal-sub">
-              <strong>GARANTÍA: {sale.warrantyDays} DÍAS</strong>
-              <div>Conserve este comprobante para hacer válida su garantía.</div>
-              <div className="thermal-divider" />
-            </div>
-          )}
-
-          {sale.deliveryTrackingCode && (
-            <div className="thermal-center thermal-sub">
-              <div>Código de Rastreo:</div>
-              <strong style={{ fontSize: '13px' }}>{sale.deliveryTrackingCode}</strong>
-              <div className="thermal-divider" />
-            </div>
-          )}
-
-          <div className="thermal-center thermal-sub" style={{ marginTop: '6px' }}>
-            <div>¡Gracias por su compra!</div>
-            <small>Sistema Fixme Tiendas Cloud</small>
           </div>
         </div>
 
@@ -400,7 +499,7 @@ export function CorteZModal({
 
           <div
             className="thermal-row total-highlight"
-            style={{ color: diff === 0 ? '#10b981' : diff > 0 ? '#2563eb' : '#ef4444' }}
+            style={{ color: '#000000', fontWeight: 900 }}
           >
             <span>DIFERENCIA:</span>
             <span>
@@ -479,7 +578,7 @@ export function CorteZModal({
                 <span>{summary.fiscalSummary.sriSalesCount || 0} fac. (${Number(summary.fiscalSummary.sriSalesAmount || 0).toFixed(2)})</span>
               </div>
               {Number(summary.fiscalSummary.sriSalesCount || 0) > 0 && (
-                <div style={{ paddingLeft: '8px', fontSize: '10px', color: '#334155' }}>
+                <div style={{ paddingLeft: '8px', fontSize: '10.5px', color: '#000000' }}>
                   <div className="thermal-row" style={{ margin: '1px 0' }}>
                     <span>• Subtotal 15% (con IVA):</span>
                     <span>${Number(summary.fiscalSummary.sriSubtotal15 || 0).toFixed(2)}</span>
@@ -488,7 +587,7 @@ export function CorteZModal({
                     <span>• Subtotal 0% (sin IVA):</span>
                     <span>${Number(summary.fiscalSummary.sriSubtotal0 || 0).toFixed(2)}</span>
                   </div>
-                  <div className="thermal-row" style={{ margin: '1px 0', fontWeight: 700 }}>
+                  <div className="thermal-row" style={{ margin: '1px 0', fontWeight: 800 }}>
                     <span>• IVA 15% SRI Liquidado:</span>
                     <span>${Number(summary.fiscalSummary.sriIva15 || 0).toFixed(2)}</span>
                   </div>
@@ -541,13 +640,16 @@ export function CorteZModal({
 export function WorkOrderReceiptModal({
   order,
   onClose,
-  tenantName
+  tenantName,
+  companyProfile
 }: {
   order: Any;
   onClose: () => void;
   tenantName?: string;
+  companyProfile?: Any;
 }) {
-  const storeName = tenantName || localStorage.tenantName || 'Fixme Tienda';
+  const company = getCompanyReceiptInfo(undefined, companyProfile);
+  const storeName = company.storeName || tenantName || localStorage.tenantName || 'Fixme Tienda';
   const orderNum = order.orderNumber || order.order_number || order.id?.slice(0, 8).toUpperCase();
   const trackingUrl = `${window.location.origin}/#order/${order.orderNumber || order.order_number || order.id || orderNum}`;
 
@@ -572,14 +674,44 @@ export function WorkOrderReceiptModal({
         </div>
 
         <div id="printable-work-receipt" className={`thermal-receipt paper-${paperWidth}`}>
-          <div className="thermal-center">
-            <h2 className="thermal-title">{storeName}</h2>
-            <div className="thermal-sub" style={{ fontWeight: 800 }}>ORDEN DE SERVICIO TÉCNICO</div>
-            <div className="thermal-sub" style={{ fontSize: '15px', fontWeight: 800 }}>#{orderNum}</div>
-            <div className="thermal-sub">
+          <div className="thermal-center receipt-header-fiscal" style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <h2 className="thermal-title" style={{ fontSize: paperWidth === '58mm' ? '17px' : '20px', fontWeight: 900, margin: '0 0 2px 0', textTransform: 'uppercase', color: '#000' }}>
+              {storeName}
+            </h2>
+            {company.slogan && (
+              <div style={{ fontSize: '9px', fontStyle: 'italic', fontWeight: 600, color: '#000', margin: '0 0 3px 0' }}>
+                "{company.slogan}"
+              </div>
+            )}
+            {company.legalName && company.legalName !== storeName && (
+              <div style={{ fontSize: '9.5px', fontWeight: 800, color: '#000', textTransform: 'uppercase' }}>
+                {company.legalName}
+              </div>
+            )}
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#000' }}>
+              RUC: {company.ruc}
+            </div>
+            {company.matrixAddress && (
+              <div style={{ fontSize: '9px', lineHeight: 1.2, color: '#000' }}>
+                DIR: {company.matrixAddress}
+              </div>
+            )}
+            {company.phone && (
+              <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#000' }}>
+                TEL: {company.phone}
+              </div>
+            )}
+            <div className="receipt-divider-dashed" style={{ margin: '6px 0' }}>- - - - - - - - - - - - - - - - - - - - - - - -</div>
+            <div style={{ fontSize: '11.5px', fontWeight: 900, textTransform: 'uppercase', color: '#000' }}>
+              ORDEN DE SERVICIO TÉCNICO
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 900, color: '#000' }}>
+              N° {orderNum}
+            </div>
+            <div style={{ fontSize: '9.5px', color: '#000' }}>
               Fecha: {new Date(order.createdAt || order.created_at || Date.now()).toLocaleString()}
             </div>
-            <div className="thermal-divider" />
+            <div className="receipt-divider-dashed" style={{ margin: '6px 0' }}>- - - - - - - - - - - - - - - - - - - - - - - -</div>
           </div>
 
           <div className="thermal-row">
@@ -629,21 +761,26 @@ export function WorkOrderReceiptModal({
           )}
           <div className="thermal-divider" />
 
-          <div style={{ fontSize: '9px', textAlign: 'justify', lineHeight: 1.25, color: '#334155' }}>
+          <div style={{ fontSize: '9.5px', textAlign: 'justify', lineHeight: 1.25, color: '#000000' }}>
             <strong>CONDICIONES:</strong> El cliente declara ser el legítimo propietario del equipo. La empresa no se responsabiliza por pérdida de datos previos. Equipos no retirados pasados 90 días se consideran en abandono conforme a la ley.
           </div>
 
           <div className="thermal-divider" />
-          <div className="thermal-center" style={{ margin: '8px 0' }}>
-            <div style={{ fontSize: '10px', marginBottom: '4px', fontWeight: 700 }}>
+          <div className="thermal-center" style={{ margin: '10px 0 6px' }}>
+            <div style={{ fontSize: paperWidth === '58mm' ? '10px' : '11px', marginBottom: '4px', fontWeight: 800, color: '#000000' }}>
               Rastreo en vivo por celular & aprobación de presupuesto:
             </div>
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=${paperWidth === '58mm' ? '90x90' : '120x120'}&data=${encodeURIComponent(trackingUrl)}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(trackingUrl)}`}
               alt="QR Seguimiento"
-              style={{ width: paperWidth === '58mm' ? '80px' : '105px', height: paperWidth === '58mm' ? '80px' : '105px', margin: '4px auto', display: 'block' }}
+              style={{
+                width: paperWidth === '58mm' ? '125px' : '150px',
+                height: paperWidth === '58mm' ? '125px' : '150px',
+                margin: '4px auto',
+                display: 'block'
+              }}
             />
-            <div style={{ fontSize: '8px', color: '#64748b', wordBreak: 'break-all', marginTop: '2px' }}>{trackingUrl}</div>
+            <div style={{ fontSize: '9.5px', color: '#000000', fontWeight: 600, wordBreak: 'break-all', marginTop: '3px' }}>{trackingUrl}</div>
           </div>
 
           <div style={{ marginTop: '25px', textAlign: 'center', fontSize: '10px' }}>
