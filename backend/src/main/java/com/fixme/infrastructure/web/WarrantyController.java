@@ -61,9 +61,11 @@ public class WarrantyController {
           w.work_order_id,
           w.created_at,
           w.updated_at,
-          p.name AS product_name,
-          p.sku AS product_sku,
-          p.price AS product_price,
+          COALESCE(p.name, w.service_description, 'Servicio Técnico / Reparación') AS product_name,
+          COALESCE(p.sku, wo.order_number, 'OT-SERV') AS product_sku,
+          COALESCE(p.price, wo.payment_amount, wo.quote, 0) AS product_price,
+          w.service_description,
+          w.warranty_days,
           c.name AS customer_name,
           c.phone AS customer_phone,
           c.email AS customer_email,
@@ -116,9 +118,11 @@ public class WarrantyController {
           w.work_order_id,
           w.created_at,
           w.updated_at,
-          p.name AS product_name,
-          p.sku AS product_sku,
-          p.price AS product_price,
+          COALESCE(p.name, w.service_description, 'Servicio Técnico / Reparación') AS product_name,
+          COALESCE(p.sku, wo.order_number, 'OT-SERV') AS product_sku,
+          COALESCE(p.price, wo.payment_amount, wo.quote, 0) AS product_price,
+          w.service_description,
+          w.warranty_days,
           c.name AS customer_name,
           c.phone AS customer_phone,
           c.email AS customer_email,
@@ -155,7 +159,9 @@ public class WarrantyController {
 
     if (search != null && !search.isBlank()) {
       String p = "%" + search.trim().toLowerCase() + "%";
-      sql.append(" AND (LOWER(COALESCE(w.warranty_code, '')) LIKE ? OR LOWER(COALESCE(w.serial_number, '')) LIKE ? OR LOWER(COALESCE(p.name, '')) LIKE ? OR LOWER(COALESCE(p.sku, '')) LIKE ? OR LOWER(COALESCE(c.name, '')) LIKE ? OR LOWER(COALESCE(c.phone, '')) LIKE ?)");
+      sql.append(" AND (LOWER(COALESCE(w.warranty_code, '')) LIKE ? OR LOWER(COALESCE(w.serial_number, '')) LIKE ? OR LOWER(COALESCE(p.name, '')) LIKE ? OR LOWER(COALESCE(w.service_description, '')) LIKE ? OR LOWER(COALESCE(wo.order_number, '')) LIKE ? OR LOWER(COALESCE(p.sku, '')) LIKE ? OR LOWER(COALESCE(c.name, '')) LIKE ? OR LOWER(COALESCE(c.phone, '')) LIKE ?)");
+      params.add(p);
+      params.add(p);
       params.add(p);
       params.add(p);
       params.add(p);

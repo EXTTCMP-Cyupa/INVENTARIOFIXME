@@ -30,7 +30,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
   private final RowMapper<WorkOrder> mapper = (rs, rowNum) -> mapRow(rs);
 
   private WorkOrder mapRow(ResultSet rs) throws SQLException {
-    return new WorkOrder(
+    WorkOrder wo = new WorkOrder(
         rs.getObject("id", UUID.class),
         rs.getObject("tenant_id", UUID.class),
         rs.getObject("customer_id", UUID.class),
@@ -59,6 +59,16 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
         rs.getObject("created_at", OffsetDateTime.class),
         rs.getObject("updated_at", OffsetDateTime.class)
     );
+    try {
+      wo.setIntakeChecklist(rs.getString("intake_checklist"));
+    } catch (Exception ignored) {}
+    try {
+      wo.setLegalDisclaimerAccepted(rs.getObject("legal_disclaimer_accepted", Boolean.class));
+    } catch (Exception ignored) {}
+    try {
+      wo.setClientSignature(rs.getString("client_signature"));
+    } catch (Exception ignored) {}
+    return wo;
   }
 
   private final RowMapper<WorkOrderItem> itemMapper = (rs, rowNum) -> {
@@ -92,16 +102,20 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
           description, diagnosis, quote, status, approval_token_hash,
           approval_expires_at, approved_at, approval_url, technician_notes,
           client_notes, rejection_reason, estimated_delivery, assigned_technician_id,
-          sla_hours, sla_deadline, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sla_hours, sla_deadline, intake_checklist, legal_disclaimer_accepted, client_signature,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)
         """;
+    String chk = w.getIntakeChecklist() != null && !w.getIntakeChecklist().isBlank() ? w.getIntakeChecklist() : "{}";
+    Boolean legal = w.getLegalDisclaimerAccepted() != null ? w.getLegalDisclaimerAccepted() : true;
     db.update(sql,
         w.getId(), w.getTenantId(), w.getCustomerId(), w.getBranchId(), w.getOrderNumber(),
         w.getDeviceBrand(), w.getDeviceModel(), w.getSerialNumber(), w.getReportedFault(), w.getAccessories(),
         w.getDescription(), w.getDiagnosis(), w.getQuote(), w.getStatus(), w.getApprovalTokenHash(),
         w.getApprovalExpiresAt(), w.getApprovedAt(), w.getApprovalUrl(), w.getTechnicianNotes(),
         w.getClientNotes(), w.getRejectionReason(), w.getEstimatedDelivery(), w.getAssignedTechnicianId(),
-        w.getSlaHours(), w.getSlaDeadline(), w.getCreatedAt(), w.getUpdatedAt()
+        w.getSlaHours(), w.getSlaDeadline(), chk, legal, w.getClientSignature(),
+        w.getCreatedAt(), w.getUpdatedAt()
     );
 
     if (w.getItems() != null && !w.getItems().isEmpty()) {
@@ -121,16 +135,21 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
           quote = ?, status = ?, approval_token_hash = ?, approval_expires_at = ?,
           approved_at = ?, approval_url = ?, technician_notes = ?, client_notes = ?,
           rejection_reason = ?, estimated_delivery = ?, assigned_technician_id = ?,
-          sla_hours = ?, sla_deadline = ?, updated_at = now()
+          sla_hours = ?, sla_deadline = ?,
+          intake_checklist = coalesce(?::jsonb, intake_checklist),
+          legal_disclaimer_accepted = coalesce(?, legal_disclaimer_accepted),
+          updated_at = now()
         WHERE id = ? AND tenant_id = ?
         """;
+    String chk = w.getIntakeChecklist() != null && !w.getIntakeChecklist().isBlank() ? w.getIntakeChecklist() : null;
     db.update(sql,
         w.getOrderNumber(), w.getDeviceBrand(), w.getDeviceModel(), w.getSerialNumber(),
         w.getReportedFault(), w.getAccessories(), w.getDescription(), w.getDiagnosis(),
         w.getQuote(), w.getStatus(), w.getApprovalTokenHash(), w.getApprovalExpiresAt(),
         w.getApprovedAt(), w.getApprovalUrl(), w.getTechnicianNotes(), w.getClientNotes(),
         w.getRejectionReason(), w.getEstimatedDelivery(), w.getAssignedTechnicianId(),
-        w.getSlaHours(), w.getSlaDeadline(), w.getId(), w.getTenantId()
+        w.getSlaHours(), w.getSlaDeadline(), chk, w.getLegalDisclaimerAccepted(),
+        w.getId(), w.getTenantId()
     );
 
     if (w.getItems() != null) {
@@ -182,6 +201,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
                w.approval_url, w.approval_expires_at, w.approved_at, w.technician_notes,
                w.client_notes, w.rejection_reason, w.estimated_delivery, w.created_at, w.updated_at,
                w.assigned_technician_id,
+               w.intake_checklist, w.legal_disclaimer_accepted,
                COALESCE(w.sla_deadline, w.created_at + (COALESCE(w.sla_hours, 48) || ' hours')::interval) AS sla_deadline,
                COALESCE(w.sla_hours, 48) AS sla_hours,
                c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
@@ -234,6 +254,11 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
           "subtotal", i.getSubtotal()
       )).toList();
       row.put("items", itemsList);
+      List<Map<String, Object>> images = db.queryForList(
+          "SELECT id, stage, image_url, caption, created_at FROM work_order_images WHERE work_order_id = ? ORDER BY created_at ASC",
+          orderId
+      );
+      row.put("images", images);
     }
 
     return list;
@@ -247,6 +272,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
                w.reported_fault, w.accessories, w.description, w.diagnosis, w.quote,
                w.status, w.approval_expires_at, w.approved_at, w.client_notes,
                w.rejection_reason, w.estimated_delivery, w.created_at, w.updated_at,
+               w.intake_checklist, w.legal_disclaimer_accepted,
                c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
                b.name AS branch_name,
                t.name AS store_name
@@ -272,6 +298,12 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
     )).toList();
     row.put("items", itemsList);
 
+    List<Map<String, Object>> images = db.queryForList(
+        "SELECT id, stage, image_url, caption, created_at FROM work_order_images WHERE work_order_id = ? ORDER BY created_at ASC",
+        orderId
+    );
+    row.put("images", images);
+
     return Optional.of(row);
   }
 
@@ -284,7 +316,7 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
                w.reported_fault, w.accessories, w.description, w.diagnosis, w.quote,
                w.status, w.approval_expires_at, w.approved_at, w.client_notes,
                w.rejection_reason, w.estimated_delivery, w.created_at, w.updated_at,
-               w.approval_url,
+               w.approval_url, w.intake_checklist, w.legal_disclaimer_accepted,
                c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
                b.name AS branch_name, COALESCE(t.address, '') AS branch_address, COALESCE(t.phone, '') AS branch_phone,
                t.name AS store_name
@@ -325,6 +357,12 @@ public class JdbcWorkOrderRepository implements WorkOrderPort {
         "subtotal", i.getSubtotal()
     )).toList();
     row.put("items", itemsList);
+
+    List<Map<String, Object>> images = db.queryForList(
+        "SELECT id, stage, image_url, caption, created_at FROM work_order_images WHERE work_order_id = ? ORDER BY created_at ASC",
+        orderId
+    );
+    row.put("images", images);
 
     return Optional.of(row);
   }

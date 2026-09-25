@@ -40,8 +40,31 @@ public class WorkOrderService {
       OffsetDateTime estimatedDelivery,
       UUID assignedTechnicianId,
       Integer slaHours,
-      List<OrderItemInput> items
-  ) {}
+      List<OrderItemInput> items,
+      String intakeChecklist,
+      Boolean legalDisclaimerAccepted
+  ) {
+    public CreateOrderCommand(
+        UUID customerId,
+        UUID branchId,
+        String deviceBrand,
+        String deviceModel,
+        String serialNumber,
+        String reportedFault,
+        String accessories,
+        String description,
+        String diagnosis,
+        BigDecimal quote,
+        OffsetDateTime estimatedDelivery,
+        UUID assignedTechnicianId,
+        Integer slaHours,
+        List<OrderItemInput> items
+    ) {
+      this(customerId, branchId, deviceBrand, deviceModel, serialNumber, reportedFault,
+           accessories, description, diagnosis, quote, estimatedDelivery, assignedTechnicianId,
+           slaHours, items, "{}", true);
+    }
+  }
 
   public WorkOrder createOrder(UUID tenantId, CreateOrderCommand cmd) {
     modules.require(tenantId, "WORK_ORDERS");
@@ -115,6 +138,12 @@ public class WorkOrderService {
         now
     );
 
+    if (cmd.intakeChecklist() != null && !cmd.intakeChecklist().isBlank()) {
+      order.setIntakeChecklist(cmd.intakeChecklist());
+    }
+    if (cmd.legalDisclaimerAccepted() != null) {
+      order.setLegalDisclaimerAccepted(cmd.legalDisclaimerAccepted());
+    }
     order.setItems(orderItems);
     return port.save(order);
   }

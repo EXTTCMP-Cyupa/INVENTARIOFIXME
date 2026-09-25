@@ -16,6 +16,7 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
   const [ncInvoice, setNcInvoice] = React.useState<any | null>(null);
   const [ncReason, setNcReason] = React.useState('Devolución de mercadería / Anulación');
   const [ncSubmitting, setNcSubmitting] = React.useState(false);
+  const [errorInvoice, setErrorInvoice] = React.useState<any | null>(null);
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -226,18 +227,43 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
                         ${Number(inv.importe_total || 0).toFixed(2)}
                       </td>
                       <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
-                        <span
-                          className="status-badge"
-                          style={{
-                            background: isAuth ? '#ecfdf5' : '#fffbeb',
-                            color: isAuth ? '#065f46' : '#92400e',
-                            borderColor: isAuth ? '#a7f3d0' : '#fde68a',
-                            fontWeight: 700,
-                            fontSize: '11px'
-                          }}
-                        >
-                          {isAuth ? '✓ AUTORIZADA' : inv.estado_sri}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span
+                            className="status-badge"
+                            style={{
+                              background: isAuth ? '#ecfdf5' : (inv.estado_sri === 'DEVUELTA' ? '#fef2f2' : '#fffbeb'),
+                              color: isAuth ? '#065f46' : (inv.estado_sri === 'DEVUELTA' ? '#b91c1c' : '#92400e'),
+                              borderColor: isAuth ? '#a7f3d0' : (inv.estado_sri === 'DEVUELTA' ? '#fca5a5' : '#fde68a'),
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {isAuth ? '✓ AUTORIZADA' : (inv.estado_sri === 'DEVUELTA' ? '⚠️ DEVUELTA' : inv.estado_sri)}
+                          </span>
+                          {inv.estado_sri === 'DEVUELTA' && (
+                            <button
+                              type="button"
+                              onClick={() => setErrorInvoice(inv)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#b91c1c',
+                                fontSize: '10.5px',
+                                textDecoration: 'underline',
+                                cursor: 'pointer',
+                                padding: 0,
+                                textAlign: 'left',
+                                fontWeight: 700
+                              }}
+                              title="Ver motivo de devolución del SRI"
+                            >
+                              Ver motivo SRI ↗
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
@@ -290,6 +316,66 @@ export function SriInvoicesListModal({ api, onClose, onOpenRide, notify }: SriIn
             </table>
           )}
         </div>
+
+        {/* MODAL DETALLE DE ERROR SRI */}
+        {errorInvoice && (
+          <div className="modal-overlay" onClick={() => setErrorInvoice(null)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+              <div className="modal-head" style={{ borderBottom: '1px solid #fee2e2', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 22 }}>⚠️</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, color: '#991b1b' }}>Motivo de Devolución del SRI</h3>
+                    <small style={{ color: '#64748b' }}>Comprobante {errorInvoice.numero_completo}</small>
+                  </div>
+                </div>
+                <button className="close-button" onClick={() => setErrorInvoice(null)}>✕</button>
+              </div>
+
+              <div style={{ padding: '14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px' }}>
+                  <strong style={{ color: '#991b1b', fontSize: 13, display: 'block', marginBottom: 6 }}>
+                    Mensaje oficial retornado por el SRI:
+                  </strong>
+                  {Array.isArray(errorInvoice.mensajes_sri) && errorInvoice.mensajes_sri.length > 0 ? (
+                    <ul style={{ margin: 0, paddingLeft: 18, color: '#7f1d1d', fontSize: 12.5, lineHeight: 1.5 }}>
+                      {errorInvoice.mensajes_sri.map((m: any, idx: number) => (
+                        <li key={idx} style={{ marginBottom: 4 }}>
+                          <b>{m.tipo || 'ERROR'}:</b> {m.mensaje}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ margin: 0, color: '#7f1d1d', fontSize: 12.5 }}>
+                      {typeof errorInvoice.mensajes_sri === 'string' ? errorInvoice.mensajes_sri : 'Comprobante no superó las validaciones del esquema XML del SRI.'}
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: '#334155', lineHeight: 1.5 }}>
+                  <strong style={{ display: 'block', color: '#0f172a', marginBottom: 6 }}>💡 ¿Por qué ocurre esto y cómo resolverlo?</strong>
+                  <div style={{ marginBottom: 6 }}>
+                    <b>1. RUC registrado en el SRI:</b> El RUC <code>1790012345001</code> es ficticio. Incluso en el ambiente de pruebas (celcer.sri.gob.ec), el SRI valida que el RUC del emisor exista en su catastro activo.
+                  </div>
+                  <div>
+                    <b>2. Firma Electrónica (.p12):</b> Para autorizar facturas con el SRI real, debes cargar tu archivo de firma digital <code>.p12</code> y contraseña en <b>Ajustes &gt; Facturación SRI</b>. Si no se sube un .p12, el sistema genera una firma simulada que el SRI real rechaza.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setErrorInvoice(null)}
+                  style={{ padding: '7px 18px', fontWeight: 600 }}
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL ISSUE CREDIT NOTE */}
         {ncInvoice && (

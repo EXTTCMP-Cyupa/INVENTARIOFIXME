@@ -1,5 +1,7 @@
 import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
-import { PublicCatalog, PublicDeliveryTracking, PublicWorkOrderTracking, CatalogShareModal } from './publicModules';
+import { PublicCatalog, PublicDeliveryTracking, PublicWorkOrderTracking, CatalogShareModal, PublicRepairRequestWizard, PublicLeadTracking } from './publicModules';
+import { CustomerPortal } from './customerPortal';
+import { MarketplaceView, WorkOrderCheckoutModal } from './marketplaceView';
 import { QuotesPage, PublicQuoteView } from './quotesModule';
 import { SriRideModal } from './sriRideModal';
 import { SriInvoicesListModal } from './sriInvoicesListModal';
@@ -10,7 +12,7 @@ import { PayphoneModal } from './payphoneModal';
 import { LandingPage } from './landingPage';
 import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement, getCompanyReceiptInfo } from './ticketPrinter';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
-const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
+const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
 const[trialInfo,setTrialInfo]=React.useState<{isTrial?:boolean;daysRemaining?:number;trialEndsAt?:string}|null>(()=>{
   if(localStorage.isTrial==='true'){
@@ -33,7 +35,7 @@ const [companyInfo, setCompanyInfo] = React.useState<Any>(() => ({
   slogan: localStorage.tenantSlogan || 'Con la Mejor Innovación en Tecnología'
 }));
 
-React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['OPERACION',['my-work','work-orders','products','customers','warranties']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
+React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}if(!userPerms.includes('marketplace')){userPerms=[...userPerms,'marketplace'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);const reqMatch=hash.match(/#solicitud\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]solicitud=([a-zA-Z0-9\-\.]+)/i);const newReqMatch=hash.match(/#solicitar-reparacion/i)||hash.match(/#reparar/i);const portalMatch=hash.match(/#portal-cliente/i)||hash.match(/#mi-cuenta/i)||hash.match(/#portal/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(reqMatch)return<PublicLeadTracking code={reqMatch[1]} onBack={()=>{window.location.hash='';setHash('');}}/>;if(newReqMatch)return<PublicRepairRequestWizard onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(portalMatch)return<CustomerPortal onBack={()=>{window.location.hash='';setHash('');}}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','marketplace','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','marketplace','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','marketplace','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['TALLER / LEADS',['my-work','work-orders','marketplace','warranties']],['OPERACION',['products','customers']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
 React.useEffect(() => {
   if (token && !isSaasOwner) {
     api('/api/administration/profile')
@@ -120,7 +122,7 @@ const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'
     </div>
   </div>
 )}
-<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button type="button" className="header-icon" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} title="🛠️ Solicitar Reparación Técnica" style={{background:'#f0fdf4',color:'#16a34a',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>🛠️ Solicitar Reparación</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -11110,6 +11112,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
   const [editModal,setEditModal]=React.useState<Any|null>(null);
   const [editItems,setEditItems]=React.useState<Array<{itemType:string,name:string,quantity:number,unitPrice:number}>>([]);
   const [ticketModal,setTicketModal]=React.useState<Any|null>(null);
+  const [checkoutModal,setCheckoutModal]=React.useState<Any|null>(null);
 
   const [form,setForm]=React.useState({
     customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
@@ -11118,6 +11121,140 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
   });
 
   const [items,setItems]=React.useState<Array<{itemType:string,name:string,quantity:number,unitPrice:number}>>([]);
+
+  const [intakeChecklist, setIntakeChecklist] = React.useState({
+    powersOn: 'YES',
+    screenStatus: 'OK',
+    camerasStatus: 'OK',
+    audioStatus: 'OK',
+    wifiStatus: 'OK',
+    chargingStatus: 'OK',
+    cosmetic: 'BUENO',
+    passcode: ''
+  });
+  const [legalDisclaimerAccepted, setLegalDisclaimerAccepted] = React.useState(true);
+  const [intakePhotos, setIntakePhotos] = React.useState<Array<{stage: string, imageUrl: string, caption: string}>>([]);
+
+  const [trustCamModal, setTrustCamModal] = React.useState<Any | null>(null);
+  const [trustCamImages, setTrustCamImages] = React.useState<Any[]>([]);
+  const [newPhotoStage, setNewPhotoStage] = React.useState<'RECEPTION' | 'DIAGNOSIS' | 'COMPLETED'>('DIAGNOSIS');
+  const [newPhotoUrl, setNewPhotoUrl] = React.useState('');
+  const [newPhotoCaption, setNewPhotoCaption] = React.useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
+
+  const [notifyModal, setNotifyModal] = React.useState<Any | null>(null);
+  const [notifyType, setNotifyType] = React.useState<string>('STATUS_UPDATE');
+  const [notifyCustomMsg, setNotifyCustomMsg] = React.useState('');
+  const [notifyHistory, setNotifyHistory] = React.useState<Any[]>([]);
+  const [sendingNotify, setSendingNotify] = React.useState(false);
+
+  async function openTrustCam(o: Any) {
+    setTrustCamModal(o);
+    setNewPhotoStage(o.status === 'COMPLETED' ? 'COMPLETED' : o.status === 'OPEN' ? 'RECEPTION' : 'DIAGNOSIS');
+    setNewPhotoUrl('');
+    setNewPhotoCaption('');
+    try {
+      const res = await api(`/api/work-orders/${o.id}/images`);
+      if (res.ok) {
+        const imgs = await res.json();
+        setTrustCamImages(Array.isArray(imgs) ? imgs : []);
+      } else {
+        setTrustCamImages(Array.isArray(o.images) ? o.images : []);
+      }
+    } catch {
+      setTrustCamImages(Array.isArray(o.images) ? o.images : []);
+    }
+  }
+
+  async function addTrustCamPhoto() {
+    if (!trustCamModal || !newPhotoUrl.trim()) return;
+    setIsUploadingPhoto(true);
+    try {
+      const res = await api(`/api/work-orders/${trustCamModal.id}/images`, {
+        method: 'POST',
+        body: JSON.stringify({
+          stage: newPhotoStage,
+          imageUrl: newPhotoUrl.trim(),
+          caption: newPhotoCaption.trim()
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setTrustCamImages(prev => [...prev, created]);
+        setNewPhotoUrl('');
+        setNewPhotoCaption('');
+        load();
+      } else {
+        alert('Error al guardar la foto');
+      }
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  }
+
+  async function deleteTrustCamPhoto(imgId: string) {
+    if (!trustCamModal || !confirm('¿Eliminar esta evidencia fotográfica?')) return;
+    const res = await api(`/api/work-orders/${trustCamModal.id}/images/${imgId}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      setTrustCamImages(prev => prev.filter(img => img.id !== imgId));
+      load();
+    }
+  }
+
+  async function openNotifyModal(o: Any) {
+    setNotifyModal(o);
+    let initialType = 'STATUS_UPDATE';
+    if (['OPEN', 'RECIBIDO'].includes(o.status)) initialType = 'ORDER_CREATED';
+    else if (['QUOTED', 'DIAGNOSIS'].includes(o.status)) initialType = 'QUOTE_READY';
+    else if (['COMPLETED', 'LISTO_ENTREGA'].includes(o.status)) initialType = 'READY_FOR_PICKUP';
+    else if (['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(o.status)) initialType = 'WAITING_PARTS';
+    setNotifyType(initialType);
+    setNotifyCustomMsg('');
+    try {
+      const res = await api(`/api/work-orders/${o.id}/notifications`);
+      if (res.ok) {
+        const history = await res.json();
+        setNotifyHistory(Array.isArray(history) ? history : []);
+      } else {
+        setNotifyHistory([]);
+      }
+    } catch {
+      setNotifyHistory([]);
+    }
+  }
+
+  async function sendNotification() {
+    if (!notifyModal) return;
+    setSendingNotify(true);
+    try {
+      const res = await api(`/api/work-orders/${notifyModal.id}/notify`, {
+        method: 'POST',
+        body: JSON.stringify({
+          channel: 'WHATSAPP',
+          notificationType: notifyType,
+          customMessage: notifyCustomMsg.trim() || null
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.whatsappUrl) {
+          window.open(data.whatsappUrl, '_blank');
+        }
+        setMsg('Notificación registrada y enviada a WhatsApp');
+        const histRes = await api(`/api/work-orders/${notifyModal.id}/notifications`);
+        if (histRes.ok) {
+          const h = await histRes.json();
+          setNotifyHistory(Array.isArray(h) ? h : []);
+        }
+      } else {
+        alert('Error al registrar notificación');
+      }
+    } finally {
+      setSendingNotify(false);
+    }
+  }
 
   const load=React.useCallback(()=>{
     api('/api/work-orders').then(x=>x.ok?x.json():[]).then(setR);
@@ -11174,18 +11311,27 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
         quote:form.quote?Number(form.quote):0,
         slaHours:Number(form.slaHours||48),
         assignedTechnicianId:form.assignedTechnicianId||null,
-        items:items.filter(it=>it.name.trim()!=='')
+        items:items.filter(it=>it.name.trim()!==''),
+        intakeChecklist,
+        legalDisclaimerAccepted,
+        images: intakePhotos
       })
     });
     setBusy(false);
     if(res.ok){
       const created=await res.json();
-      setMsg('Orden registrada y técnico asignado exitosamente');
+      setMsg('Orden registrada con Trust-Cam y checklist legal exitosamente');
       setForm({
         customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
         reportedFault:'',accessories:'',description:'',diagnosis:'',
         quote:'',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
       });
+      setIntakeChecklist({
+        powersOn: 'YES', screenStatus: 'OK', camerasStatus: 'OK', audioStatus: 'OK',
+        wifiStatus: 'OK', chargingStatus: 'OK', cosmetic: 'BUENO', passcode: ''
+      });
+      setLegalDisclaimerAccepted(true);
+      setIntakePhotos([]);
       setItems([]);
       setShowCreate(false);
       load();
@@ -11452,6 +11598,171 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
           </div>
         </div>
 
+        {/* 📋 CHECKLIST RÁPIDO DE RECEPCIÓN & TRUST-CAM */}
+        <div className="form-section" style={{marginTop:'16px',background:'#f8fafc',padding:'16px',borderRadius:'12px',border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
+            <div>
+              <h4 style={{margin:0,fontSize:'14px',color:'#0f172a'}}>📋 Checklist Rápido de Recepción (30 Segundos)</h4>
+              <small style={{color:'#64748b'}}>Inspección técnica inicial para evitar reclamos posteriores sobre fallas previas.</small>
+            </div>
+            <span style={{fontSize:'11px',background:'#e0f2fe',color:'#0369a1',padding:'3px 8px',borderRadius:'6px',fontWeight:700}}>
+              🔒 Protección Taller & Cliente
+            </span>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))',gap:'10px'}}>
+            <label style={{fontSize:'12px'}}>⚡ Encendido
+              <select
+                value={intakeChecklist.powersOn}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,powersOn:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="YES">✓ Enciende normal</option>
+                <option value="NO">✕ No enciende / Apagado total</option>
+                <option value="UNTESTED">⚠️ Descargado / No probado</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>📱 Pantalla / Touch
+              <select
+                value={intakeChecklist.screenStatus}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,screenStatus:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="OK">✓ Pantalla y táctil OK</option>
+                <option value="SCRATCHED">⚠️ Pantalla con rayones leves</option>
+                <option value="BROKEN">✕ Pantalla rota / manchas / líneas</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>📷 Cámaras
+              <select
+                value={intakeChecklist.camerasStatus}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,camerasStatus:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="OK">✓ Cámaras OK</option>
+                <option value="FAULTY">✕ Cámara dañada / lente roto</option>
+                <option value="UNTESTED">⚠️ Bloqueado / No probado</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>🔊 Audio / Micrófono
+              <select
+                value={intakeChecklist.audioStatus}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,audioStatus:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="OK">✓ Altavoz y micro OK</option>
+                <option value="FAULTY">✕ Con distorsión o sin sonido</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>📶 WiFi / Red Celular
+              <select
+                value={intakeChecklist.wifiStatus}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,wifiStatus:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="OK">✓ WiFi y antena OK</option>
+                <option value="FAULTY">✕ No conecta WiFi / sin señal</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>🔌 Puerto de Carga
+              <select
+                value={intakeChecklist.chargingStatus}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,chargingStatus:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="OK">✓ Carga rápido / normal</option>
+                <option value="FAULTY">✕ Falso contacto / no carga</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>🔍 Condición Estética
+              <select
+                value={intakeChecklist.cosmetic}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,cosmetic:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              >
+                <option value="EXCELENTE">✨ Excelente (Como nuevo)</option>
+                <option value="BUENO">👍 Buen estado (Uso normal)</option>
+                <option value="RAYONES">⚠️ Rayones visibles</option>
+                <option value="GOLPES">🚨 Golpes o fisuras en chasis</option>
+              </select>
+            </label>
+
+            <label style={{fontSize:'12px'}}>🔐 Clave / Patrón
+              <input
+                placeholder="Ej. 1234 o Sin clave"
+                value={intakeChecklist.passcode}
+                onChange={e=>setIntakeChecklist({...intakeChecklist,passcode:e.target.value})}
+                style={{fontSize:'12px',padding:'6px',marginTop:'4px'}}
+              />
+            </label>
+          </div>
+
+          {/* FOTOS TRUST-CAM DE RECEPCIÓN */}
+          <div style={{marginTop:'14px',borderTop:'1px dashed #cbd5e1',paddingTop:'12px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+              <label style={{fontSize:'12px',fontWeight:700,color:'#0f172a',margin:0}}>
+                📸 Trust-Cam: Fotos de Recepción Inicial ({intakePhotos.length})
+              </label>
+              <label style={{fontSize:'11px',color:'#2563eb',cursor:'pointer',fontWeight:700}}>
+                ＋ Adjuntar Foto
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{display:'none'}}
+                  onChange={(e: Any) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev: Any) => {
+                        setIntakePhotos(prev => [...prev, { stage: 'RECEPTION', imageUrl: ev.target.result, caption: 'Foto de recepción' }]);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {intakePhotos.length > 0 && (
+              <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'6px'}}>
+                {intakePhotos.map((p, idx) => (
+                  <div key={idx} style={{position:'relative',width:'70px',height:'70px',borderRadius:'8px',overflow:'hidden',border:'1px solid #cbd5e1'}}>
+                    <img src={p.imageUrl} alt="Intake" style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                    <button
+                      type="button"
+                      onClick={() => setIntakePhotos(prev => prev.filter((_, i) => i !== idx))}
+                      style={{position:'absolute',top:2,right:2,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:'50%',width:18,height:18,fontSize:10,cursor:'pointer',lineHeight:'18px',textAlign:'center',padding:0}}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* CLÁUSULA LEGAL ART 71 */}
+          <div style={{marginTop:'12px',background:'#fff',padding:'10px 12px',borderRadius:'8px',border:'1px solid #e2e8f0'}}>
+            <label style={{display:'flex',alignItems:'flex-start',gap:'8px',fontSize:'12px',color:'#334155',cursor:'pointer',fontWeight:500,margin:0}}>
+              <input
+                type="checkbox"
+                checked={legalDisclaimerAccepted}
+                onChange={e=>setLegalDisclaimerAccepted(e.target.checked)}
+                style={{marginTop:'2px'}}
+              />
+              <span>
+                <b>Aceptación Legal de Custodia (Art. 71 Ley Defensa del Consumidor Ecuador):</b> El cliente autoriza la revisión técnica. Se compromete al retiro del equipo dentro de los 60 días posteriores a la notificación de retiro.
+              </span>
+            </label>
+          </div>
+        </div>
+
         <div className="form-section" style={{marginTop:'16px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
             <div>
@@ -11686,10 +11997,10 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                             <button
                               type="button"
                               className="primary-action"
-                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#4338ca' }}
-                              onClick={() => updateStatus(o.id, 'DELIVERED')}
+                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
+                              onClick={() => setCheckoutModal(o)}
                             >
-                              🤝 Entregar
+                              🤝 Cobrar y Entregar
                             </button>
                             <a
                               className="btn-sm btn-wa-sm"
@@ -11704,20 +12015,28 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                         )}
 
                         {/* SECONDARY ROW ACTIONS */}
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
-                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => setQrModal(o)} title="QR">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 6 }}>
+                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => openTrustCam(o)} title="Trust-Cam Evidencia Visual">
+                            📸 Fotos {o.images && o.images.length > 0 ? `(${o.images.length})` : ''}
+                          </button>
+                          <button className="btn-sm btn-wa-sm" style={{ fontSize: '10px', padding: '5px 2px', justifyContent: 'center' }} onClick={() => openNotifyModal(o)} title="Notificar WhatsApp">
+                            💬 Avisar
+                          </button>
+                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => setQrModal(o)} title="QR">
                             📱 QR
                           </button>
-                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => openEditModal(o)} title="Editar en Taller">
+                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => openEditModal(o)} title="Editar en Taller">
                             🛠️ Taller
                           </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
                           <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => setTicketModal(o)} title="Imprimir Ticket">
                             🖨️ Ticket
                           </button>
                           <select
                             value={o.status}
                             onChange={e => updateStatus(o.id, e.target.value)}
-                            style={{ fontSize: '10.5px', padding: '2px 4px', borderRadius: 6, border: '1px solid #cbd5e1', maxWidth: '85px' }}
+                            style={{ flex: 1, fontSize: '10.5px', padding: '4px', borderRadius: 6, border: '1px solid #cbd5e1' }}
                           >
                             <option value="OPEN">Abierta</option>
                             <option value="DIAGNOSIS">Diagnóstico</option>
@@ -11829,10 +12148,10 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                           <button
                             type="button"
                             className="btn-sm btn-primary-sm"
-                            style={{ background: '#4338ca', color: '#fff' }}
-                            onClick={() => updateStatus(o.id, 'DELIVERED')}
+                            style={{ background: '#059669', color: '#fff' }}
+                            onClick={() => setCheckoutModal(o)}
                           >
-                            🤝 Entregar a Cliente
+                            🤝 Cobrar y Entregar
                           </button>
                           <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer">
                             💬 Avisar Retiro
@@ -11843,13 +12162,17 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                   </div>
 
                   <div className="order-actions">
-                    <button className="btn-sm btn-primary-sm" onClick={() => setQrModal(o)} title="Ver QR de seguimiento">
-                      📱 QR / Link
+                    <button className="btn-sm btn-secondary-sm" onClick={() => openTrustCam(o)} title="Trust-Cam Evidencia Visual">
+                      📸 Trust-Cam {o.images && o.images.length > 0 ? `(${o.images.length})` : ''}
                     </button>
 
-                    <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer" title="Enviar enlace por WhatsApp">
-                      💬 WhatsApp
-                    </a>
+                    <button className="btn-sm btn-wa-sm" onClick={() => openNotifyModal(o)} title="Notificar al cliente por WhatsApp">
+                      💬 Notificar
+                    </button>
+
+                    <button className="btn-sm btn-primary-sm" onClick={() => setQrModal(o)} title="Ver QR de seguimiento">
+                      📱 QR
+                    </button>
 
                     <button className="btn-sm btn-secondary-sm" onClick={() => openEditModal(o)} title="Actualizar diagnóstico, técnico, ítems y precio">
                       🛠️ Taller
@@ -12053,6 +12376,306 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
         </form>
       </div>
     </div>}
+
+    {/* MODAL COBRO Y GARANTÍA DE TRABAJO */}
+    {checkoutModal && (
+      <WorkOrderCheckoutModal
+        order={checkoutModal}
+        onClose={() => setCheckoutModal(null)}
+        onSuccess={(data: Any) => {
+          setCheckoutModal(null);
+          setMsg(`¡Trabajo finalizado! Cobro registrado y Garantía #${data.warrantyCode} emitida con éxito.`);
+          load();
+          setTicketModal({
+            ...checkoutModal,
+            status: data.status,
+            warranty_code: data.warrantyCode,
+            warranty_days: data.warrantyDays,
+            payment_method: data.paymentMethod,
+            payment_amount: data.paymentAmount
+          });
+        }}
+      />
+    )}
+
+    {/* MODAL GESTOR TRUST-CAM (FOTOS DE EVIDENCIA VISUAL) */}
+    {trustCamModal && (
+      <div className="modal-overlay" onClick={() => setTrustCamModal(null)}>
+        <div className="modal-card" style={{ width: 'min(720px, 95vw)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-head">
+            <div>
+              <span className="eyebrow" style={{ color: '#2563eb' }}>INSPECCIÓN TÉCNICA VISUAL</span>
+              <h3 style={{ margin: 0 }}>📸 Trust-Cam · {trustCamModal.order_number || 'Orden'}</h3>
+              <small style={{ color: '#64748b' }}>
+                {trustCamModal.device_brand} {trustCamModal.device_model} · {trustCamModal.customer_name || 'Cliente'}
+              </small>
+            </div>
+            <button className="close-button" onClick={() => setTrustCamModal(null)}>✕</button>
+          </div>
+
+          <div style={{ padding: '16px 20px' }}>
+            <p style={{ fontSize: '13px', color: '#475569', marginTop: 0, marginBottom: '14px', background: '#eff6ff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+              💡 <b>Transparencia Total:</b> Las fotos adjuntas aquí son visibles de inmediato para el cliente en su <b>Portal 360</b>. Úsalas para certificar el estado en que recibiste el equipo, mostrar sulfato o componentes quemados y probar la reparación culminada.
+            </p>
+
+            {/* FORMULARIO AGREGAR FOTO */}
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '18px' }}>
+              <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px', color: '#0f172a' }}>
+                ＋ Adjuntar Nueva Evidencia Visual
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                {[
+                  ['RECEPTION', '📥 Recepción'],
+                  ['DIAGNOSIS', '🔬 Diagnóstico'],
+                  ['COMPLETED', '✨ Reparación Culminada']
+                ].map(([stg, lbl]) => (
+                  <button
+                    key={stg}
+                    type="button"
+                    onClick={() => setNewPhotoStage(stg as 'RECEPTION' | 'DIAGNOSIS' | 'COMPLETED')}
+                    style={{
+                      padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                      border: newPhotoStage === stg ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                      background: newPhotoStage === stg ? '#2563eb' : '#fff',
+                      color: newPhotoStage === stg ? '#fff' : '#475569'
+                    }}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  placeholder="URL de la imagen (o selecciona un archivo abajo)..."
+                  value={newPhotoUrl}
+                  onChange={e => setNewPhotoUrl(e.target.value)}
+                  style={{ fontSize: '13px', padding: '8px 12px' }}
+                />
+                <label style={{
+                  background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1',
+                  padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
+                }}>
+                  📁 Seleccionar Archivo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e: Any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev: Any) => {
+                          setNewPhotoUrl(ev.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
+                <input
+                  placeholder="Descripción de la foto (Ej. Conector de carga sulfatado, chasis quebrado)..."
+                  value={newPhotoCaption}
+                  onChange={e => setNewPhotoCaption(e.target.value)}
+                  style={{ fontSize: '13px', padding: '8px 12px' }}
+                />
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={!newPhotoUrl.trim() || isUploadingPhoto}
+                  onClick={addTrustCamPhoto}
+                  style={{ fontSize: '12px', padding: '8px 16px' }}
+                >
+                  {isUploadingPhoto ? 'Guardando...' : '📸 Guardar Evidencia'}
+                </button>
+              </div>
+
+              {newPhotoUrl && (
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img src={newPhotoUrl} alt="Preview" style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                  <span style={{ fontSize: '12px', color: '#059669', fontWeight: 600 }}>✓ Vista previa lista para subir</span>
+                </div>
+              )}
+            </div>
+
+            {/* LISTADO DE FOTOS EXISTENTES */}
+            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a', marginBottom: '10px' }}>
+              Evidencias Registradas ({trustCamImages.length})
+            </div>
+
+            {trustCamImages.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', background: '#f8fafc', borderRadius: '10px', color: '#94a3b8', fontSize: '13px' }}>
+                📷 No se han adjuntado fotos aún para esta orden de trabajo.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+                {trustCamImages.map((img: Any, idx: number) => {
+                  const stageBadge = img.stage === 'RECEPTION' ? '📥 Recepción' : img.stage === 'COMPLETED' ? '✨ Culminada' : '🔬 Diagnóstico';
+                  const stageBg = img.stage === 'RECEPTION' ? '#eff6ff' : img.stage === 'COMPLETED' ? '#ecfdf5' : '#fef3c7';
+                  const stageCol = img.stage === 'RECEPTION' ? '#2563eb' : img.stage === 'COMPLETED' ? '#059669' : '#d97706';
+                  return (
+                    <div key={img.id || idx} style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <div style={{ height: '120px', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                        <img src={img.imageUrl || img.image_url} alt="Trust-Cam" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button
+                          type="button"
+                          onClick={() => deleteTrustCamPhoto(img.id)}
+                          style={{
+                            position: 'absolute', top: 4, right: 4, background: 'rgba(220,38,38,0.85)', color: '#fff',
+                            border: 'none', borderRadius: '50%', width: 22, height: 22, fontSize: 11, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}
+                          title="Eliminar foto"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div style={{ padding: '8px 10px' }}>
+                        <span style={{ background: stageBg, color: stageCol, fontSize: '10.5px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
+                          {stageBadge}
+                        </span>
+                        <div style={{ fontSize: '12px', color: '#334155', fontWeight: 600, marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {img.caption || 'Sin descripción'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="editor-footer" style={{ marginTop: '16px' }}>
+            <button type="button" className="primary-action" onClick={() => setTrustCamModal(null)}>
+              Listo / Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* MODAL NOTIFICADOR WHATSAPP & AUDITORÍA DE AVISOS */}
+    {notifyModal && (
+      <div className="modal-overlay" onClick={() => setNotifyModal(null)}>
+        <div className="modal-card" style={{ width: 'min(680px, 95vw)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-head">
+            <div>
+              <span className="eyebrow" style={{ color: '#25d366' }}>WHATSAPP & PORTAL CLIENTE</span>
+              <h3 style={{ margin: 0 }}>💬 Notificar al Cliente · {notifyModal.order_number || 'Orden'}</h3>
+              <small style={{ color: '#64748b' }}>
+                👤 {notifyModal.customer_name || 'Cliente'} {notifyModal.customer_phone ? `· 📞 ${notifyModal.customer_phone}` : ''}
+              </small>
+            </div>
+            <button className="close-button" onClick={() => setNotifyModal(null)}>✕</button>
+          </div>
+
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: '6px' }}>
+                Selecciona la plantilla de notificación:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px' }}>
+                {[
+                  ['ORDER_CREATED', '🛠️ Ingreso / Recepción'],
+                  ['QUOTE_READY', '💰 Cotización Lista'],
+                  ['WAITING_PARTS', '⏳ Esperando Repuestos'],
+                  ['READY_FOR_PICKUP', '✅ Listo para Retiro'],
+                  ['STATUS_UPDATE', '🔄 Actualización Estado']
+                ].map(([typeCode, lbl]) => (
+                  <button
+                    key={typeCode}
+                    type="button"
+                    onClick={() => {
+                      setNotifyType(typeCode);
+                      setNotifyCustomMsg('');
+                    }}
+                    style={{
+                      padding: '8px 10px', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer', textAlign: 'center',
+                      border: notifyType === typeCode ? '2px solid #25d366' : '1px solid #cbd5e1',
+                      background: notifyType === typeCode ? '#f0fdf4' : '#fff',
+                      color: notifyType === typeCode ? '#166534' : '#475569'
+                    }}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                  📱 Vista previa del mensaje (Incluye enlace directo con credenciales pre-cargadas al Portal):
+                </span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>Editable</span>
+              </div>
+              <textarea
+                rows={5}
+                value={notifyCustomMsg}
+                onChange={e => setNotifyCustomMsg(e.target.value)}
+                placeholder="Si dejas este campo vacío, se enviará la plantilla oficial con enlace directo al portal del cliente..."
+                style={{ width: '100%', fontSize: '12.5px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontFamily: 'inherit' }}
+              />
+              <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
+                🔗 El enlace al portal del cliente 360 se adjuntará automáticamente para que el cliente no tenga que recordar contraseñas ni registrarse de nuevo.
+              </small>
+            </div>
+
+            {/* BOTÓN DE DISPARO */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={sendingNotify}
+                onClick={sendNotification}
+                style={{ flex: 1, background: '#25d366', color: '#fff', fontSize: '13px', padding: '12px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <span>💬</span>
+                {sendingNotify ? 'Registrando y abriendo...' : '🚀 Abrir WhatsApp y Registrar Notificación'}
+              </button>
+            </div>
+
+            {/* HISTORIAL DE NOTIFICACIONES */}
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                📋 Historial de Notificaciones de esta Orden ({notifyHistory.length})
+              </div>
+
+              {notifyHistory.length === 0 ? (
+                <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic', padding: '10px 0' }}>
+                  Aún no se han enviado notificaciones registradas para esta orden.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                  {notifyHistory.map((nh: Any) => (
+                    <div key={nh.id} style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 700, color: '#2563eb' }}>{nh.notification_type} · {nh.channel}</span>
+                        <span style={{ color: '#64748b', fontSize: '11px' }}>{nh.sent_at ? new Date(nh.sent_at).toLocaleString() : ''}</span>
+                      </div>
+                      <div style={{ color: '#334155', whiteSpace: 'pre-wrap', fontSize: '11.5px', background: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #f1f5f9' }}>
+                        {nh.message_payload}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="editor-footer" style={{ marginTop: '14px' }}>
+            <button type="button" className="secondary-action" onClick={() => setNotifyModal(null)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* MODAL COMPROBANTE DE RECEPCIÓN TALLER (80mm / 58mm) */}
     {ticketModal && (

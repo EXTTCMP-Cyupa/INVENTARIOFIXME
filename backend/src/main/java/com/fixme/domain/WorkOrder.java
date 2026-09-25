@@ -33,6 +33,9 @@ public class WorkOrder {
   private final OffsetDateTime createdAt;
   private OffsetDateTime updatedAt;
   private List<WorkOrderItem> items = new ArrayList<>();
+  private String intakeChecklist = "{}";
+  private Boolean legalDisclaimerAccepted = true;
+  private String clientSignature;
 
   public static final Set<String> VALID_STATUSES = Set.of(
       "OPEN", "DIAGNOSIS", "QUOTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "CANCELLED",
@@ -207,4 +210,10 @@ public class WorkOrder {
   public void setSlaDeadline(OffsetDateTime deadline) { this.slaDeadline = deadline; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
   public OffsetDateTime getUpdatedAt() { return updatedAt; }
+  public String getIntakeChecklist() { return intakeChecklist != null ? intakeChecklist : "{}"; }
+  public void setIntakeChecklist(String intakeChecklist) { this.intakeChecklist = intakeChecklist; }
+  public Boolean getLegalDisclaimerAccepted() { return legalDisclaimerAccepted != null ? legalDisclaimerAccepted : true; }
+  public void setLegalDisclaimerAccepted(Boolean legalDisclaimerAccepted) { this.legalDisclaimerAccepted = legalDisclaimerAccepted; }
+  public String getClientSignature() { return clientSignature; }
+  public void setClientSignature(String clientSignature) { this.clientSignature = clientSignature; }
 }

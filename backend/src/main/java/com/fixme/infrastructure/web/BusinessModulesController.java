@@ -1,6 +1,7 @@
 package com.fixme.infrastructure.web;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
@@ -21,6 +22,7 @@ public class BusinessModulesController {
   private final JdbcTemplate db;
   private final ModuleService modules;
   private final WorkOrderService workOrderService;
+  private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
   public BusinessModulesController(JdbcTemplate db, ModuleService modules, WorkOrderService workOrderService) {
     this.db = db;
@@ -241,12 +243,36 @@ public class BusinessModulesController {
     String idNum = (b.get("identificationNumber") != null && !b.get("identificationNumber").toString().isBlank()) ? b.get("identificationNumber").toString().trim() : null;
     String tag = (b.get("tag") != null && !b.get("tag").toString().isBlank()) ? b.get("tag").toString().trim().toUpperCase() : "REGULAR";
     String notes = (String) b.get("notes");
+    String rawPhone = b.get("phone") != null ? b.get("phone").toString().trim() : null;
+    UUID customerAccountId = null;
+    if (rawPhone != null && !rawPhone.isBlank()) {
+      String cleanPhone = rawPhone.replaceAll("[^0-9]", "");
+      if (cleanPhone.startsWith("593") && cleanPhone.length() == 12) {
+        cleanPhone = "0" + cleanPhone.substring(3);
+      }
+      List<Map<String, Object>> accList = db.queryForList(
+          "SELECT id FROM customer_accounts WHERE phone = ? OR regexp_replace(phone, '[^0-9]', '', 'g') = ? LIMIT 1",
+          rawPhone, cleanPhone
+      );
+      if (!accList.isEmpty()) {
+        customerAccountId = (UUID) accList.get(0).get("id");
+      } else {
+        customerAccountId = UUID.randomUUID();
+        db.update("""
+            INSERT INTO customer_accounts (id, phone, email, full_name, city, address, identification_number, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, now(), now())
+            ON CONFLICT (phone) DO NOTHING
+            """,
+            customerAccountId, rawPhone, email, b.get("name"), b.get("city"), b.get("address"), idNum
+        );
+      }
+    }
 
     db.update("""
-        INSERT INTO customers(id, tenant_id, name, email, phone, address, city, identification_type, identification_number, notes, tag)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customers(id, tenant_id, name, email, phone, address, city, identification_type, identification_number, notes, tag, customer_account_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        id, t, b.get("name"), email, b.get("phone"), b.get("address"), b.get("city"), idType, idNum, notes, tag);
+        id, t, b.get("name"), email, b.get("phone"), b.get("address"), b.get("city"), idType, idNum, notes, tag, customerAccountId);
 
     return ResponseEntity.status(201).body(db.queryForMap("SELECT * FROM customers WHERE id=?", id));
   }
@@ -459,6 +485,18 @@ public class BusinessModulesController {
     UUID techId = uuidOrNull(b.get("assignedTechnicianId"));
     Integer sla = b.get("slaHours") != null ? Integer.parseInt(b.get("slaHours").toString()) : 48;
 
+    String checklistStr = "{}";
+    if (b.get("intakeChecklist") != null) {
+      if (b.get("intakeChecklist") instanceof String s) {
+        checklistStr = s;
+      } else {
+        try {
+          checklistStr = mapper.writeValueAsString(b.get("intakeChecklist"));
+        } catch (Exception ignored) {}
+      }
+    }
+    Boolean legalDisclaimer = b.get("legalDisclaimerAccepted") instanceof Boolean bool ? bool : true;
+
     WorkOrderService.CreateOrderCommand cmd = new WorkOrderService.CreateOrderCommand(
         id(b.get("customerId").toString()),
         uuidOrNull(b.get("branchId")),
@@ -473,10 +511,29 @@ public class BusinessModulesController {
         estDelivery,
         techId,
         sla,
-        items
+        items,
+        checklistStr,
+        legalDisclaimer
     );
 
     WorkOrder created = workOrderService.createOrder(t, cmd);
+
+    if (b.get("images") instanceof List<?> imgList) {
+      for (Object obj : imgList) {
+        if (obj instanceof Map<?, ?> imgMap) {
+          String stage = imgMap.get("stage") != null ? imgMap.get("stage").toString().trim().toUpperCase() : "RECEPTION";
+          String imgUrl = imgMap.get("imageUrl") != null ? imgMap.get("imageUrl").toString().trim() : null;
+          String caption = imgMap.get("caption") != null ? imgMap.get("caption").toString().trim() : null;
+          if (imgUrl != null && !imgUrl.isBlank()) {
+            db.update(
+                "INSERT INTO work_order_images (id, work_order_id, stage, image_url, caption, created_at) VALUES (?, ?, ?, ?, ?, now())",
+                UUID.randomUUID(), created.getId(), stage, imgUrl, caption
+            );
+          }
+        }
+      }
+    }
+
     return ResponseEntity.status(201).body(created);
   }
 
@@ -503,6 +560,18 @@ public class BusinessModulesController {
     UUID techId = uuidOrNull(b.get("assignedTechnicianId"));
     Integer sla = b.get("slaHours") != null ? Integer.parseInt(b.get("slaHours").toString()) : null;
 
+    if (b.containsKey("intakeChecklist")) {
+      String chk = "{}";
+      if (b.get("intakeChecklist") instanceof String s) {
+        chk = s;
+      } else {
+        try {
+          chk = mapper.writeValueAsString(b.get("intakeChecklist"));
+        } catch (Exception ignored) {}
+      }
+      db.update("UPDATE work_orders SET intake_checklist = ?::jsonb WHERE id = ? AND tenant_id = ?", chk, id(id), t);
+    }
+
     return workOrderService.updateTechnicalDetails(
         t, id(id),
         (String) b.get("diagnosis"),
@@ -513,6 +582,242 @@ public class BusinessModulesController {
         sla,
         items
     );
+  }
+
+  @PostMapping("/api/work-orders/{id}/images")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_TECHNICIAN','SCOPE_SUPER_ADMIN')")
+  public ResponseEntity<Map<String, Object>> addWorkOrderImage(
+      @PathVariable String id,
+      @AuthenticationPrincipal Jwt j,
+      @RequestBody Map<String, Object> b
+  ) {
+    UUID t = tenant(j);
+    ctx(t);
+    UUID orderId = id(id);
+
+    Integer exists = db.queryForObject("SELECT count(*) FROM work_orders WHERE id = ? AND tenant_id = ?", Integer.class, orderId, t);
+    if (exists == null || exists == 0) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden de trabajo no encontrada");
+    }
+
+    String imageUrl = String.valueOf(b.getOrDefault("imageUrl", "")).trim();
+    if (imageUrl.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "imageUrl es obligatorio");
+    }
+    String stage = String.valueOf(b.getOrDefault("stage", "DIAGNOSIS")).trim().toUpperCase();
+    if (!List.of("RECEPTION", "DIAGNOSIS", "COMPLETED").contains(stage)) {
+      stage = "DIAGNOSIS";
+    }
+    String caption = b.get("caption") != null ? b.get("caption").toString().trim() : null;
+
+    UUID imgId = UUID.randomUUID();
+    db.update(
+        "INSERT INTO work_order_images (id, work_order_id, stage, image_url, caption, created_at) VALUES (?, ?, ?, ?, ?, now())",
+        imgId, orderId, stage, imageUrl, caption
+    );
+
+    Map<String, Object> res = new LinkedHashMap<>();
+    res.put("id", imgId);
+    res.put("workOrderId", orderId);
+    res.put("stage", stage);
+    res.put("imageUrl", imageUrl);
+    res.put("caption", caption != null ? caption : "");
+    res.put("createdAt", OffsetDateTime.now());
+    return ResponseEntity.status(HttpStatus.CREATED).body(res);
+  }
+
+  @DeleteMapping("/api/work-orders/{id}/images/{imageId}")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_TECHNICIAN','SCOPE_SUPER_ADMIN')")
+  public ResponseEntity<Map<String, Object>> deleteWorkOrderImage(
+      @PathVariable String id,
+      @PathVariable String imageId,
+      @AuthenticationPrincipal Jwt j
+  ) {
+    UUID t = tenant(j);
+    ctx(t);
+    UUID orderId = id(id);
+    UUID imgId = id(imageId);
+
+    int rows = db.update("""
+        DELETE FROM work_order_images
+        WHERE id = ? AND work_order_id = ?
+          AND work_order_id IN (SELECT id FROM work_orders WHERE tenant_id = ?)
+        """, imgId, orderId, t);
+
+    return ResponseEntity.ok(Map.of("success", rows > 0));
+  }
+
+  @GetMapping("/api/work-orders/{id}/images")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<List<Map<String, Object>>> getWorkOrderImages(
+      @PathVariable String id,
+      @AuthenticationPrincipal Jwt j
+  ) {
+    UUID t = tenant(j);
+    ctx(t);
+    UUID orderId = id(id);
+
+    List<Map<String, Object>> images = db.queryForList("""
+        SELECT woi.id, woi.work_order_id, woi.stage, woi.image_url, woi.caption, woi.created_at
+        FROM work_order_images woi
+        JOIN work_orders wo ON wo.id = woi.work_order_id
+        WHERE woi.work_order_id = ? AND wo.tenant_id = ?
+        ORDER BY woi.created_at ASC
+        """, orderId, t);
+
+    return ResponseEntity.ok(images);
+  }
+
+  @PostMapping("/api/work-orders/{id}/notify")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_TECHNICIAN','SCOPE_SUPER_ADMIN')")
+  public ResponseEntity<Map<String, Object>> notifyCustomer(
+      @PathVariable String id,
+      @AuthenticationPrincipal Jwt j,
+      @RequestBody(required = false) Map<String, Object> b
+  ) {
+    UUID t = tenant(j);
+    ctx(t);
+    UUID orderId = id(id);
+
+    List<Map<String, Object>> orders = db.queryForList("""
+        SELECT wo.id, wo.order_number, wo.device_brand, wo.device_model, wo.quote, wo.status,
+               wo.customer_id, c.name AS customer_name, c.phone AS customer_phone,
+               c.identification_number AS customer_cedula,
+               t.name AS store_name, coalesce(b.name, t.name) AS branch_name,
+               coalesce(t.address, '') AS branch_address,
+               coalesce(t.phone, '') AS store_phone
+        FROM work_orders wo
+        JOIN customers c ON c.id = wo.customer_id
+        JOIN tenants t ON t.id = wo.tenant_id
+        LEFT JOIN branches b ON b.id = wo.branch_id
+        WHERE wo.id = ? AND wo.tenant_id = ?
+        """, orderId, t);
+
+    if (orders.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden de trabajo no encontrada");
+    }
+    Map<String, Object> ord = orders.get(0);
+
+    UUID customerId = (UUID) ord.get("customer_id");
+    String custName = ord.get("customer_name") != null ? ord.get("customer_name").toString() : "Estimado/a Cliente";
+    String rawPhone = ord.get("customer_phone") != null ? ord.get("customer_phone").toString() : "";
+    String cedula = ord.get("customer_cedula") != null ? ord.get("customer_cedula").toString() : "";
+    String brand = ord.get("device_brand") != null ? ord.get("device_brand").toString() : "";
+    String model = ord.get("device_model") != null ? ord.get("device_model").toString() : "";
+    String orderNumber = ord.get("order_number") != null ? ord.get("order_number").toString() : "OT";
+    String storeName = ord.get("store_name") != null ? ord.get("store_name").toString() : "Fixme";
+    String storeAddress = ord.get("branch_address") != null ? ord.get("branch_address").toString() : "";
+    BigDecimal quote = ord.get("quote") instanceof BigDecimal bd ? bd : BigDecimal.ZERO;
+    String status = ord.get("status") != null ? ord.get("status").toString() : "OPEN";
+
+    String channel = (b != null && b.get("channel") != null) ? b.get("channel").toString().toUpperCase() : "WHATSAPP";
+    String notifType = (b != null && b.get("notificationType") != null) ? b.get("notificationType").toString().toUpperCase() : "STATUS_UPDATE";
+    String customMessage = (b != null && b.get("customMessage") != null) ? b.get("customMessage").toString().trim() : null;
+
+    String cleanDigits = rawPhone.replaceAll("[^0-9]", "");
+    String waPhone = cleanDigits;
+    if (waPhone.startsWith("0")) {
+      waPhone = "593" + waPhone.substring(1);
+    } else if (waPhone.length() == 9 && !waPhone.startsWith("593")) {
+      waPhone = "593" + waPhone;
+    }
+
+    String portalLink = "https://fixmetiendas.com/#portal-cliente?phone=" + URLEncoder.encode(rawPhone, StandardCharsets.UTF_8);
+    if (!cedula.isBlank()) {
+      portalLink += "&identificationNumber=" + URLEncoder.encode(cedula, StandardCharsets.UTF_8);
+    }
+
+    String msgText;
+    if (customMessage != null && !customMessage.isBlank()) {
+      msgText = customMessage;
+    } else {
+      switch (notifType) {
+        case "ORDER_CREATED" -> msgText = String.format(
+            "🛠️ *Hola %s*, tu equipo *%s %s* ha sido ingresado exitosamente a servicio técnico en *%s*.\n\n" +
+            "📋 Orden: *%s*\n" +
+            "📸 Inspección visual y checklist legal registrados.\n" +
+            "🔍 Sigue el estado en vivo y revisa tus fotos de recepción en tu Portal del Cliente:\n" +
+            "👉 %s",
+            custName, brand, model, storeName, orderNumber, portalLink
+        );
+        case "QUOTE_READY" -> msgText = String.format(
+            "💰 *Hola %s*, el diagnóstico técnico de tu equipo *%s %s* está listo.\n\n" +
+            "📋 Orden: *%s*\n" +
+            "💵 Presupuesto estimado: *$%.2f*\n" +
+            "🔍 Puedes revisar las fotos del diagnóstico y *aprobar o rechazar tu cotización en 1 clic* aquí:\n" +
+            "👉 %s",
+            custName, brand, model, orderNumber, quote.doubleValue(), portalLink
+        );
+        case "READY_FOR_PICKUP" -> msgText = String.format(
+            "✅ *¡Hola %s! Excelentes noticias:*\n" +
+            "Tu equipo *%s %s* ya está 100%% reparado y pasó las pruebas de calidad.\n\n" +
+            "📋 Orden: *%s*\n" +
+            "🏢 Puedes retirarlo en: *%s*\n" +
+            "🔍 Revisa los detalles finales y tu garantía digital aquí:\n" +
+            "👉 %s",
+            custName, brand, model, orderNumber, storeAddress.isBlank() ? storeName : storeAddress, portalLink
+        );
+        case "WAITING_PARTS" -> msgText = String.format(
+            "⏳ *Hola %s*, una actualización sobre tu equipo *%s %s* (Orden *%s*):\n\n" +
+            "Estamos a la espera de repuestos de alta calidad para culminar la reparación.\n" +
+            "🔍 Sigue los avances en vivo en tu portal:\n" +
+            "👉 %s",
+            custName, brand, model, orderNumber, portalLink
+        );
+        default -> msgText = String.format(
+            "🔄 *Hola %s*, tu equipo *%s %s* (Orden *%s*) se encuentra en estado: *%s*.\n\n" +
+            "🔍 Sigue el progreso y fotos de trabajo en tu portal:\n" +
+            "👉 %s",
+            custName, brand, model, orderNumber, status, portalLink
+        );
+      }
+    }
+
+    String waUrl = "https://wa.me/" + waPhone + "?text=" + URLEncoder.encode(msgText, StandardCharsets.UTF_8);
+
+    UUID notifId = UUID.randomUUID();
+    db.update("""
+        INSERT INTO repair_notifications (
+          id, tenant_id, work_order_id, customer_id, channel, notification_type,
+          recipient_phone, recipient_name, message_payload, portal_link,
+          status, sent_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SENT', now(), now())
+        """,
+        notifId, t, orderId, customerId, channel, notifType,
+        waPhone, custName, msgText, portalLink
+    );
+
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("success", true);
+    out.put("notificationId", notifId);
+    out.put("whatsappUrl", waUrl);
+    out.put("recipientPhone", waPhone);
+    out.put("recipientName", custName);
+    out.put("message", msgText);
+    out.put("portalLink", portalLink);
+    return ResponseEntity.ok(out);
+  }
+
+  @GetMapping("/api/work-orders/{id}/notifications")
+  @PreAuthorize("isAuthenticated()")
+  public ResponseEntity<List<Map<String, Object>>> getWorkOrderNotifications(
+      @PathVariable String id,
+      @AuthenticationPrincipal Jwt j
+  ) {
+    UUID t = tenant(j);
+    ctx(t);
+    UUID orderId = id(id);
+
+    List<Map<String, Object>> notifs = db.queryForList("""
+        SELECT rn.id, rn.work_order_id, rn.channel, rn.notification_type,
+               rn.recipient_phone, rn.recipient_name, rn.message_payload,
+               rn.portal_link, rn.status, rn.sent_at, rn.created_at
+        FROM repair_notifications rn
+        WHERE rn.work_order_id = ? AND rn.tenant_id = ?
+        ORDER BY rn.created_at DESC
+        """, orderId, t);
+
+    return ResponseEntity.ok(notifs);
   }
 
   @GetMapping("/api/public/work-orders/tracking")

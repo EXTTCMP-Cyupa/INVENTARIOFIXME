@@ -5405,6 +5405,21 @@ h1,h2,h3,h4,p{color:#172033}h1,h2,h3,h4{letter-spacing:-.025em}.welcome,.invento
   .footer-flex {
     grid-template-columns: 1fr;
   }
+  .landing-nav-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-nav-actions {
+    gap: 6px;
+  }
+  .landing-nav-actions button {
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+  }
 }
 
 /* ===================================================

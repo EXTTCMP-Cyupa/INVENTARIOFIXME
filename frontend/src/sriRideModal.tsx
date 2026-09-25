@@ -12,11 +12,17 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
   const [data, setData] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [copiedKey, setCopiedKey] = React.useState(false);
+  const [showEmailModal, setShowEmailModal] = React.useState(false);
+  const [targetEmail, setTargetEmail] = React.useState('');
+  const [copiedEmailText, setCopiedEmailText] = React.useState(false);
 
   React.useEffect(() => {
     api(`/api/sri/invoices/${invoiceId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(setData)
+      .then(d => {
+        setData(d);
+        if (d?.cliente_email) setTargetEmail(d.cliente_email);
+      })
       .finally(() => setLoading(false));
   }, [api, invoiceId]);
 
@@ -29,6 +35,45 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
 
   function downloadXml() {
     window.open(`/api/sri/invoices/${invoiceId}/xml`, '_blank');
+  }
+
+  function getEmailBody() {
+    if (!data) return '';
+    const origin = window.location.origin;
+    const portalUrl = `${origin}/#portal-cliente?phone=${encodeURIComponent(data.cliente_telefono || '')}&identificationNumber=${encodeURIComponent(data.cliente_identificacion || '')}`;
+    return (
+      `Estimado/a ${data.cliente_razon_social || 'Cliente'},\n\n` +
+      `Adjuntamos los datos oficiales de su Factura Electrónica autorizada por el SRI:\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📄 N° COMPROBANTE: ${data.numero_completo}\n` +
+      `🏢 EMISOR: ${data.emisor_razon_social} (RUC: ${data.emisor_ruc})\n` +
+      `📅 FECHA: ${data.fecha_emision ? new Date(data.fecha_emision).toLocaleString() : 'Reciente'}\n` +
+      `💵 TOTAL: $${Number(data.importe_total || 0).toFixed(2)}\n` +
+      `🔑 CLAVE DE ACCESO (49 DÍGITOS):\n${data.clave_acceso}\n` +
+      `🏛️ N° AUTORIZACIÓN SRI: ${data.numero_autorizacion || data.clave_acceso}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Puede consultar y descargar en cualquier momento su RIDE oficial en PDF y su archivo XML en:\n` +
+      `👉 ${portalUrl}\n\n` +
+      `O verificar directamente en el portal oficial del SRI:\n` +
+      `👉 https://sri.gob.ec\n\n` +
+      `Agradecemos su preferencia.\n` +
+      `${data.emisor_nombre_comercial || data.emisor_razon_social}`
+    );
+  }
+
+  function handleOpenMailClient() {
+    if (!data) return;
+    const subject = encodeURIComponent(`Factura Electrónica SRI #${data.numero_completo} - ${data.emisor_nombre_comercial || data.emisor_razon_social}`);
+    const body = encodeURIComponent(getEmailBody());
+    const mailto = `mailto:${encodeURIComponent(targetEmail.trim())}?subject=${subject}&body=${body}`;
+    window.open(mailto, '_blank');
+  }
+
+  function handleCopyEmailText() {
+    navigator.clipboard.writeText(getEmailBody());
+    setCopiedEmailText(true);
+    setTimeout(() => setCopiedEmailText(false), 2500);
+    if (notify) notify('Contenido del correo copiado al portapapeles');
   }
 
   if (loading) {
@@ -300,6 +345,14 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
           >
             📥 Descargar XML
           </button>
+          <button
+            type="button"
+            className="secondary-action"
+            style={{ flex: 1, minWidth: '150px', background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0', fontWeight: 700 }}
+            onClick={() => setShowEmailModal(true)}
+          >
+            📧 Enviar por Correo
+          </button>
           {data.cliente_telefono && (
             <a
               className="whatsapp-btn"
@@ -314,6 +367,82 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
             </a>
           )}
         </div>
+
+        {/* EMAIL DISPATCH MODAL */}
+        {showEmailModal && (
+          <div className="modal-overlay" onClick={() => setShowEmailModal(false)}>
+            <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+              <div className="modal-head" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 22 }}>📧</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Enviar Factura SRI por Correo</h3>
+                    <small style={{ color: '#64748b' }}>Factura #{data.numero_completo} ({data.cliente_razon_social})</small>
+                  </div>
+                </div>
+                <button className="close-button" onClick={() => setShowEmailModal(false)}>✕</button>
+              </div>
+
+              <div style={{ padding: '14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'block' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Correo electrónico del cliente:</span>
+                  <input
+                    type="email"
+                    className="input-field"
+                    value={targetEmail}
+                    onChange={e => setTargetEmail(e.target.value)}
+                    placeholder="cliente@ejemplo.com"
+                    style={{ width: '100%', fontSize: 13 }}
+                  />
+                  <small style={{ color: '#64748b', fontSize: 11, display: 'block', marginTop: 3 }}>
+                    Puedes verificar o cambiar el correo del destinatario.
+                  </small>
+                </label>
+
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Vista previa del mensaje:</span>
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 6,
+                    padding: 10,
+                    fontSize: 11.5,
+                    fontFamily: 'monospace',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    color: '#334155'
+                  }}>
+                    {getEmailBody()}
+                  </div>
+                </div>
+
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', fontSize: 11.5, color: '#1e40af' }}>
+                  💡 <b>Tip de entrega:</b> Al hacer clic en <i>Abrir en mi Correo</i>, se abrirá tu aplicación de correo habitual (Gmail, Outlook, etc.) con el mensaje listo para enviar.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 10, borderTop: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={handleCopyEmailText}
+                  style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600 }}
+                >
+                  {copiedEmailText ? '✓ Copiado' : '📋 Copiar Mensaje'}
+                </button>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={handleOpenMailClient}
+                  style={{ padding: '8px 18px', fontSize: 12, fontWeight: 700, background: '#1d4ed8', borderColor: '#1e40af' }}
+                >
+                  ✉️ Abrir en mi Correo (Gmail / Outlook)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

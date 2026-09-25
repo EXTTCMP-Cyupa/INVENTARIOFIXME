@@ -505,7 +505,7 @@ public class SriInvoiceController {
         SELECT id, sale_id, tipo_documento, numero_completo, clave_acceso, fecha_emision,
                cliente_identificacion, cliente_razon_social,
                subtotal_sin_impuestos, iva_15, importe_total,
-               estado_sri, numero_autorizacion, fecha_autorizacion, created_at
+               estado_sri, numero_autorizacion, fecha_autorizacion, mensajes_sri, created_at
         FROM electronic_invoices
         WHERE tenant_id = ?
         """ + (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status) ? " AND estado_sri = ? " : "") + """

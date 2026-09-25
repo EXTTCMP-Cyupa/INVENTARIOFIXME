@@ -34,6 +34,17 @@ public final class SriSoapClient {
    * If SRI servers are unavailable or in test sandbox without internet, gracefully simulates approval.
    */
   public static SriResponse processInvoice(String signedXml, String accessKey, int environment) {
+    // If testing in sandbox (environment 0) or if no digital certificate .p12 was loaded (simulated signature in test environment):
+    if (environment == 0 || (environment == 1 && signedXml != null && signedXml.contains("Signature-Simulated"))) {
+      return new SriResponse(
+          "AUTORIZADA",
+          accessKey,
+          OffsetDateTime.now(),
+          List.of(Map.of("tipo", "INFORMACION", "mensaje", "Comprobante autorizado en MODO SANDBOX (Simulación de pruebas antes de subir firma .p12)")),
+          "<simulated>AUTORIZADO</simulated>"
+      );
+    }
+
     String urlRecepcion = (environment == 2) ? URL_RECEPCION_PRODUCCION : URL_RECEPCION_PRUEBAS;
     String urlAutorizacion = (environment == 2) ? URL_AUTORIZACION_PRODUCCION : URL_AUTORIZACION_PRUEBAS;
 
@@ -105,11 +116,12 @@ public final class SriSoapClient {
 
       // If SRI returned Devuelta or other message
       if (respRecepcion.body() != null && respRecepcion.body().contains("DEVUELTA")) {
+        List<Map<String, String>> errorList = parseSriSoapErrors(respRecepcion.body());
         return new SriResponse(
             "DEVUELTA",
             null,
             null,
-            List.of(Map.of("tipo", "ERROR", "mensaje", "Comprobante devuelto por inconsistencia en el SRI")),
+            errorList.isEmpty() ? List.of(Map.of("tipo", "ERROR", "mensaje", "Comprobante devuelto por inconsistencia en el SRI")) : errorList,
             respRecepcion.body()
         );
       }
@@ -127,5 +139,39 @@ public final class SriSoapClient {
         "<simulated>AUTORIZADO</simulated>"
     );
   }
+
+  private static List<Map<String, String>> parseSriSoapErrors(String soapBody) {
+    List<Map<String, String>> list = new ArrayList<>();
+    if (soapBody == null || soapBody.isBlank()) return list;
+    try {
+      java.util.regex.Pattern p = java.util.regex.Pattern.compile("<mensaje>(?:(?!</mensaje>).)*</mensaje>", java.util.regex.Pattern.DOTALL);
+      java.util.regex.Matcher m = p.matcher(soapBody);
+      while (m.find()) {
+        String block = m.group();
+        String id = extractTag(block, "identificador");
+        String msg = extractTag(block, "mensaje");
+        String info = extractTag(block, "informacionAdicional");
+        String tipo = extractTag(block, "tipo");
+        if (msg != null && !msg.isBlank()) {
+          String fullMsg = (id != null ? "[" + id + "] " : "") + msg + (info != null && !info.isBlank() ? ": " + info : "");
+          Map<String, String> entry = new LinkedHashMap<>();
+          entry.put("tipo", (tipo != null && !tipo.isBlank()) ? tipo : "ERROR");
+          entry.put("mensaje", fullMsg);
+          list.add(entry);
+        }
+      }
+    } catch (Exception ignored) {}
+    return list;
+  }
+
+  private static String extractTag(String xml, String tag) {
+    java.util.regex.Pattern p = java.util.regex.Pattern.compile("<" + tag + ">(.*?)</" + tag + ">", java.util.regex.Pattern.DOTALL);
+    java.util.regex.Matcher m = p.matcher(xml);
+    if (m.find()) {
+      return m.group(1).trim();
+    }
+    return null;
+  }
 }
+
 

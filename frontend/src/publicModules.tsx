@@ -1369,3 +1369,809 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
   );
 }
 
+// =========================================================================
+// 5. PUBLIC REPAIR REQUEST WIZARD (CLIENTE SOLICITA REPARACIÓN CON FOTOS)
+// =========================================================================
+export function PublicRepairRequestWizard({ onBack, isLogged }: { onBack?: () => void; isLogged?: boolean }) {
+  const [form, setForm] = React.useState({
+    deviceCategory: 'SMARTPHONE',
+    deviceBrand: '',
+    deviceModel: '',
+    powersOn: true,
+    faultDescription: '',
+    urgency: 'NORMAL',
+    city: 'Quito',
+    neighborhood: '',
+    customerAddress: '',
+    deliveryPreference: 'WORKSHOP',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: ''
+  });
+
+  const [images, setImages] = React.useState<Array<{ imageUrl: string; fileName: string }>>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [submitted, setSubmitted] = React.useState<Any | null>(null);
+
+  const categories = [
+    { id: 'SMARTPHONE', label: 'Celular / Teléfono', icon: '📱' },
+    { id: 'LAPTOP', label: 'Laptop / Portátil', icon: '💻' },
+    { id: 'TABLET', label: 'Tablet / iPad', icon: '📲' },
+    { id: 'CONSOLE', label: 'Consola Videojuegos', icon: '🎮' },
+    { id: 'DESKTOP', label: 'PC Torre / Escritorio', icon: '🖥️' },
+    { id: 'SMARTWATCH', label: 'Smartwatch', icon: '⌚' },
+    { id: 'OTHER', label: 'Otro Equipo Electrónico', icon: '🔌' }
+  ];
+
+  const ecuadorCities = [
+    'Quito', 'Guayaquil', 'Cuenca', 'Ambato', 'Santo Domingo',
+    'Machala', 'Loja', 'Manta', 'Portoviejo', 'Ibarra', 'Riobamba', 'Esmeraldas', 'Quevedo', 'Latacunga'
+  ];
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    if (images.length + files.length > 5) {
+      alert('Puedes subir hasta 5 fotos como máximo.');
+      return;
+    }
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setImages(prev => [...prev, { imageUrl: String(ev.target?.result), fileName: file.name }]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (idx: number) => {
+    setImages(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.customerName.trim()) { setError('Por favor ingresa tu nombre'); return; }
+    if (!form.customerPhone.trim()) { setError('Por favor ingresa tu WhatsApp de contacto'); return; }
+    if (!form.deviceBrand.trim() || !form.deviceModel.trim()) { setError('Ingresa la marca y modelo del equipo'); return; }
+    if (!form.faultDescription.trim()) { setError('Describe la falla o lo que le ocurre a tu equipo'); return; }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/public/marketplace/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          images
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || 'Error al enviar solicitud');
+      }
+
+      const data = await res.json();
+      try {
+        localStorage.fixmeCustomerPhone = form.customerPhone.trim();
+        localStorage.fixmeCustomerName = form.customerName.trim();
+      } catch (e) {}
+      setSubmitted(data);
+    } catch (err: any) {
+      setError(err.message || 'No se pudo conectar con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '30px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ maxWidth: 540, width: '100%', background: '#fff', borderRadius: 16, padding: 32, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', textAlign: 'center' }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: '0 0 8px' }}>¡Solicitud Publicada con Éxito!</h2>
+          <p style={{ color: '#475569', fontSize: 14, margin: '0 0 20px' }}>
+            Tu requerimiento ha sido distribuido a los talleres especializados en <b>{form.city}</b>. Tu cuenta de cliente ha sido vinculada automáticamente.
+          </p>
+
+          <div style={{ background: '#f1f5f9', borderRadius: 12, padding: 16, marginBottom: 24, textAlign: 'left' }}>
+            <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Código de Solicitud</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#2563eb', margin: '4px 0 8px' }}>{submitted.requestCode}</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              Dispositivo: <b>{form.deviceBrand} {form.deviceModel}</b> ({form.deviceCategory})<br/>
+              Contacto: <b>{form.customerName}</b> · WhatsApp: <b>{form.customerPhone}</b>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              className="primary-action"
+              style={{ padding: '12px 20px', fontSize: 14, justifyContent: 'center', background: '#059669', borderColor: '#059669' }}
+              onClick={() => {
+                window.location.hash = `#solicitud/${submitted.requestCode}?token=${submitted.accessToken}`;
+              }}
+            >
+              👀 Ver Cotizaciones y Ofertas en Vivo
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              style={{ padding: '12px 20px', fontSize: 14, justifyContent: 'center', background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+              onClick={() => {
+                window.location.hash = '#portal-cliente';
+              }}
+            >
+              📱 Ir a Mi Portal del Cliente 360 →
+            </button>
+            {onBack && (
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ padding: '10px 20px', fontSize: 13, justifyContent: 'center' }}
+                onClick={onBack}
+              >
+                Volver al Inicio
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '24px 16px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        {/* Top Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 12, color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>FixmeTiendas · Red de Talleres</div>
+            <h1 style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', margin: '2px 0 0' }}>🛠️ Solicita Cotización de Reparación</h1>
+          </div>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{ background: '#e2e8f0', border: 'none', padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#334155' }}
+            >
+              ✕ Cerrar
+            </button>
+          )}
+        </div>
+
+        <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 24px' }}>
+          Describe la avería de tu equipo, sube fotos de la falla y recibe ofertas competitivas con precio y garantía de los mejores talleres especializados en tu ciudad.
+        </p>
+
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px 16px', borderRadius: 10, fontSize: 13, marginBottom: 20 }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Card 1: Tipo de Dispositivo */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 14px', color: '#1e293b' }}>1. ¿Qué equipo necesitas reparar?</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginBottom: 16 }}>
+              {categories.map(c => (
+                <button
+                  type="button"
+                  key={c.id}
+                  onClick={() => setForm({ ...form, deviceCategory: c.id })}
+                  style={{
+                    padding: '10px 8px',
+                    borderRadius: 10,
+                    border: form.deviceCategory === c.id ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                    background: form.deviceCategory === c.id ? '#eff6ff' : '#fff',
+                    color: form.deviceCategory === c.id ? '#1d4ed8' : '#334155',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 12,
+                    fontWeight: form.deviceCategory === c.id ? 800 : 500,
+                    textAlign: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: 22 }}>{c.icon}</span>
+                  <span>{c.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Marca *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Apple, Samsung, Xiaomi, HP, Sony"
+                  value={form.deviceBrand}
+                  onChange={e => setForm({ ...form, deviceBrand: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Modelo *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: iPhone 13 Pro, Galaxy S22, PS5"
+                  value={form.deviceModel}
+                  onChange={e => setForm({ ...form, deviceModel: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>¿El equipo enciende actualmente?</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="powersOn"
+                    checked={form.powersOn === true}
+                    onChange={() => setForm({ ...form, powersOn: true })}
+                  />
+                  <span>✅ Sí, enciende</span>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="powersOn"
+                    checked={form.powersOn === false}
+                    onChange={() => setForm({ ...form, powersOn: false })}
+                  />
+                  <span>❌ No enciende / Apagado total</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Descripción de la Falla o Problema *</label>
+              <textarea
+                rows={3}
+                placeholder="Explica qué ocurrió: Se cayó la pantalla, no carga el puerto, se reinicia solo, cayó líquido, etc."
+                value={form.faultDescription}
+                onChange={e => setForm({ ...form, faultDescription: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Card 2: Subida de Fotos */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: '#1e293b' }}>📸 Fotos del Equipo y la Avería</h3>
+            <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>
+              Sube fotos claras del estado físico (pantalla rota, puerto dañado, luz de error). Los talleres podrán cotizarte con mayor precisión.
+            </p>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+              {images.map((img, idx) => (
+                <div key={idx} style={{ position: 'relative', width: 90, height: 90, borderRadius: 10, overflow: 'hidden', border: '2px solid #e2e8f0', background: '#000' }}>
+                  <img src={img.imageUrl} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    style={{
+                      position: 'absolute', top: 4, right: 4, background: 'rgba(239,68,68,0.9)',
+                      color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22,
+                      display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: 11, cursor: 'pointer'
+                    }}
+                    title="Eliminar foto"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              {images.length < 5 && (
+                <label style={{
+                  width: 90, height: 90, borderRadius: 10, border: '2px dashed #94a3b8',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                  background: '#f8fafc', cursor: 'pointer', color: '#64748b', fontSize: 11, textAlign: 'center', padding: 4
+                }}>
+                  <span style={{ fontSize: 24, marginBottom: 2 }}>📷</span>
+                  <span>Añadir Foto</span>
+                  <input type="file" accept="image/*" multiple onChange={handleImageUpload} style={{ display: 'none' }} />
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: Ubicación y Modalidad */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 14px', color: '#1e293b' }}>📍 Tu Ubicación y Preferencia de Servicio</h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Ciudad *</label>
+                <select
+                  value={form.city}
+                  onChange={e => setForm({ ...form, city: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff' }}
+                >
+                  {ecuadorCities.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Sector / Barrio</label>
+                <input
+                  type="text"
+                  placeholder="Ej: La Carolina, Cumbayá, Urdesa"
+                  value={form.neighborhood}
+                  onChange={e => setForm({ ...form, neighborhood: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Dirección o Referencia</label>
+              <input
+                type="text"
+                placeholder="Ej: Av. República del Salvador y Moscú, Edificio Centro"
+                value={form.customerAddress}
+                onChange={e => setForm({ ...form, customerAddress: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }}>¿Cómo prefieres coordinar la reparación?</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+                {[
+                  { id: 'WORKSHOP', icon: '🏪', title: 'Lo llevo a la tienda', desc: 'Te acercas al local seleccionado' },
+                  { id: 'HOME_PICKUP', icon: '🛵', title: 'Retiro a domicilio', desc: 'El taller retira el equipo' },
+                  { id: 'HOME_SERVICE', icon: '🔧', title: 'Servicio a domicilio', desc: 'Técnico visita tu domicilio' }
+                ].map(m => (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => setForm({ ...form, deliveryPreference: m.id })}
+                    style={{
+                      padding: '12px 10px',
+                      borderRadius: 10,
+                      border: form.deliveryPreference === m.id ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                      background: form.deliveryPreference === m.id ? '#eff6ff' : '#fff',
+                      color: form.deliveryPreference === m.id ? '#1d4ed8' : '#334155',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: 12
+                    }}
+                  >
+                    <div style={{ fontSize: 16, marginBottom: 2 }}>{m.icon} <b>{m.title}</b></div>
+                    <small style={{ color: '#64748b', display: 'block' }}>{m.desc}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Datos de Contacto */}
+          <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 14px', color: '#1e293b' }}>👤 Tus Datos de Contacto</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Tu Nombre Completo *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Mateo Morales"
+                  value={form.customerName}
+                  onChange={e => setForm({ ...form, customerName: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>WhatsApp / Celular *</label>
+                <input
+                  type="tel"
+                  placeholder="Ej: 0991234567"
+                  value={form.customerPhone}
+                  onChange={e => setForm({ ...form, customerPhone: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="primary-action"
+            disabled={loading}
+            style={{
+              padding: '14px 24px', fontSize: 15, fontWeight: 800,
+              justifyContent: 'center', background: '#2563eb', borderColor: '#2563eb',
+              boxShadow: '0 4px 6px -1px rgba(37,99,235,0.3)', cursor: 'pointer'
+            }}
+          >
+            {loading ? 'Publicando Solicitud...' : '🚀 Publicar Solicitud y Recibir Cotizaciones'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// 6. PUBLIC LEAD TRACKING (CLIENTE COMPARA OFERTAS Y ACEPTA EN 1 CLIC)
+// =========================================================================
+export function PublicLeadTracking({ code, onBack }: { code: string; onBack?: () => void }) {
+  const [data, setData] = React.useState<Any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [acceptingId, setAcceptingId] = React.useState<string | null>(null);
+  const [lightboxImg, setLightboxImg] = React.useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = React.useState<Any | null>(null);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/public/marketplace/requests/${code}`)
+      .then(r => {
+        if (!r.ok) throw new Error('No se encontró la solicitud especificada');
+        return r.json();
+      })
+      .then(setData)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [code]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleAcceptBid = async (bidId: string) => {
+    if (!confirm('¿Deseas aceptar esta cotización? Se creará tu orden de servicio en el taller seleccionado y se abrirá WhatsApp para coordinar.')) return;
+    setAcceptingId(bidId);
+    try {
+      const res = await fetch(`/api/public/marketplace/requests/${code}/accept-bid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bidId })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al aceptar cotización');
+      }
+      const resp = await res.json();
+      setSuccessInfo(resp);
+      if (data?.customer_phone) {
+        try { localStorage.setItem('fixmeCustomerPhone', data.customer_phone); } catch {}
+      }
+      load(); // Refrescar estado
+      if (resp.whatsappUrl) {
+        window.open(resp.whatsappUrl, '_blank');
+      }
+    } catch (e: any) {
+      alert(e.message || 'No se pudo procesar la aceptación');
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center', color: '#64748b' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🔄</div>
+          <div>Cargando cotizaciones para tu solicitud...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f8fafc', padding: 20 }}>
+        <div style={{ maxWidth: 440, background: '#fff', padding: 30, borderRadius: 14, textAlign: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: 42, marginBottom: 12 }}>🔍</div>
+          <h3 style={{ margin: '0 0 8px', color: '#0f172a' }}>Solicitud no encontrada</h3>
+          <p style={{ color: '#64748b', fontSize: 13, marginBottom: 20 }}>{error || 'El código ingresado no existe o ha expirado.'}</p>
+          {onBack && (
+            <button type="button" className="primary-action" onClick={onBack} style={{ justifyContent: 'center' }}>
+              Volver
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const rawBids: Any[] = data.bids || [];
+  const images: Any[] = data.images || [];
+  const isAccepted = data.status === 'ACCEPTED' || Boolean(data.selected_bid_id);
+  const bids: Any[] = isAccepted ? rawBids.filter(b => b.status === 'ACCEPTED' || b.id === data.selected_bid_id) : rawBids;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: 40, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Top Navbar */}
+      <div style={{ background: '#0f172a', color: '#fff', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Portal de Cotizaciones</div>
+          <div style={{ fontSize: 16, fontWeight: 900 }}>Solicitud #{data.request_code}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={load}
+            style={{ background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+          >
+            🔄 Actualizar
+          </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{ background: '#334155', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+            >
+              ✕ Cerrar
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 760, margin: '24px auto', padding: '0 16px' }}>
+        {/* Banner de confirmación si fue aceptada recién */}
+        {successInfo && (
+          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 12, padding: 18, marginBottom: 20 }}>
+            <h3 style={{ margin: '0 0 6px', color: '#065f46', fontSize: 16 }}>🎉 ¡Cotización Aceptada!</h3>
+            <p style={{ margin: '0 0 12px', color: '#047857', fontSize: 13 }}>
+              Se ha generado tu Orden de Trabajo <b>#{successInfo.orderNumber}</b> en <b>{successInfo.storeName}</b>.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {successInfo.whatsappUrl && (
+                <a
+                  href={successInfo.whatsappUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, background: '#059669', color: '#fff',
+                    textDecoration: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 800
+                  }}
+                >
+                  💬 Abrir Chat de WhatsApp con el Taller
+                </a>
+              )}
+              <a
+                href="#portal-cliente"
+                onClick={() => {
+                  if (data?.customer_phone) {
+                    try { localStorage.setItem('fixmeCustomerPhone', data.customer_phone); } catch {}
+                  }
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff',
+                  textDecoration: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 800
+                }}
+              >
+                👤 Ver mi Orden en el Portal Clientes 360° →
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Banner si la solicitud ya estaba previamente aceptada */}
+        {!successInfo && isAccepted && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 16, marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1e40af' }}>✅ Solicitud asignada a taller y en ejecución</div>
+              <div style={{ fontSize: 12.5, color: '#3b82f6', marginTop: 2 }}>Puedes ver el timeline, aprobar repuestos adicionales y consultar tus garantías en tu Portal de Cliente.</div>
+            </div>
+            <a
+              href="#portal-cliente"
+              onClick={() => {
+                if (data?.customer_phone) {
+                  try { localStorage.setItem('fixmeCustomerPhone', data.customer_phone); } catch {}
+                }
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff',
+                textDecoration: 'none', padding: '8px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 800
+              }}
+            >
+              👤 Ir a Mi Portal 360° →
+            </a>
+          </div>
+        )}
+
+        {/* Resumen de la Solicitud */}
+        <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e2e8f0', marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <div>
+              <span style={{
+                background: isAccepted ? '#dcfce7' : '#eff6ff',
+                color: isAccepted ? '#15803d' : '#1d4ed8',
+                fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase'
+              }}>
+                {isAccepted ? '✅ Aceptada · En Proceso' : (bids.length > 0 ? `💰 ${bids.length} Oferta(s) Recibida(s)` : '🟢 En Búsqueda de Talleres')}
+              </span>
+              <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '6px 0 2px' }}>
+                📱 {data.device_brand} {data.device_model}
+              </h2>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                📍 {data.city} {data.neighborhood ? `· ${data.neighborhood}` : ''} · Modalidad: {data.delivery_preference === 'WORKSHOP' ? '🏪 Entrega en Tienda' : '🛵 Retiro a Domicilio'}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Cliente</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>{data.customer_name}</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#f8fafc', borderRadius: 10, padding: 12, fontSize: 13, color: '#334155', border: '1px solid #f1f5f9', marginBottom: 14 }}>
+            <b>Falla reportada:</b> {data.fault_description}
+          </div>
+
+          {/* Fotos subidas */}
+          {images.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>Fotos adjuntas ({images.length}):</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {images.map((img: Any) => (
+                  <img
+                    key={img.id}
+                    src={img.imageUrl}
+                    alt={img.fileName || 'Foto'}
+                    onClick={() => setLightboxImg(img.imageUrl)}
+                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sección de Cotizaciones de Talleres */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, color: isAccepted ? '#065f46' : '#0f172a', margin: 0 }}>
+              {isAccepted ? '🏆 Taller Asignado & Cotización Seleccionada' : `🏢 Cotizaciones de Talleres Especializados (${bids.length})`}
+            </h3>
+            <span style={{ fontSize: 12, color: isAccepted ? '#059669' : '#64748b' }}>
+              {isAccepted ? 'Decisión tomada · Las demás cotizaciones fueron descartadas' : 'Precios competitivos y garantía por escrito'}
+            </span>
+          </div>
+
+          {bids.length === 0 ? (
+            <div style={{ background: '#fff', borderRadius: 14, padding: 36, textAlign: 'center', border: '1px dashed #cbd5e1' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>⏳</div>
+              <h4 style={{ margin: '0 0 6px', color: '#1e293b' }}>Buscando las mejores ofertas para tu equipo...</h4>
+              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                Notificamos a los talleres especializados en tu ciudad. En pocos minutos comenzarán a aparecer sus presupuestos detallados en esta pantalla.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {bids.map((b: Any) => {
+                const isThisAccepted = b.status === 'ACCEPTED';
+                return (
+                  <div
+                    key={b.id}
+                    style={{
+                      background: '#fff',
+                      borderRadius: 14,
+                      padding: 20,
+                      border: isThisAccepted ? '2px solid #059669' : '1px solid #e2e8f0',
+                      boxShadow: isThisAccepted ? '0 10px 15px -3px rgba(5,150,105,0.1)' : '0 2px 4px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <h4 style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', margin: 0 }}>{b.store_name}</h4>
+                          <span style={{ background: '#eff6ff', color: '#2563eb', fontSize: 11, fontWeight: 800, padding: '2px 6px', borderRadius: 4 }}>
+                            ✓ Verificado
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                          📍 {b.store_address || 'Taller Técnico'} {b.store_phone ? `· 📞 ${b.store_phone}` : ''}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: '#2563eb' }}>
+                          ${Number(b.estimated_cost).toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>Precio final estimado</div>
+                      </div>
+                    </div>
+
+                    {/* Chips de Propuesta */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                      <span style={{ background: '#f1f5f9', color: '#334155', fontSize: 12, padding: '4px 10px', borderRadius: 6, fontWeight: 600 }}>
+                        ⏱️ Tiempo: <b>{b.estimated_time}</b>
+                      </span>
+                      {b.warranty_terms && (
+                        <span style={{ background: '#ecfdf5', color: '#065f46', fontSize: 12, padding: '4px 10px', borderRadius: 6, fontWeight: 600 }}>
+                          🛡️ {b.warranty_terms}
+                        </span>
+                      )}
+                      {b.spare_part_quality && (
+                        <span style={{ background: '#faf5ff', color: '#6b21a8', fontSize: 12, padding: '4px 10px', borderRadius: 6, fontWeight: 600 }}>
+                          ✨ {b.spare_part_quality}
+                        </span>
+                      )}
+                    </div>
+
+                    {b.proposal_notes && (
+                      <p style={{ margin: '0 0 16px', fontSize: 13, color: '#475569', fontStyle: 'italic', background: '#f8fafc', padding: 10, borderRadius: 8 }}>
+                        "{b.proposal_notes}"
+                      </p>
+                    )}
+
+                    {/* Botón de Aceptación */}
+                    <div>
+                      {isThisAccepted ? (
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <span style={{ background: '#059669', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 800 }}>
+                            ✅ Cotización Aceptada
+                          </span>
+                          {b.store_phone && (
+                            <a
+                              href={`https://wa.me/${b.store_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${b.store_name}, acepté su cotización para mi ${data.device_brand} ${data.device_model}.`)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                background: '#25d366', color: '#fff', padding: '8px 16px', borderRadius: 8,
+                                textDecoration: 'none', fontSize: 13, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6
+                              }}
+                            >
+                              💬 WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        !isAccepted && (
+                          <button
+                            type="button"
+                            className="primary-action"
+                            disabled={acceptingId === b.id}
+                            onClick={() => handleAcceptBid(b.id)}
+                            style={{
+                              padding: '10px 18px', fontSize: 13, fontWeight: 800,
+                              background: '#059669', borderColor: '#059669', justifyContent: 'center'
+                            }}
+                          >
+                            {acceptingId === b.id ? 'Aceptando...' : '🤝 Aceptar Cotización y Chatear por WhatsApp'}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lightbox para ver fotos en grande */}
+      {lightboxImg && (
+        <div
+          onClick={() => setLightboxImg(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 20
+          }}
+        >
+          <img src={lightboxImg} alt="Detalle" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: 8 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+

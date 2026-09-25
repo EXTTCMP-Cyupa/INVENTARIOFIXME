@@ -100,9 +100,14 @@ const MODULE_LABELS: Record<string, { label: string; icon: string }> = {
 interface LandingPageProps {
   onLogin: (token: string) => void;
   onOpenDirectLogin?: () => void;
+  onNavigate?: (hash: string) => void;
 }
 
-export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
+export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingPageProps) {
+  const navigateTo = (hash: string) => {
+    window.location.hash = hash;
+    if (onNavigate) onNavigate(hash);
+  };
   const [plans, setPlans] = React.useState<Plan[]>(DEFAULT_PLANS);
   const [loadingPlans, setLoadingPlans] = React.useState(true);
   const [showRegisterModal, setShowRegisterModal] = React.useState(false);
@@ -251,6 +256,7 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
           </div>
 
           <nav className="landing-nav-links">
+            <a href="#marketplace-service" style={{ color: '#059669', fontWeight: 800 }}>🛠️ Red de Talleres</a>
             <a href="#features">Funcionalidades</a>
             <a href="#modules">Módulos</a>
             <a href="#pricing">Planes & Tarifas</a>
@@ -258,7 +264,32 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
             <a href="#faq">Preguntas Frecuentes</a>
           </nav>
 
-          <div className="landing-nav-actions">
+          <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => navigateTo('#portal-cliente')}
+              style={{
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 4px rgba(37,99,235,0.25)'
+              }}
+              title="Acceso seguro con Celular y Cédula a tus reparaciones activas, autorizaciones, facturas y garantías"
+            >
+              <span>👤 Portal Clientes</span>
+              <span style={{ background: 'rgba(255,255,255,0.22)', padding: '2px 7px', borderRadius: 6, fontSize: '11px', fontWeight: 700 }}>
+                Reparaciones · Facturas · Garantías
+              </span>
+            </button>
+
             <button
               type="button"
               className="landing-btn-secondary"
@@ -283,30 +314,96 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
       {/* 2. HERO SECTION */}
       <section className="landing-hero">
         <div className="landing-hero-content">
-          <div className="landing-hero-pill">
-            <span>✨ Novedad:</span> Pasarelas DeUna QR y Tarjetas Payphone Integradas
+          <div className="landing-hero-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span>🔥 Red de Talleres & Marketplace:</span> Cotiza reparaciones gratis o capta clientes para tu taller
           </div>
           <h1 className="landing-hero-title">
-            El Software Punto de Venta & Gestión más potente para tu Negocio en Ecuador
+            El Software POS, Facturación SRI y <span style={{ color: '#2563eb' }}>Gestión de Reparaciones</span> más potente de Ecuador
           </h1>
           <p className="landing-hero-subtitle">
-            Controla tu inventario multicentro, emite facturación electrónica autorizada por el SRI, administra órdenes de servicio técnico y cobra con DeUna QR y tarjetas Visa/Mastercard desde cualquier dispositivo.
+            La plataforma integral que conecta a talleres técnicos y tiendas comerciales de Ecuador con sus clientes. <b>Para negocios:</b> Punto de Venta POS, Facturación Electrónica SRI, inventario y gestión de órdenes técnicas. <b>Para clientes:</b> Portal unificado de seguimiento en tiempo real, aprobación de presupuestos, facturas y garantías con Celular y Cédula.
           </p>
 
-          <div className="landing-hero-cta">
+          <div className="landing-hero-cta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               type="button"
               className="landing-btn-hero-primary"
               onClick={() => handleChoosePlan('PRO')}
             >
-              🚀 Comenzar Prueba Gratis (15 Días)
+              🚀 Registrar Tienda o Taller (15 Días Gratis)
             </button>
+
+            <button
+              type="button"
+              onClick={() => navigateTo('#portal-cliente')}
+              style={{
+                background: '#ffffff',
+                color: '#2563eb',
+                border: '2px solid #2563eb',
+                padding: '12px 20px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 6px -1px rgba(37,99,235,0.1)'
+              }}
+            >
+              👤 Portal Clientes: Mis Reparaciones & Facturas →
+            </button>
+
             <a href="#pricing" className="landing-btn-hero-secondary">
               Ver Planes & Módulos
             </a>
           </div>
 
+          {/* BANNER EXPLICATIVO PARA CLIENTES FINALES */}
+          <div style={{
+            background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+            border: '1.5px solid #bfdbfe',
+            borderRadius: 14,
+            padding: '16px 20px',
+            marginTop: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 14,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 280 }}>
+              <span style={{ fontSize: 32 }}>📱🪪</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: '#1e3a8a' }}>
+                  ¿Dejaste un equipo en un taller o compraste en una tienda Fixme?
+                </div>
+                <div style={{ fontSize: 12.5, color: '#475569', marginTop: 3, lineHeight: 1.4 }}>
+                  Ingresa con tu <b>Número de Celular y Cédula</b>: no necesitas crear contraseñas. Podrás ver el estado en vivo de tu reparación, autorizar presupuestos de repuestos en 1 clic, descargar tus facturas electrónicas y consultar garantías oficiales.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigateTo('#portal-cliente')}
+              style={{
+                background: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px',
+                borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+              }}
+            >
+              <span>Acceder al Portal del Cliente</span>
+              <span>→</span>
+            </button>
+          </div>
+
           <div className="landing-hero-badges">
+            <div className="landing-badge-item">
+              <span className="badge-icon">🎯</span>
+              <span>Bolsa de Reparaciones</span>
+            </div>
             <div className="landing-badge-item">
               <span className="badge-icon">🏛️</span>
               <span>Facturación SRI Lista</span>
@@ -335,12 +432,17 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
                 <span className="dot yellow"></span>
                 <span className="dot green"></span>
               </div>
-              <div className="mockup-title">FixmeTiendas · Punto de Venta & Caja Principal</div>
-              <span className="mockup-live-badge">● EN VIVO</span>
+              <div className="mockup-title">FixmeTiendas · Centro Operativo & Bolsa en Vivo</div>
+              <span className="mockup-live-badge">● RED CONECTADA</span>
             </div>
 
             <div className="mockup-body">
               <div className="mockup-stats-row">
+                <div className="mockup-stat">
+                  <small>Solicitudes Abiertas</small>
+                  <strong style={{ color: '#059669' }}>28 en tu ciudad</strong>
+                  <span className="positive">↑ 6 nuevas hoy</span>
+                </div>
                 <div className="mockup-stat">
                   <small>Ventas Hoy</small>
                   <strong>$1,420.50</strong>
@@ -353,19 +455,37 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
                 </div>
                 <div className="mockup-stat">
                   <small>Facturación SRI</small>
-                  <strong style={{ color: '#059669' }}>100% Autorizadas</strong>
+                  <strong style={{ color: '#2563eb' }}>100% Autorizadas</strong>
                   <span className="positive">Clave 49 dígitos</span>
                 </div>
               </div>
 
               <div className="mockup-pos-preview">
-                <div className="mockup-cart-item">
-                  <div className="item-icon">📱</div>
-                  <div className="item-details">
-                    <b>Pantalla OLED Samsung A54 + Instalación</b>
-                    <small>Garantía 90 días · Código: REP-SAM-01</small>
+                {/* Cotización de Reparación Card */}
+                <div style={{ background: '#ffffff', borderRadius: 10, padding: 12, border: '1.5px solid #2563eb', marginBottom: 10, boxShadow: '0 4px 6px -1px rgba(37,99,235,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 16 }}>📱</span>
+                      <strong style={{ fontSize: 13, color: '#0f172a' }}>iPhone 13 · Cambio de Pantalla OLED</strong>
+                    </div>
+                    <span style={{ background: '#ecfdf5', color: '#059669', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+                      $75.00 · Aprobado
+                    </span>
                   </div>
-                  <div className="item-price">$65.00</div>
+                  <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                    Cliente: Juan Pérez · 📍 Quito Norte · Retiro a Domicilio
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <span style={{ background: '#f1f5f9', color: '#334155', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      ⏱️ 24 Horas
+                    </span>
+                    <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      🛡️ Garantía 180 Días
+                    </span>
+                    <span style={{ background: '#faf5ff', color: '#7e22ce', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                      ✨ Pantalla Grado OEM
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mockup-cart-item">
@@ -383,6 +503,272 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
                   <div className="payment-chip p-payphone">💳 Payphone Card ($100)</div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2.5 SECTION: MARKETPLACE & RED NACIONAL DE TALLERES */}
+      <section id="marketplace-service" style={{ background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '70px 20px' }}>
+        <div className="landing-container">
+          <div className="section-header" style={{ textAlign: 'center', maxWidth: 840, margin: '0 auto 50px' }}>
+            <span className="section-kicker" style={{ color: '#059669', background: '#ecfdf5', padding: '4px 14px', borderRadius: 20, display: 'inline-block', fontSize: 12, fontWeight: 800 }}>
+              REPARACIONES INTELIGENTES & CAPTACIÓN DE CLIENTES
+            </span>
+            <h2 style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', margin: '14px 0 10px' }}>
+              La Primera Red & Marketplace de Reparaciones de Ecuador
+            </h2>
+            <p style={{ fontSize: 16, color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+              Un ecosistema donde clientes con equipos averiados reciben las mejores propuestas de talleres técnicos certificados, con garantía formal y aprobación de repuestos en 1 solo clic.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 30 }}>
+            {/* COLUMNA 1: PARA CLIENTES */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: 32, border: '1.5px solid #bbf7d0', boxShadow: '0 20px 25px -5px rgba(5,150,105,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ background: '#ecfdf5', color: '#059669', fontSize: 26, width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  👤
+                </div>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Para Usuarios & Clientes</span>
+                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Portal del Cliente Fixme</h3>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
+                El centro unificado para todo lo que ocurre con tus dispositivos y compras. Accede simplemente con tu <b>Número de Celular y Cédula</b> sin recordar contraseñas.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    1
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Seguimiento en Vivo de Reparaciones</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Mira en qué etapa técnica está tu equipo: Ingresado, Diagnosticado, En Reparación o Listo para entrega.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    2
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Autorización Digital de Repuestos con 1 Clic</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Si el taller descubre un repuesto adicional o daño oculto, apruebas o rechazas el presupuesto desde tu pantalla sin sorpresas.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    3
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Garantías Oficiales & Facturación Electrónica</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Pólizas con conteo regresivo de días de vigencia y recibos oficiales de tus compras en locales afiliados.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    4
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Bolsa de Cotizaciones para Nuevos Equipos</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      ¿Otro equipo averiado? Publícalo desde tu panel para que talleres especializados de tu ciudad compitan con sus mejores ofertas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('#portal-cliente')}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    color: '#fff', border: 'none',
+                    padding: '14px 20px', borderRadius: 10, fontSize: 14, fontWeight: 800,
+                    cursor: 'pointer', flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    boxShadow: '0 4px 6px -1px rgba(37,99,235,0.25)'
+                  }}
+                >
+                  👤 Entrar al Portal del Cliente (Reparaciones, Facturas & Garantías) →
+                </button>
+              </div>
+            </div>
+
+            {/* COLUMNA 2: PARA TALLERES Y TIENDAS */}
+            <div style={{ background: '#ffffff', borderRadius: 20, padding: 32, border: '1.5px solid #bfdbfe', boxShadow: '0 20px 25px -5px rgba(37,99,235,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ background: '#eff6ff', color: '#2563eb', fontSize: 26, width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  🏢
+                </div>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Para Talleres & Tiendas</span>
+                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Multiplica los trabajos de tu taller</h3>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
+                Conéctate a la Bolsa de Reparaciones y recibe solicitudes reales de clientes en tu ciudad que necesitan arreglar celulares, computadoras o tecnología.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    1
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Bolsa de Leads en Tiempo Real</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Visualiza equipos con fotos y fallas reportadas en tu ciudad y postula en segundos.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    2
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Deduplicación Inteligente de Clientes</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Cuando el cliente acepta tu cotización, el sistema verifica si ya existía en tu base por teléfono o correo para evitar perfiles duplicados.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    3
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Aprobación Digital de Extras</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Agrega repuestos o mano de obra adicional en tu panel y el cliente recibe la alerta para autorizar con 1 solo clic. Cero reclamos.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
+                    4
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Cobro Digital & Emisión de Garantías</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                      Cobra con DeUna QR, tarjetas Payphone o efectivo y genera el certificado formal con días de garantía automáticamente.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleChoosePlan('WORKSHOP')}
+                  style={{
+                    background: '#2563eb', color: '#fff', border: 'none',
+                    padding: '12px 20px', borderRadius: 10, fontSize: 13.5, fontWeight: 800,
+                    cursor: 'pointer', flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                  }}
+                >
+                  🚀 Activar Mi Taller en la Red (15 Días Gratis)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2.8 SECTION: CÓMO FUNCIONA EL SISTEMA */}
+      <section style={{ background: '#ffffff', padding: '60px 20px', borderBottom: '1px solid #e2e8f0' }}>
+        <div className="landing-container">
+          <div className="section-header" style={{ textAlign: 'center', maxWidth: 840, margin: '0 auto 40px' }}>
+            <span className="section-kicker" style={{ color: '#2563eb', background: '#eff6ff', padding: '4px 14px', borderRadius: 20, display: 'inline-block', fontSize: 12, fontWeight: 800 }}>
+              FLUJO INTELIGENTE & TRANSPARENTE
+            </span>
+            <h2 style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '12px 0 8px' }}>
+              ¿Cómo funciona el Sistema Fixme?
+            </h2>
+            <p style={{ fontSize: 15, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+              La tecnología que une la gestión operativa de los talleres técnicos con la tranquilidad y confianza de los clientes finales.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
+            {/* PASO 1 */}
+            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{ fontSize: 32 }}>📥</span>
+                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
+                  PASO 1
+                </span>
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+                1. Recepción en el Taller
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+                El técnico recibe el equipo en el sistema Fixme, registra la falla reportada, fotos de estado físico y asocia el celular y cédula del cliente.
+              </p>
+            </div>
+
+            {/* PASO 2 */}
+            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{ fontSize: 32 }}>📱🪪</span>
+                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
+                  PASO 2
+                </span>
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+                2. Acceso al Portal del Cliente
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+                El cliente entra al <b>Portal de Clientes</b> con su Celular y Cédula. No necesita contraseñas complejas y ve el avance en vivo de su orden técnica.
+              </p>
+            </div>
+
+            {/* PASO 3 */}
+            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{ fontSize: 32 }}>✍️</span>
+                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
+                  PASO 3
+                </span>
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+                3. Aprobación Digital en 1 Clic
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+                Si el diagnóstico requiere un repuesto adicional, el taller lo carga y el cliente lo aprueba o rechaza digitalmente desde su teléfono sin llamadas molestas.
+              </p>
+            </div>
+
+            {/* PASO 4 */}
+            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{ fontSize: 32 }}>🛡️🧾</span>
+                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
+                  PASO 4
+                </span>
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
+                4. Factura SRI & Garantía Oficial
+              </h3>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+                Al retirar el equipo, la tienda emite la factura electrónica autorizada ante el SRI y la póliza digital de garantía con contador regresivo de días.
+              </p>
             </div>
           </div>
         </div>
@@ -646,13 +1032,19 @@ export function LandingPage({ onLogin, onOpenDirectLogin }: LandingPageProps) {
           <div className="footer-links">
             <div>
               <strong>Plataforma</strong>
+              <a href="#marketplace-service">Red de Talleres & Cotizaciones</a>
               <a href="#features">Punto de Venta POS</a>
               <a href="#features">Taller & Reparaciones</a>
               <a href="#features">Inventario & Kardex</a>
               <a href="#payments">Pagos DeUna & Payphone</a>
             </div>
             <div>
-              <strong>Acceso</strong>
+              <strong>Clientes & Reparaciones</strong>
+              <button type="button" onClick={() => navigateTo('#portal-cliente')} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer' }}>👤 Portal Clientes (Reparaciones, Facturas & Garantías)</button>
+              <a href="#faq">Preguntas Frecuentes</a>
+            </div>
+            <div>
+              <strong>Acceso Comercios</strong>
               <button type="button" onClick={() => setShowLoginModal(true)}>Iniciar Sesión</button>
               <button type="button" onClick={() => handleChoosePlan('PRO')}>Registrar Tienda</button>
               <a href="#pricing">Tarifas Mensuales</a>
