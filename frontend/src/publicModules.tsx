@@ -891,27 +891,36 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
   const [rejectReason, setRejectReason] = React.useState('');
   const [showRejectModal, setShowRejectModal] = React.useState(false);
   const [showApproveModal, setShowApproveModal] = React.useState(false);
+  const [selectedPhoto, setSelectedPhoto] = React.useState<Any | null>(null);
+  const [lastUpdated, setLastUpdated] = React.useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  const load = React.useCallback(() => {
-    fetch(`/api/public/work-orders/${encodeURIComponent(code)}`)
-      .then(async r => {
-        if (r.ok) return r.json();
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
+    try {
+      const r = await fetch(`/api/public/work-orders/${encodeURIComponent(code)}`);
+      if (r.ok) {
+        const d = await r.json();
+        setData(d);
+        setLastUpdated(new Date());
+        setError('');
+      } else {
         const err = await r.json().catch(() => null);
         throw new Error(err?.message || 'Orden de servicio no encontrada');
-      })
-      .then(d => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(e => {
-        setError(e.message || 'No se pudo cargar el seguimiento de la orden');
-        setLoading(false);
-      });
+      }
+    } catch (e: any) {
+      if (!silent) setError(e.message || 'No se pudo cargar el seguimiento de la orden');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
   }, [code]);
 
   React.useEffect(() => {
     load();
-    const interval = setInterval(load, 20000);
+    const interval = setInterval(() => {
+      if (!document.hidden) load(true);
+    }, 5000);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -925,7 +934,7 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
       });
       if (res.ok) {
         setShowApproveModal(false);
-        setActionSuccess('¡Presupuesto aprobado exitosamente! El taller comenzará la reparación de inmediato.');
+        setActionSuccess('¡Presupuesto aprobado exitosamente! Tu equipo avanzó a estado: Esperando Repuestos / En Reparación.');
         load();
       } else {
         const err = await res.json().catch(() => null);
@@ -952,7 +961,7 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
       });
       if (res.ok) {
         setShowRejectModal(false);
-        setActionSuccess('Presupuesto rechazado. Puedes retirar tu equipo en el taller según las condiciones acordadas.');
+        setActionSuccess('Presupuesto cancelado. Tu equipo está listo para entrega en recepción. Solo cancelas la tarifa de diagnóstico.');
         load();
       } else {
         const err = await res.json().catch(() => null);
@@ -998,24 +1007,55 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
 
   const status = (data.status || 'OPEN').toUpperCase();
   const quoteVal = Number(data.quote || 0);
+  const diagFee = Number(data.diagnostic_fee || 0);
 
-  // Status mapping
-  const isQuoted = ['QUOTED', 'PRESUPUESTADO'].includes(status);
-  const isApproved = ['APPROVED', 'APROBADO'].includes(status);
-  const isRepairing = ['IN_PROGRESS', 'EN_REPARACION', 'EN_PROCESO', 'WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(status);
+  // Status flags matching workshop lifecycle
+  const isQuoted = ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(status);
+  const isWaitingParts = ['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(status);
+  const isRepairing = ['IN_PROGRESS', 'EN_REPARACION', 'EN_PROCESO', 'APPROVED', 'APROBADO'].includes(status);
+  const isTesting = ['TESTING', 'EN_PRUEBAS', 'PRUEBAS'].includes(status);
   const isReady = ['COMPLETED', 'LISTO_ENTREGA', 'LISTO'].includes(status);
-  const isDelivered = ['DELIVERED', 'ENTREGADO'].includes(status);
-  const isRejected = ['REJECTED', 'RECHAZADO'].includes(status);
+  const isDelivered = ['DELIVERED', 'ENTREGADO', 'PAGADO'].includes(status);
+  const isDirectRejected = ['REJECTED', 'RECHAZADO', 'CANCELLED', 'CANCELADO'].includes(status);
+  const isRejectedOrder = isDirectRejected || (isReady && (!!data.rejection_reason || !!data.rejectionReason));
+  const isApproved = isWaitingParts || isRepairing || isTesting || (isReady && !isRejectedOrder) || isDelivered;
 
-  // Can the client approve?
-  const canApprove = (isQuoted || ['OPEN', 'RECIBIDO', 'DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status)) && quoteVal > 0;
+  // Can the client approve or reject the quote?
+  const canApprove = (isQuoted || (['OPEN', 'RECIBIDO', 'DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status) && quoteVal > 0)) && !isApproved && !isRejectedOrder;
 
-  // Step resolution
+  // Exact step calculation
   let step = 1;
-  if (isQuoted) step = 2;
-  else if (isApproved || isRepairing) step = 3;
-  else if (isReady) step = 4;
-  else if (isDelivered) step = 5;
+  if (isRejectedOrder) {
+    step = isDelivered ? 5 : 4;
+  } else {
+    if (['OPEN', 'RECIBIDO'].includes(status)) step = 1;
+    else if (['DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status)) step = 2;
+    else if (isQuoted) step = 3;
+    else if (isWaitingParts) step = 4;
+    else if (isRepairing) step = 5;
+    else if (isTesting) step = 6;
+    else if (isReady) step = 7;
+    else if (isDelivered) step = 8;
+  }
+
+  const stepsList = isRejectedOrder
+    ? [
+        { s: 1, label: 'Orden abierta', icon: '📋' },
+        { s: 2, label: 'Diagnóstico', icon: '🔍' },
+        { s: 3, label: 'Cotización', icon: '💰' },
+        { s: 4, label: 'Listo Retiro', icon: '📦' },
+        { s: 5, label: 'Pagado', icon: '🤝' },
+      ]
+    : [
+        { s: 1, label: 'Orden abierta', icon: '📋' },
+        { s: 2, label: 'Diagnóstico', icon: '🔍' },
+        { s: 3, label: 'Cotizado', icon: '💰' },
+        { s: 4, label: 'Repuestos', icon: '📦' },
+        { s: 5, label: 'Reparación', icon: '⚙️' },
+        { s: 6, label: 'Pruebas', icon: '🧪' },
+        { s: 7, label: 'Listo Retiro', icon: '✅' },
+        { s: 8, label: 'Pagado', icon: '🤝' },
+      ];
 
   const storeName = data.store_name || 'Fixme Taller';
   const branchName = data.branch_name || 'Servicio Técnico';
@@ -1023,235 +1063,312 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
   const orderNum = data.order_number || ('OT-' + data.id?.slice(0, 6).toUpperCase());
   const deviceTitle = `${data.device_brand || ''} ${data.device_model || data.description || 'Equipo'}`.trim();
 
-  const waNumber = branchPhone.replace(/[^0-9]/g, '');
+  let waNumber = branchPhone.replace(/[^0-9]/g, '');
+  if (waNumber.startsWith('0')) waNumber = '593' + waNumber.substring(1);
+  else if (waNumber && !waNumber.startsWith('593') && waNumber.length === 9) waNumber = '593' + waNumber;
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`¡Hola ${storeName}! Quisiera consultar sobre el avance de mi orden #${orderNum} (${deviceTitle}).`)}` : '';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif', paddingBottom: 40 }}>
+    <div style={{ minHeight: '100vh', background: 'var(--surface-muted)', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 40 }}>
       {/* Mobile Top Navbar */}
-      <div style={{ background: '#0f172a', color: '#fff', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Rastreo de Reparación</div>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>{storeName}</div>
+      <div className="track-hero">
+        <div className="track-hero-inner">
+          <div className="track-brand">
+            <span className="track-eyebrow">🔧 Rastreo de Reparación en Vivo</span>
+            <span className="track-store">{storeName}</span>
+          </div>
+          <div className="track-actions">
+            <button type="button" className={`track-refresh-btn ${isRefreshing ? 'refreshing' : ''}`} onClick={() => load()} disabled={isRefreshing}>
+              <span className="spin">🔄</span> {isRefreshing ? 'Actualizando...' : 'Actualizar'}
+            </button>
+            {onBack && <button type="button" className="track-refresh-btn" onClick={onBack}>← Volver</button>}
+          </div>
         </div>
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            style={{ background: '#334155', border: 0, color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
-          >
-            ← Volver
-          </button>
-        )}
       </div>
 
-      <div style={{ maxWidth: 540, margin: '0 auto', padding: '16px' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '16px' }}>
         {/* Order Header Card */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="track-card fade-in-up">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
             <div>
-              <span style={{ display: 'inline-block', background: '#eff6ff', color: '#2563eb', padding: '3px 8px', borderRadius: 6, fontSize: 12, fontWeight: 800 }}>
+              <span className="card-folio">
                 {orderNum}
               </span>
-              <h2 style={{ margin: '8px 0 2px', fontSize: 18, color: '#0f172a' }}>{deviceTitle}</h2>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
+              <h2 className="track-card-title">{deviceTitle}</h2>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                 Cliente: <strong>{data.customer_name || 'Cliente'}</strong>
               </div>
             </div>
 
             {/* Status Pill */}
             <div style={{ textAlign: 'right' }}>
-              <span style={{
-                display: 'inline-block',
-                padding: '4px 10px',
-                borderRadius: 20,
-                fontSize: 11,
-                fontWeight: 800,
-                background: isReady ? '#dcfce7' : isApproved || isRepairing ? '#dbeafe' : isQuoted ? '#fef3c7' : isRejected ? '#fee2e2' : '#f1f5f9',
-                color: isReady ? '#15803d' : isApproved || isRepairing ? '#1d4ed8' : isQuoted ? '#b45309' : isRejected ? '#b91c1c' : '#475569'
-              }}>
-                {isReady ? '✅ LISTO PARA RETIRO' : isRepairing ? '⚙️ EN REPARACIÓN' : isApproved ? '👍 PRESUPUESTO APROBADO' : isQuoted ? '💰 PRESUPUESTO LISTO' : isRejected ? '❌ RECHAZADO' : '🔍 EN DIAGNÓSTICO'}
+              <span className={`status-pill ${
+                isDelivered ? 'delivered'
+                : isRejectedOrder && !isDelivered ? 'rejected'
+                : isReady ? 'ready'
+                : isTesting ? 'testing'
+                : isRepairing ? 'repair'
+                : isWaitingParts ? 'parts'
+                : canApprove ? 'quoted'
+                : ['DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status) ? 'diag'
+                : 'open'
+              }`}>
+                {!(isDelivered || isRejectedOrder || isReady) && <span className="pulse-dot"></span>}
+                {isDelivered ? '🤝 ENTREGADO Y PAGADO'
+                 : isRejectedOrder && !isDelivered ? '❌ COTIZACIÓN CANCELADA · LISTO PARA RETIRO'
+                 : isReady ? '✅ LISTO PARA ENTREGA'
+                 : isTesting ? '🧪 EN PRUEBAS FINALES'
+                 : isRepairing ? '⚙️ EN REPARACIÓN'
+                 : isWaitingParts ? '⏳ ESPERANDO REPUESTOS'
+                 : canApprove ? '⚠️ NECESITA SU APROBACIÓN'
+                 : ['DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(status) ? '🔍 EN DIAGNÓSTICO'
+                 : '📋 ORDEN ABIERTA'}
               </span>
               {data.estimated_delivery && (
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Entrega est.: {new Date(data.estimated_delivery).toLocaleDateString()}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Stepper */}
-          <div style={{ marginTop: 20, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, textAlign: 'center' }}>
-              {[
-                { s: 1, label: 'Diagnóstico', icon: '🔍' },
-                { s: 2, label: 'Presupuesto', icon: '💰' },
-                { s: 3, label: 'Reparación', icon: '⚙️' },
-                { s: 4, label: 'Listo', icon: '📦' },
-                { s: 5, label: 'Entregado', icon: '🤝' },
-              ].map(st => {
-                const isPassed = step >= st.s;
-                const isCurrent = step === st.s;
-                return (
-                  <div key={st.s}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      margin: '0 auto 6px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 14,
-                      background: isCurrent ? '#2563eb' : isPassed ? '#10b981' : '#e2e8f0',
-                      color: isCurrent || isPassed ? '#fff' : '#94a3b8',
-                      boxShadow: isCurrent ? '0 0 0 3px #bfdbfe' : 'none',
-                      transition: 'all 0.3s'
-                    }}>
+          {/* Stepper with Sequential Stages */}
+          <div className="track-stepper" style={{ marginTop: 18 }}>
+            {stepsList.map((st, idx) => {
+              const isPassed = step >= st.s;
+              const isCurrent = step === st.s;
+              const stepClass = isCurrent ? `active${isRejectedOrder && st.s === 4 ? ' rejected' : ''}` : isPassed ? 'done' : '';
+              return (
+                <React.Fragment key={st.s}>
+                  <div className={`track-step ${stepClass}`}>
+                    <div className="track-step-dot">
                       {isCurrent ? st.icon : isPassed ? '✓' : st.icon}
                     </div>
-                    <div style={{ fontSize: 10, fontWeight: isCurrent ? 800 : 500, color: isCurrent ? '#1d4ed8' : isPassed ? '#0f172a' : '#94a3b8' }}>
-                      {st.label}
-                    </div>
+                    <div className="track-step-label">{st.label}</div>
                   </div>
-                );
-              })}
-            </div>
+                  {idx < stepsList.length - 1 && (
+                    <div className={`track-step-line ${isPassed && !isCurrent ? 'done' : isCurrent ? 'active' : ''}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
 
         {/* Action Success Alert */}
         {actionSuccess && (
-          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '12px 16px', borderRadius: 12, marginBottom: 14, fontSize: 13 }}>
+          <div className="track-card" style={{ background: 'var(--success-subtle)', borderColor: 'var(--success-border)', color: 'var(--success-dark)' }}>
             <strong>✓ Notificación del Taller:</strong> {actionSuccess}
           </div>
         )}
 
+        {/* PROMINENT ACTION BANNER: APPROVAL NEEDED */}
+        {canApprove && (
+          <div className="approval-banner fade-in-up">
+            <h3>⚠️ ACCIÓN REQUERIDA: SU COTIZACIÓN ESTÁ LISTA</h3>
+            <p>El técnico ha finalizado la evaluación de su equipo. A continuación puede revisar los repuestos, mano de obra y autorizar o cancelar la reparación.</p>
+            <div className="approval-btn-grid">
+              <button type="button" className="btn-approve" onClick={() => setShowApproveModal(true)}>
+                ✅ Aceptar Cotización (${quoteVal.toFixed(2)})
+              </button>
+              <button type="button" className="btn-reject" onClick={() => setShowRejectModal(true)}>
+                ❌ Cancelar Cotización
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Quotation & Approval Section */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="track-card fade-in-up">
+          <h3 className="track-section-title">
             <span>💰</span> Presupuesto & Cotización
           </h3>
 
           {/* Diagnosis Note */}
-          <div style={{ background: '#f8fafc', borderLeft: '4px solid #3b82f6', padding: '10px 14px', borderRadius: '0 8px 8px 0', marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase' }}>Diagnóstico del Técnico:</div>
-            <div style={{ fontSize: 13, color: '#334155', marginTop: 3 }}>
+          <div className="diag-note">
+            <div className="diag-note-label">Diagnóstico del Técnico:</div>
+            <div className="diag-note-text">
               {data.diagnosis || 'Diagnóstico técnico en proceso en banco de trabajo.'}
             </div>
           </div>
 
-          {/* Quotation Items Table */}
+          {/* Diagnostic Fee Policy Note */}
+          {diagFee > 0 && !isRejectedOrder && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 'var(--sp-sm) var(--sp-md)', marginBottom: 'var(--sp-md)', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 'var(--sp-sm)' }}>
+              <span style={{ fontSize: '1rem' }}>💡</span>
+              <div>
+                <strong>Tarifa de diagnóstico: ${diagFee.toFixed(2)}.</strong> Si apruebas la reparación, cancelas el valor presupuestado. Si decides no reparar o cancelas la cotización, solo se cobra la tarifa de diagnóstico acordada.
+              </div>
+            </div>
+          )}
+
+          {/* Quotation Items Table (Labor vs Parts) */}
           {Array.isArray(data.items) && data.items.length > 0 ? (
-            <div style={{ marginBottom: 14 }}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <div style={{ marginBottom: 'var(--sp-md)' }}>
+              <table className="quote-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
-                    <th style={{ padding: '6px 0' }}>Concepto</th>
-                    <th style={{ padding: '6px 0', textAlign: 'center' }}>Cant.</th>
-                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Subtotal</th>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Concepto</th>
+                    <th style={{ textAlign: 'center' }}>Cant.</th>
+                    <th style={{ textAlign: 'right' }}>Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((it: Any, idx: number) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '8px 0' }}>
-                        <span style={{ fontSize: 11, marginRight: 4 }}>{it.itemType === 'LABOR' ? '🛠️' : '📦'}</span>
-                        <strong>{it.name}</strong>
-                      </td>
-                      <td style={{ padding: '8px 0', textAlign: 'center', color: '#64748b' }}>{Number(it.quantity)}</td>
-                      <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 700 }}>${Number(it.subtotal).toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {data.items.map((it: Any, idx: number) => {
+                    const isLabor = it.itemType === 'LABOR' || it.itemType === 'SERVICE';
+                    return (
+                      <tr key={idx}>
+                        <td>
+                          <span className={`quote-type-badge ${isLabor ? 'labor' : 'part'}`}>
+                            {isLabor ? '🛠️ Mano Obra' : '📦 Repuesto'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong>{it.name}</strong>
+                          {Number(it.unitPrice) > 0 && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block' }}>(${(Number(it.unitPrice)).toFixed(2)} c/u)</span>}
+                        </td>
+                        <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{Number(it.quantity)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-heading)' }}>${Number(it.subtotal).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           ) : null}
 
           {/* Total Banner */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', padding: '12px 16px', borderRadius: 10 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 700 }}>TOTAL PRESUPUESTADO:</div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Incluye repuestos y mano de obra garantizada</div>
+          {!isRejectedOrder && (
+            <div className="quote-total-bar">
+              <div>
+                <div className="quote-total-label">TOTAL PRESUPUESTADO:</div>
+                <div className="quote-total-sublabel">Incluye repuestos y mano de obra garantizada</div>
+              </div>
+              <div className="quote-total-amount">
+                ${quoteVal.toFixed(2)}
+              </div>
             </div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#1d4ed8' }}>
-              ${quoteVal.toFixed(2)}
+          )}
+
+          {isApproved && !isRejectedOrder && (
+            <div style={{ marginTop: 'var(--sp-md)', background: 'var(--success-subtle)', border: '1px solid var(--success-border)', borderRadius: 'var(--r-md)', padding: 'var(--sp-sm) var(--sp-md)', textAlign: 'center', fontSize: '0.8rem', color: 'var(--success-dark)' }}>
+              👍 <strong>Presupuesto Aprobado:</strong> El equipo se encuentra en proceso de reparación técnica.
+              {data.client_notes && <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: 2 }}>Notas del cliente: "{data.client_notes}"</div>}
             </div>
+          )}
+
+          {isRejectedOrder && (
+            <div className="rejection-card">
+              <div style={{ fontWeight: 900, fontSize: '1rem' }}>❌ Cotización Cancelada · Equipo Listo para Retiro</div>
+              <p style={{ margin: 'var(--sp-sm) 0', fontSize: '0.8rem', color: 'var(--danger-dark)' }}>
+                Has rechazado el presupuesto de reparación. Tu equipo ya se encuentra ensamblado y listo para entrega en recepción de la tienda. Al no realizar la reparación, conforme a los términos acordados, únicamente se cobra la tarifa por diagnóstico técnico:
+              </p>
+              <div className="rejection-amount">
+                <span className="amount-label">VALOR A COBRAR POR DIAGNÓSTICO:</span>
+                <span className="amount-value">${(diagFee > 0 ? diagFee : 10).toFixed(2)}</span>
+              </div>
+              {data.rejection_reason && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--danger-dark)', marginTop: 4 }}>
+                  Motivo registrado: "{data.rejection_reason}"
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Trust-Cam Visual Inspection & Repair Photos Gallery */}
+        <div className="track-card fade-in-up">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-md)' }}>
+            <h3 className="track-section-title" style={{ marginBottom: 0 }}>
+              <span>📸</span> Evidencias Visuales y Fotos del Trabajo ({Array.isArray(data.images) ? data.images.length : 0})
+            </h3>
+            <span style={{ fontSize: '0.7rem', background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '2px 8px', borderRadius: 'var(--r-pill)', fontWeight: 700 }}>
+              Trust-Cam 360°
+            </span>
           </div>
 
-          {/* Interactive Approval Buttons */}
-          {canApprove && (
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: 12, color: '#475569', textAlign: 'center', marginBottom: 10 }}>
-                ¿Deseas autorizar la reparación por este valor?
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <button
-                  type="button"
-                  className="primary-action"
-                  onClick={() => setShowApproveModal(true)}
-                  style={{ background: '#10b981', borderColor: '#059669', padding: '12px 8px', fontSize: 13, justifyContent: 'center' }}
-                >
-                  ✅ Aprobar Presupuesto
-                </button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => setShowRejectModal(true)}
-                  style={{ color: '#dc2626', borderColor: '#fca5a5', background: '#fff5f5', padding: '12px 8px', fontSize: 13 }}
-                >
-                  ❌ Rechazar
-                </button>
-              </div>
+          {Array.isArray(data.images) && data.images.length > 0 ? (
+            <div className="photo-grid">
+              {data.images.map((img: Any, idx: number) => {
+                const stageLabel: Record<string, string> = {
+                  RECEPTION: '📥 Recepción',
+                  DIAGNOSIS: '🔬 Diagnóstico',
+                  PARTS: '📦 Repuesto',
+                  WAITING_PARTS: '⏳ Repuestos',
+                  REPAIR: '🛠️ Reparación',
+                  TESTING: '🧪 Pruebas',
+                  COMPLETED: '✨ Culminado',
+                  LISTO_ENTREGA: '✅ Listo Entrega',
+                  ENTREGA: '🤝 Entrega'
+                };
+                const badge = stageLabel[img.stage?.toUpperCase()] || img.stage || 'Evidencia';
+                return (
+                  <div
+                    key={img.id || idx}
+                    className="photo-thumb"
+                    onClick={() => setSelectedPhoto(img)}
+                  >
+                    <div style={{ position: 'relative', height: 110, background: '#000' }}>
+                      <img
+                        src={img.image_url || img.imageUrl}
+                        alt={img.caption || 'Foto de taller'}
+                        className="photo-thumb-img"
+                      />
+                      <span className="photo-stage-badge">
+                        {badge}
+                      </span>
+                    </div>
+                    {img.caption && (
+                      <div className="photo-thumb-caption">
+                        {img.caption}
+                      </div>
+                    )}
+                    <div className="photo-thumb-date">
+                      {img.created_at ? new Date(img.created_at).toLocaleDateString() : ''}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-
-          {isApproved && (
-            <div style={{ marginTop: 14, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', textAlign: 'center', fontSize: 12, color: '#166534' }}>
-              👍 <strong>Presupuesto Aprobado:</strong> El equipo se encuentra en fase de reparación técnica.
-              {data.client_notes && <div style={{ fontSize: 11, color: '#15803d', marginTop: 2 }}>Notas: "{data.client_notes}"</div>}
-            </div>
-          )}
-
-          {isRejected && (
-            <div style={{ marginTop: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', textAlign: 'center', fontSize: 12, color: '#991b1b' }}>
-              ❌ <strong>Presupuesto Rechazado:</strong> Equipo listo para retiro en recepción.
-              {data.rejection_reason && <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>Motivo: "{data.rejection_reason}"</div>}
+          ) : (
+            <div className="photo-empty">
+              📷 No hay fotos registradas todavía. A medida que el técnico evalúe y trabaje en tu equipo, subirá fotos del diagnóstico, repuestos y pruebas aquí.
             </div>
           )}
         </div>
 
         {/* Equipment Technical Details Card */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 14 }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 15, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="track-card fade-in-up">
+          <h3 className="track-section-title">
             <span>📱</span> Datos del Equipo Recibido
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
-            <div>
-              <span style={{ color: '#64748b', display: 'block' }}>Marca y Modelo:</span>
-              <strong style={{ color: '#0f172a' }}>{deviceTitle}</strong>
+          <div className="info-grid">
+            <div className="info-item">
+              <span className="info-label">Marca y Modelo:</span>
+              <strong className="info-value">{deviceTitle}</strong>
             </div>
-            <div>
-              <span style={{ color: '#64748b', display: 'block' }}>N° Serie o IMEI:</span>
-              <strong style={{ color: '#0f172a' }}>{data.serial_number || 'No especificado'}</strong>
+            <div className="info-item">
+              <span className="info-label">N° Serie o IMEI:</span>
+              <strong className="info-value">{data.serial_number || 'No especificado'}</strong>
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <span style={{ color: '#64748b', display: 'block' }}>Falla Reportada:</span>
-              <strong style={{ color: '#0f172a' }}>{data.reported_fault || data.description || 'Revisión técnica'}</strong>
+            <div className="info-item full">
+              <span className="info-label">Falla Reportada:</span>
+              <strong className="info-value">{data.reported_fault || data.description || 'Revisión técnica'}</strong>
             </div>
             {data.accessories && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <span style={{ color: '#64748b', display: 'block' }}>Accesorios recibidos:</span>
-                <span style={{ color: '#334155' }}>{data.accessories}</span>
+              <div className="info-item full">
+                <span className="info-label">Accesorios recibidos:</span>
+                <span className="info-value" style={{ fontWeight: 400 }}>{data.accessories}</span>
               </div>
             )}
           </div>
         </div>
 
         {/* WhatsApp & Contact Workshop Card */}
-        <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', textAlign: 'center' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>¿Tienes dudas sobre tu equipo?</div>
-          <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 12px' }}>
+        <div className="wa-contact-card fade-in-up">
+          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-heading)' }}>¿Tienes dudas sobre tu equipo?</div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 'var(--sp-xs) 0 var(--sp-md)' }}>
             Habla directamente con el taller de <strong>{storeName}</strong> ({branchName}).
           </p>
           {waUrl ? (
@@ -1259,21 +1376,50 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
               href={waUrl}
               target="_blank"
               rel="noreferrer"
-              className="whatsapp-action-pill"
-              style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: 13 }}
+              className="wa-contact-btn"
             >
-              💬 Chatear por WhatsApp con el Taller
+              💬 Chatear por WhatsApp con el Taller (+593)
             </a>
           ) : (
-            <div style={{ fontSize: 12, color: '#64748b' }}>Teléfono del taller: {branchPhone || 'Acércate a recepción'}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Teléfono del taller: {branchPhone || 'Acércate a recepción'}</div>
           )}
         </div>
 
         {/* Live Refresh Note */}
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', marginTop: 16 }}>
-          <span>🔄 Esta página se actualiza automáticamente cada 20 segundos</span>
+        <div className="track-footer">
+          <span>🔄 Actualizado en vivo cada 5 segundos <span className="live-dot"></span> {lastUpdated.toLocaleTimeString()}</span>
         </div>
       </div>
+
+      {/* LIGHTBOX MODAL FOR PHOTOS */}
+      {selectedPhoto && (
+        <div className="lightbox-overlay" onClick={() => setSelectedPhoto(null)}>
+          <div className="lightbox-content" onClick={e => e.stopPropagation()}>
+            <img src={selectedPhoto.image_url || selectedPhoto.imageUrl} alt="Foto completa" />
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <span className="lightbox-caption">
+                <strong>{selectedPhoto.stage}</strong>: {selectedPhoto.caption || 'Evidencia de reparación'}
+              </span>
+            </div>
+            <button className="lightbox-close" onClick={() => setSelectedPhoto(null)}>✕</button>
+            {/* Add prev/next navigation if there are multiple photos */}
+            {Array.isArray(data.images) && data.images.length > 1 && (
+              <>
+                <button className="lightbox-nav prev" onClick={() => {
+                  const idx = data.images.findIndex((im: Any) => (im.id || '') === (selectedPhoto.id || ''));
+                  const prev = idx > 0 ? data.images[idx - 1] : data.images[data.images.length - 1];
+                  setSelectedPhoto(prev);
+                }}>‹</button>
+                <button className="lightbox-nav next" onClick={() => {
+                  const idx = data.images.findIndex((im: Any) => (im.id || '') === (selectedPhoto.id || ''));
+                  const next = idx < data.images.length - 1 ? data.images[idx + 1] : data.images[0];
+                  setSelectedPhoto(next);
+                }}>›</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MODAL APPROVE */}
       {showApproveModal && (
@@ -1325,11 +1471,14 @@ export function PublicWorkOrderTracking({ code, onBack, isLogged }: { code: stri
         <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="modal-head">
-              <h3>❌ Rechazar Presupuesto</h3>
+              <h3>❌ Rechazar o Cancelar Cotización</h3>
               <button className="close-button" onClick={() => setShowRejectModal(false)}>✕</button>
             </div>
-            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px' }}>
-              Indícanos el motivo por el cual no deseas proceder con la reparación:
+            <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>
+              Al cancelar o no autorizar la cotización, tu equipo estará disponible para retiro en recepción y únicamente deberás cancelar el valor del diagnóstico técnico de <strong>${(diagFee > 0 ? diagFee : 10).toFixed(2)}</strong>.
+            </p>
+            <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>
+              Indícanos el motivo por el cual decides no realizar la reparación:
             </p>
             <label style={{ display: 'block', marginBottom: 16 }}>
               <span style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Motivo de rechazo *</span>

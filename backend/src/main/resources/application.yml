@@ -5,7 +5,14 @@ spring:
     password: ${DB_PASSWORD:fixme_dev_password}
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 server:
   port: 8080
+  tomcat:
+    max-http-form-post-size: 50MB
+    max-swallow-size: 50MB
 app:
   jwt-secret: ${JWT_SECRET:change-me-in-production-use-32-bytes-minimum}

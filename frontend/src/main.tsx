@@ -5,15 +5,22 @@ import { MarketplaceView, WorkOrderCheckoutModal } from './marketplaceView';
 import { QuotesPage, PublicQuoteView } from './quotesModule';
 import { SriRideModal } from './sriRideModal';
 import { SriInvoicesListModal } from './sriInvoicesListModal';
+import { PocketMobileView } from './pocketMobileView';
 import { saveCatalogLocally, getCatalogLocally, saveCustomersLocally, getCustomersLocally, queueOfflineSale, getPendingSales, removePendingSale, clearPendingSales, OfflineSale } from './offlineDb';
 import { ThermalTicketModal, QuickCustomerModal, CorteZModal, WorkOrderReceiptModal, BarcodeTagsModal, CsvImportModal, TechnicianWorkbenchModal } from './commercialModals';
 import { DeUnaModal } from './deunaModal';
 import { PayphoneModal } from './payphoneModal';
 import { LandingPage } from './landingPage';
 import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement, getCompanyReceiptInfo } from './ticketPrinter';
+import { compressImageFile } from './imageUtils';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
-const nav=[['cash','Caja','C'],['pos','Punto de venta','V'],['sales','Ventas','VT'],['quotes','Cotizaciones','CT'],['administration','Empresa','E'],['home','Resumen','R'],['my-work','Mi Trabajo','MT'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','I'],['customers','Clientes','CL'],['deliveries','Entregas','D'],['work-orders','Ordenes de servicio','OT'],['warranties','Garantias','G'],['reports','Reportes','RE']];
+const nav=[['home','Resumen','🏠'],['cash','Caja','💵'],['pos','Punto de venta','💳'],['sales','Ventas','🛒'],['quotes','Cotizaciones','📝'],['my-work','Mi Trabajo','🛠️'],['work-orders','Ordenes de servicio','📋'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','📦'],['customers','Clientes','👥'],['deliveries','Entregas','🚚'],['warranties','Garantias','🛡️'],['reports','Reportes','📊'],['administration','Empresa','🏢']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
+const [viewMode, setViewMode] = React.useState<'DESKTOP' | 'POCKET'>(() => {
+  const saved = localStorage.getItem('fixme_view_mode');
+  if (saved === 'DESKTOP' || saved === 'POCKET') return saved;
+  return (window.innerWidth <= 768 || window.location.hash.includes('pocket')) ? 'POCKET' : 'DESKTOP';
+});
 const[trialInfo,setTrialInfo]=React.useState<{isTrial?:boolean;daysRemaining?:number;trialEndsAt?:string}|null>(()=>{
   if(localStorage.isTrial==='true'){
     return {
@@ -25,6 +32,7 @@ const[trialInfo,setTrialInfo]=React.useState<{isTrial?:boolean;daysRemaining?:nu
   return null;
 });
 const[showTrialModal,setShowTrialModal]=React.useState(false);
+const [showQuickAccess, setShowQuickAccess] = React.useState(false);
 const [companyInfo, setCompanyInfo] = React.useState<Any>(() => ({
   name: localStorage.tenantName || 'FIXMETIENDAS',
   legalName: localStorage.tenantLegalName || localStorage.tenantName || 'FIXMETIENDAS',
@@ -98,7 +106,20 @@ React.useEffect(()=>{
       .catch(()=>{});
   }
 },[token,api,isSaasOwner]);
-const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token){const isDirectLogin=hash==='#login'||hash==='login'||hash.includes('login');if(isDirectLogin){return <Login onLogin={t=>{localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onBack={()=>{window.location.hash='';setHash('');}}/>;}return <LandingPage onLogin={t=>{localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onOpenDirectLogin={()=>{window.location.hash='#login';setHash('#login');}}/>;}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div>{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>R</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}<div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main>
+const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token){const isDirectLogin=hash==='#login'||hash==='login'||hash.includes('login')||hash.includes('pocket');if(isDirectLogin){return <Login onLogin={(t:string,mode?:'POCKET'|'DESKTOP')=>{if(mode)setViewMode(mode);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onBack={()=>{window.location.hash='';setHash('');}}/>;}return <LandingPage onLogin={(t:string)=>{const m=localStorage.getItem('fixme_view_mode') as 'POCKET'|'DESKTOP';if(m)setViewMode(m);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onOpenDirectLogin={()=>{window.location.hash='#login';setHash('#login');}}/>;}
+if(viewMode==='POCKET'&&!isSaasOwner){
+  return (
+    <PocketMobileView
+      api={api}
+      role={role}
+      companyInfo={companyInfo}
+      branchId={branchId}
+      onSwitchToDesktop={()=>{setViewMode('DESKTOP');localStorage.setItem('fixme_view_mode','DESKTOP');}}
+      onLogout={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home');}}
+      notify={setToast}
+    />
+  );
+}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div><div className="sidebar-nav-scroll">{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>🏠</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}</div><div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main>
 {!isSaasOwner&&trialInfo?.isTrial&&(
   <div className="trial-top-banner">
     <div className="trial-banner-info">
@@ -122,7 +143,7 @@ const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'
     </div>
   </div>
 )}
-<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><button type="button" className="header-icon" onClick={()=>setShowCatalogModal(true)} title="📱 Catálogo Digital para Clientes" style={{background:'#eff6ff',color:'#2563eb',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>📱 Catálogo Digital</button><button type="button" className="header-icon" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} title="🛠️ Solicitar Reparación Técnica" style={{background:'#f0fdf4',color:'#16a34a',fontWeight:700,fontSize:'12px',padding:'5px 12px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer'}}>🛠️ Solicitar Reparación</button><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><div style={{position:'relative'}}><button type="button" className="header-icon" onClick={()=>setShowQuickAccess(!showQuickAccess)} title="Accesos Rápidos y Enlaces Públicos" style={{background:'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer',whiteSpace:'nowrap'}}><span>⚡ Accesos</span><span style={{fontSize:'9px'}}>▼</span></button>{showQuickAccess&&<div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'#ffffff',border:'1px solid #cbd5e1',borderRadius:'12px',boxShadow:'0 12px 30px rgba(0,0,0,0.15)',width:'230px',zIndex:1000,padding:'6px',display:'flex',flexDirection:'column',gap:'4px'}} onClick={()=>setShowQuickAccess(false)}><button type="button" onClick={()=>{setViewMode('POCKET');localStorage.setItem('fixme_view_mode','POCKET');}} style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #fde68a',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>📱</span><div><div>Modo Pocket Móvil</div><small style={{fontSize:'10px',color:'#b45309'}}>Taller y POS para celulares</small></div></button><button type="button" onClick={()=>setShowCatalogModal(true)} style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛒</span><div><div>Catálogo Digital</div><small style={{fontSize:'10px',color:'#2563eb'}}>Compartir productos con QR</small></div></button><button type="button" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} style={{background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛠️</span><div><div>Solicitar Reparación</div><small style={{fontSize:'10px',color:'#15803d'}}>Portal de recepción online</small></div></button><button type="button" onClick={()=>{window.location.hash='#portal-cliente';setHash('#portal-cliente');}} style={{background:'#f8fafc',color:'#0f172a',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>👤</span><div><div>Portal de Clientes</div><small style={{fontSize:'10px',color:'#64748b'}}>Consulta por Cédula / Celular</small></div></button></div>}</div><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -209,17 +230,199 @@ function StoreTrialUpgradeModal({tenantName, trialEndsAt, daysRemaining, onClose
   );
 }
 
-function Login({onLogin, onBack}:{onLogin:(t:string)=>void, onBack?:()=>void}){const[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[error,setError]=React.useState('');async function submit(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.trim(),password})});if(r.ok){const data=await r.json();if(data.tenantId){tenantId=data.tenantId;localStorage.tenantId=data.tenantId;}if(data.branchId){branchId=data.branchId;localStorage.branchId=data.branchId;}if(data.tenantName){localStorage.tenantName=data.tenantName;}if(data.fullName){localStorage.fullName=data.fullName;}
-if(data.isTrial){
-  localStorage.isTrial='true';
-  if(data.trialDaysRemaining!==undefined&&data.trialDaysRemaining!==null){localStorage.trialDaysRemaining=String(data.trialDaysRemaining);}
-  if(data.trialEndsAt){localStorage.trialEndsAt=data.trialEndsAt;}
-}else{
-  localStorage.removeItem('isTrial');
-  localStorage.removeItem('trialDaysRemaining');
-  localStorage.removeItem('trialEndsAt');
+function Login({ onLogin, onBack }: { onLogin: (t: string, mode?: 'POCKET' | 'DESKTOP') => void; onBack?: () => void }) {
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [targetMode, setTargetMode] = React.useState<'POCKET' | 'DESKTOP'>(() => {
+    const saved = localStorage.getItem('fixme_view_mode');
+    if (saved === 'DESKTOP' || saved === 'POCKET') return saved;
+    return (window.innerWidth <= 768 || window.location.hash.includes('pocket')) ? 'POCKET' : 'DESKTOP';
+  });
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+    setLoading(true);
+    setError('');
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password })
+      });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.tenantId) { tenantId = data.tenantId; localStorage.tenantId = data.tenantId; }
+        if (data.branchId) { branchId = data.branchId; localStorage.branchId = data.branchId; }
+        if (data.tenantName) { localStorage.tenantName = data.tenantName; }
+        if (data.fullName) { localStorage.fullName = data.fullName; }
+        if (data.isTrial) {
+          localStorage.isTrial = 'true';
+          if (data.trialDaysRemaining !== undefined && data.trialDaysRemaining !== null) {
+            localStorage.trialDaysRemaining = String(data.trialDaysRemaining);
+          }
+          if (data.trialEndsAt) { localStorage.trialEndsAt = data.trialEndsAt; }
+        } else {
+          localStorage.removeItem('isTrial');
+          localStorage.removeItem('trialDaysRemaining');
+          localStorage.removeItem('trialEndsAt');
+        }
+        localStorage.setItem('fixme_view_mode', targetMode);
+        onLogin(data.accessToken, targetMode);
+      } else {
+        try {
+          const data = await r.json();
+          if (data && (data.error === 'TRIAL_EXPIRED' || data.error === 'STORE_SUSPENDED' || r.status === 402)) {
+            setError('🚫 ' + (data.message || 'Tu período de prueba ha finalizado o la tienda se encuentra suspendida. Contacta al administrador del sistema.'));
+            return;
+          }
+        } catch {}
+        setError('No pudimos validar tus credenciales. Verifica tu correo y contraseña.');
+      }
+    } catch (err: any) {
+      setError('Error de conexión con el servidor: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="pocket-login-container">
+      <div className="pocket-login-card">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#64748b',
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              marginBottom: '14px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: 0,
+              fontWeight: 600
+            }}
+          >
+            ← Volver a la página principal
+          </button>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div className="pocket-login-logo">FX</div>
+          <span className="pocket-login-badge">
+            {targetMode === 'POCKET' ? '⚡ Fixme Pocket Móvil' : '🖥️ Modo Desktop'}
+          </span>
+        </div>
+
+        <h1 className="pocket-login-title">
+          {targetMode === 'POCKET' ? 'Fixme Pocket' : 'FixmeTiendas'}
+        </h1>
+        <p className="pocket-login-subtitle">
+          {targetMode === 'POCKET'
+            ? 'Punto de Venta móvil, órdenes de taller y despachos en tu mano.'
+            : 'Gestión integral, facturación SRI, inventario y taller desde un solo lugar.'}
+        </p>
+
+        {/* MODE TOGGLE */}
+        <div className="pocket-mode-toggle">
+          <button
+            type="button"
+            className={`pocket-mode-btn ${targetMode === 'POCKET' ? 'active' : ''}`}
+            onClick={() => setTargetMode('POCKET')}
+          >
+            📱 Pocket Móvil (Técnico / POS)
+          </button>
+          <button
+            type="button"
+            className={`pocket-mode-btn ${targetMode === 'DESKTOP' ? 'active' : ''}`}
+            onClick={() => setTargetMode('DESKTOP')}
+          >
+            💻 Panel Desktop
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: '10px', color: '#b91c1c', fontSize: '12.5px', marginBottom: 14, lineHeight: 1.4 }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={submit}>
+          <div className="pocket-field">
+            <label>✉️ Correo electrónico</label>
+            <div className="pocket-input-wrap">
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                placeholder="ejemplo@correo.com"
+                autoComplete="email"
+              />
+            </div>
+          </div>
+
+          <div className="pocket-field">
+            <label>🔒 Contraseña</label>
+            <div className="pocket-input-wrap">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="pocket-eye-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+              >
+                {showPassword ? '👁️' : '🔒'}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="pocket-submit-btn"
+            disabled={loading}
+          >
+            {loading ? 'Validando credenciales...' : targetMode === 'POCKET' ? '⚡ Entrar a Fixme Pocket' : '🚀 Iniciar Sesión en Tienda'}
+          </button>
+        </form>
+
+        <div className="pocket-login-footer">
+          <a
+            href="#portal-cliente"
+            style={{
+              color: '#2563eb',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              padding: '6px'
+            }}
+          >
+            👤 ¿Eres cliente? Consulta tu equipo en vivo aquí →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
 }
-onLogin(data.accessToken);}else{try{const data=await r.json();if(data&&(data.error==='TRIAL_EXPIRED'||data.error==='STORE_SUSPENDED'||r.status===402)){setError('🚫 '+(data.message||'Tu período de prueba ha finalizado o la tienda se encuentra suspendida. Contacta al administrador del sistema.'));return;}}catch{}setError('No pudimos validar tus credenciales.')}}return <div className="login"><div className="login-card">{onBack&&<button type="button" onClick={onBack} style={{background:'none',border:'none',color:'#64748b',fontSize:'12px',cursor:'pointer',marginBottom:'14px',display:'inline-flex',alignItems:'center',gap:'4px',padding:0}}>← Volver al portal principal</button>}<div className="logo">FX</div><h1>Bienvenido a Fixme<span>Tiendas</span></h1><p>Gestiona tu negocio desde un solo lugar.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="ejemplo@correo.com"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="••••••••"/></label><button>Iniciar sesión</button>{error&&<em>{error}</em>}</form></div></div>}
 function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,notify:(s:string)=>void}){
   const [s, setS] = React.useState<Any|null>(null);
   const [history, setHistory] = React.useState<Any[]>([]);
@@ -7929,6 +8132,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   const [workbenchOrder, setWorkbenchOrder] = React.useState<Any|null>(null);
   const [receiptOrder, setReceiptOrder] = React.useState<Any|null>(null);
   const [updating, setUpdating] = React.useState(false);
+  const [mobileKanbanCol, setMobileKanbanCol] = React.useState<string>('all');
+  const [openMenuOrderId, setOpenMenuOrderId] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -7936,7 +8141,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       api('/api/work-orders/my-work').then(r => r.ok ? r.json() : []),
       api('/api/work-orders/my-work/stats').then(r => r.ok ? r.json() : {})
     ]).then(([ordersData, statsData]) => {
-      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      const list = Array.isArray(ordersData) ? ordersData : (ordersData && ordersData.data ? ordersData.data : []);
+      setOrders(list);
       setStats(statsData || {});
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -7962,7 +8168,7 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   }
 
   function getSlaBadge(o: Any) {
-    if (o.status === 'COMPLETED' || o.status === 'ENTREGADO' || o.status === 'LISTO_ENTREGA') {
+    if (['COMPLETED', 'ENTREGADO', 'DELIVERED', 'LISTO_ENTREGA', 'PAGADO'].includes(o.status)) {
       return <span className="sla-badge sla-badge-ok">✓ Culminado</span>;
     }
     const deadline = o.sla_deadline || o.estimated_delivery;
@@ -7972,8 +8178,12 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
     const diffMs = new Date(deadline).getTime() - Date.now();
     const diffHours = diffMs / (1000 * 60 * 60);
     if (diffHours < 0) {
-      const passed = Math.abs(Math.round(diffHours));
-      return <span className="sla-badge sla-badge-overdue">🚨 Vencido hace {passed}h</span>;
+      const passedHours = Math.abs(Math.round(diffHours));
+      if (passedHours > 48) {
+        const passedDays = Math.round(passedHours / 24);
+        return <span className="sla-badge sla-archived-overdue">Atrasada {passedDays} d</span>;
+      }
+      return <span className="sla-badge sla-badge-overdue">🚨 Vencida {passedHours}h</span>;
     }
     if (diffHours <= 12) {
       const leftH = Math.floor(diffHours);
@@ -8217,157 +8427,294 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         </div>
       ) : viewMode === 'KANBAN' ? (
         /* ================= 1. KANBAN VIEW ================= */
-        <div className="mywork-kanban">
-          {kanbanColumns.map(col => {
-            const colOrders = filteredOrders.filter(o => col.statuses.includes(o.status));
-            return (
-              <div className="kanban-column" key={col.id} style={{ borderTop: `4px solid ${col.borderColor}` }}>
-                <div className="kanban-col-head">
-                  <span>{col.title}</span>
-                  <span className="kanban-badge">{colOrders.length}</span>
-                </div>
-                <div className="kanban-col-body">
-                  {colOrders.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', fontSize: '12px' }}>
-                      Sin órdenes aquí
+        <div>
+          {/* Quick-Jump Nav Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '14px 0 10px 0', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', paddingBottom: 2, flex: 1 }}>
+              <button
+                type="button"
+                className={`filter-pill ${mobileKanbanCol === 'all' ? 'active' : ''}`}
+                onClick={() => setMobileKanbanCol('all')}
+                style={{ fontSize: '11.5px', padding: '5px 12px', whiteSpace: 'nowrap' }}
+              >
+                Todas las Columnas ({filteredOrders.length})
+              </button>
+              {kanbanColumns.map(c => {
+                const count = filteredOrders.filter(o => c.statuses.includes(o.status)).length;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setMobileKanbanCol(c.id);
+                      const el = document.getElementById(`mywork-kcol-${c.id}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+                    }}
+                    style={{
+                      padding: '5px 11px',
+                      borderRadius: '20px',
+                      border: mobileKanbanCol === c.id ? `2px solid ${c.borderColor}` : '1px solid #cbd5e1',
+                      background: mobileKanbanCol === c.id ? `${c.borderColor}15` : '#fff',
+                      color: c.borderColor,
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <span>{c.title}</span>
+                    <span style={{ background: c.borderColor, color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button
+                type="button"
+                title="Desplazar a la izquierda"
+                onClick={() => {
+                  const board = document.querySelector('.mywork-kanban');
+                  if (board) board.scrollBy({ left: -340, behavior: 'smooth' });
+                }}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                title="Desplazar a la derecha"
+                onClick={() => {
+                  const board = document.querySelector('.mywork-kanban');
+                  if (board) board.scrollBy({ left: 340, behavior: 'smooth' });
+                }}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+
+          <div className="mywork-kanban">
+            {kanbanColumns
+              .filter(col => mobileKanbanCol === 'all' || mobileKanbanCol === col.id)
+              .map(col => {
+                const colOrders = filteredOrders.filter(o => col.statuses.includes(o.status));
+                return (
+                  <div className="kanban-column" key={col.id} id={`mywork-kcol-${col.id}`} style={{ borderTop: `4px solid ${col.borderColor}` }}>
+                    <div className="kanban-col-head">
+                      <span>{col.title}</span>
+                      <span className="kanban-badge">{colOrders.length}</span>
                     </div>
-                  ) : (
-                    colOrders.map(o => {
-                      const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
-                      const waUrl = cleanPhone
-                        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`)}`
-                        : '';
-                      const itemsCount = (o.items || []).length;
-                      const quoteVal = Number(o.quote || 0);
-
-                      return (
-                        <div className="kanban-card" key={o.id}>
-                          <div className="kanban-card-top">
-                            <span className="kanban-order-num">{o.order_number || 'OT-#'}</span>
-                            <div>{getSlaBadge(o)}</div>
-                          </div>
-
-                          <div className="kanban-device-title">
-                            📱 {o.device_brand} {o.device_model}
-                          </div>
-                          {o.serial_number && (
-                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                              S/N: <code>{o.serial_number}</code>
-                            </div>
-                          )}
-
-                          <div className="kanban-card-fault">
-                            <strong>Falla:</strong> "{o.reported_fault || 'Sin reporte inicial'}"
-                          </div>
-
-                          {o.diagnosis && (
-                            <div style={{ fontSize: '11px', color: '#166534', background: '#f0fdf4', padding: '5px 8px', borderRadius: 4, border: '1px solid #bbf7d0' }}>
-                              <strong>Diagnóstico:</strong> {o.diagnosis}
-                            </div>
-                          )}
-
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2px 0' }}>
-                            {itemsCount > 0 ? (
-                              <span className="kanban-items-pill">
-                                📦 {itemsCount} ítems (${quoteVal.toFixed(2)})
-                              </span>
-                            ) : quoteVal > 0 ? (
-                              <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#0f172a' }}>
-                                Cotiz: ${quoteVal.toFixed(2)}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin cotización</span>
-                            )}
-                          </div>
-
-                          <div className="kanban-card-customer">
-                            <span title={o.customer_name}>👤 {o.customer_name || 'Cliente'}</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {waUrl && (
-                                <a
-                                  href={waUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 700, fontSize: '12px' }}
-                                  title="WhatsApp al cliente"
-                                >
-                                  💬 WA
-                                </a>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setReceiptOrder(o)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', padding: 0 }}
-                                title="Imprimir Ticket Térmico 80mm"
-                              >
-                                🖨️
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Quick Action Buttons */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
-                            <button
-                              type="button"
-                              className="btn-primary-sm"
-                              style={{ flex: 1, padding: '5px 8px', fontSize: '11px', textAlign: 'center', justifyContent: 'center' }}
-                              onClick={() => setWorkbenchOrder(o)}
-                            >
-                              🔧 Ficha & Taller
-                            </button>
-                            {col.id === 'COL_DIAG' && (
-                              <button
-                                type="button"
-                                className="tech-action-btn tech-action-repair"
-                                disabled={updating}
-                                onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Técnico inició reparación')}
-                                title="Iniciar reparación"
-                              >
-                                ▶ Iniciar
-                              </button>
-                            )}
-                            {col.id === 'COL_REPAIR' && (
-                              <>
-                                <button
-                                  type="button"
-                                  className="tech-action-btn tech-action-parts"
-                                  disabled={updating}
-                                  onClick={() => updateStatus(o.id, 'ESPERANDO_REPUESTOS', 'Esperando repuestos')}
-                                  title="Poner en espera de repuestos"
-                                >
-                                  ⏳ Repuesto
-                                </button>
-                                <button
-                                  type="button"
-                                  className="tech-action-btn tech-action-ready"
-                                  disabled={updating}
-                                  onClick={() => updateStatus(o.id, 'LISTO_ENTREGA', 'Reparación culminada')}
-                                  title="Marcar listo para entrega"
-                                >
-                                  ✓ Listo
-                                </button>
-                              </>
-                            )}
-                            {col.id === 'COL_PARTS' && (
-                              <button
-                                type="button"
-                                className="tech-action-btn tech-action-repair"
-                                disabled={updating}
-                                onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Repuestos disponibles, reanudando')}
-                                title="Reanudar reparación"
-                              >
-                                ▶ Reanudar
-                              </button>
-                            )}
-                          </div>
+                    <div className="kanban-col-body">
+                      {colOrders.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', fontSize: '12px' }}>
+                          Sin órdenes aquí
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                      ) : (
+                        colOrders.map(o => {
+                          const cleanPhone = (o.customer_phone || '').replace(/[^0-9]/g, '');
+                          const waUrl = cleanPhone
+                            ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`)}`
+                            : '';
+                          const itemsCount = (o.items || []).length;
+                          const quoteVal = Number(o.quote || 0);
+
+                          return (
+                            <div
+                              className="kanban-card-enhanced"
+                              key={o.id}
+                              onClick={() => setWorkbenchOrder(o)}
+                              style={{ cursor: 'pointer' }}
+                              title="Clic para abrir Banco de Trabajo técnico"
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <span className="card-folio">{o.order_number || 'OT-#'}</span>
+                                <div>{getSlaBadge(o)}</div>
+                              </div>
+
+                              <div className="card-device">
+                                📱 {o.device_brand} {o.device_model}
+                              </div>
+                              {o.serial_number && (
+                                <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                                  S/N: <code>{o.serial_number}</code>
+                                </div>
+                              )}
+
+                              <div className="card-fault">
+                                <strong>Falla:</strong> "{o.reported_fault || 'Sin reporte inicial'}"
+                              </div>
+
+                              {o.diagnosis && (
+                                <div style={{ fontSize: '11px', color: '#166534', background: '#f0fdf4', padding: '5px 8px', borderRadius: 4, border: '1px solid #bbf7d0', marginBottom: 6 }}>
+                                  <strong>Diagnóstico:</strong> {o.diagnosis}
+                                </div>
+                              )}
+
+                              <div className="card-customer">
+                                <span title={o.customer_name}>👤 {o.customer_name || 'Cliente'}</span>
+                                {o.customer_phone && <span style={{ color: 'var(--accent)' }}>📞 {o.customer_phone}</span>}
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 8px' }}>
+                                {itemsCount > 0 ? (
+                                  <span className="kanban-items-pill">
+                                    📦 {itemsCount} ítems (${quoteVal.toFixed(2)})
+                                  </span>
+                                ) : quoteVal > 0 ? (
+                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#0f172a' }}>
+                                    Cotiz: ${quoteVal.toFixed(2)}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin cotización</span>
+                                )}
+                              </div>
+
+                              {/* Primary Action Button + Secondary Context Menu */}
+                              <div
+                                style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f1f5f9' }}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                {col.id === 'COL_DIAG' && (
+                                  <button
+                                    type="button"
+                                    className="primary-action"
+                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    disabled={updating}
+                                    onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Técnico inició reparación')}
+                                  >
+                                    ⚙️ Iniciar Reparación
+                                  </button>
+                                )}
+
+                                {col.id === 'COL_REPAIR' && (
+                                  <button
+                                    type="button"
+                                    className="primary-action"
+                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#059669', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    disabled={updating}
+                                    onClick={() => updateStatus(o.id, 'LISTO_ENTREGA', 'Reparación culminada por técnico')}
+                                  >
+                                    ✅ Marcar Listo
+                                  </button>
+                                )}
+
+                                {col.id === 'COL_PARTS' && (
+                                  <button
+                                    type="button"
+                                    className="primary-action"
+                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#2563eb', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    disabled={updating}
+                                    onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Repuestos disponibles, reanudando')}
+                                  >
+                                    ▶ Reanudar Reparación
+                                  </button>
+                                )}
+
+                                {col.id === 'COL_READY' && (
+                                  <button
+                                    type="button"
+                                    className="primary-action"
+                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#475569', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    disabled={updating}
+                                    onClick={() => updateStatus(o.id, 'DELIVERED', 'Equipo entregado al cliente')}
+                                  >
+                                    🤝 Entregar al Cliente
+                                  </button>
+                                )}
+
+                                {/* Context Menu Button */}
+                                <div style={{ position: 'relative' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenMenuOrderId(openMenuOrderId === o.id ? null : o.id)}
+                                    title="Más opciones de la orden"
+                                    style={{
+                                      padding: '6px 9px',
+                                      borderRadius: '7px',
+                                      border: '1px solid #cbd5e1',
+                                      background: openMenuOrderId === o.id ? 'var(--accent-light)' : '#f8fafc',
+                                      color: openMenuOrderId === o.id ? 'var(--accent)' : '#475569',
+                                      fontSize: '13px',
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      lineHeight: 1
+                                    }}
+                                  >
+                                    ⋯
+                                  </button>
+
+                                  {openMenuOrderId === o.id && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: 'calc(100% + 4px)',
+                                        right: 0,
+                                        background: '#ffffff',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                                        width: '185px',
+                                        zIndex: 60,
+                                        padding: '5px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '2px'
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenMenuOrderId(null); setWorkbenchOrder(o); }}
+                                        style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}
+                                      >
+                                        🔧 Ficha & Taller
+                                      </button>
+                                      {col.id === 'COL_REPAIR' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenMenuOrderId(null); updateStatus(o.id, 'ESPERANDO_REPUESTOS', 'Esperando repuestos'); }}
+                                          style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#ea580c' }}
+                                        >
+                                          ⏳ Esperando Repuestos
+                                        </button>
+                                      )}
+                                      {waUrl && (
+                                        <a
+                                          href={waUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={() => setOpenMenuOrderId(null)}
+                                          style={{ padding: '7px 8px', borderRadius: '6px', textDecoration: 'none', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a' }}
+                                        >
+                                          💬 WhatsApp
+                                        </a>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenMenuOrderId(null); setReceiptOrder(o); }}
+                                        style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}
+                                      >
+                                        🖨️ Ticket Térmico
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       ) : viewMode === 'TABLE' ? (
         /* ================= 2. TABLE VIEW (COMPACT FOR HIGH VOLUME) ================= */
@@ -8617,6 +8964,7 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
 }
 function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,go:(p:string)=>void,role:string}){
   const [data, setData] = React.useState<Any>({});
+  const [orderCounts, setOrderCounts] = React.useState<Any>({});
   const global = role === 'TENANT_ADMIN' || role === 'SUPER_ADMIN';
   const financial = ['MANAGER', 'ACCOUNTANT', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(role);
 
@@ -8624,7 +8972,13 @@ function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Respons
     if (financial) {
       api('/api/reports/summary').then(r => r.ok ? r.json() : {}).then(setData);
     }
+    api('/api/orders/counts').then(r => r.ok ? r.json() : {}).then(setOrderCounts).catch(() => {});
   }, [api, financial]);
+
+  const navigateToOrders = (params: string) => {
+    window.location.hash = `#work-orders?${params}`;
+    go('work-orders');
+  };
 
   const title = global ? 'Administración General' : role === 'DELIVERY' ? 'Panel de Entregas' : role === 'TECHNICIAN' ? 'Servicio Técnico' : role === 'SELLER' ? 'Punto de Venta' : role === 'ACCOUNTANT' ? 'Balance Financiero' : 'Control Operativo';
 
@@ -8690,8 +9044,110 @@ function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Respons
         </div>
       )}
 
+      {/* Workshop Command Center & Operational Actionable Alerts */}
+      <div className="workshop-command-center">
+        <div className="workshop-command-header">
+          <h3>⚡ Alertas Operativas del Taller Fixme</h3>
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
+            Activas en taller: <strong>{Number(orderCounts.totalActive || ((orderCounts.open || 0) + (orderCounts.diagnosis || 0) + (orderCounts.quoted || 0) + (orderCounts.waiting_parts || 0) + (orderCounts.repair || 0) + (orderCounts.ready || 0)))}</strong> órdenes en curso
+          </span>
+        </div>
+
+        <div className="workshop-kpis-grid">
+          <div
+            className="workshop-kpi-card urgent"
+            onClick={() => navigateToOrders('view=table&status=ALL')}
+            title="Ver órdenes vencidas o con SLA crítico"
+          >
+            <div className="workshop-kpi-top">
+              <span className="workshop-kpi-label">SLA en Riesgo / Vencidas</span>
+              <span className="workshop-kpi-badge" style={{ background: '#fee2e2', color: '#dc2626' }}>Crítico</span>
+            </div>
+            <div className="workshop-kpi-number" style={{ color: '#dc2626' }}>
+              {(orderCounts.slaOverdue || 0) + (orderCounts.slaCritical || 0)}
+            </div>
+            <div className="workshop-kpi-desc">
+              <span>🚨 Excedieron tiempo prometido</span>
+              <span style={{ marginLeft: 'auto' }}>→</span>
+            </div>
+          </div>
+
+          <div
+            className="workshop-kpi-card quoted"
+            onClick={() => navigateToOrders('view=kanban&col=quoted&status=QUOTED')}
+            title="Ver cotizaciones esperando aprobación"
+          >
+            <div className="workshop-kpi-top">
+              <span className="workshop-kpi-label">Cotizaciones por Aprobar</span>
+              <span className="workshop-kpi-badge" style={{ background: '#fef3c7', color: '#d97706' }}>Pendiente</span>
+            </div>
+            <div className="workshop-kpi-number" style={{ color: '#d97706' }}>
+              {orderCounts.quoted || 0}
+            </div>
+            <div className="workshop-kpi-desc">
+              <span>💬 Esperando respuesta cliente</span>
+              <span style={{ marginLeft: 'auto' }}>→</span>
+            </div>
+          </div>
+
+          <div
+            className="workshop-kpi-card parts"
+            onClick={() => navigateToOrders('view=kanban&col=parts&status=WAITING_PARTS')}
+            title="Ver órdenes esperando repuestos"
+          >
+            <div className="workshop-kpi-top">
+              <span className="workshop-kpi-label">Esperando Repuestos</span>
+              <span className="workshop-kpi-badge" style={{ background: '#ffedd5', color: '#ea580c' }}>En Pausa</span>
+            </div>
+            <div className="workshop-kpi-number" style={{ color: '#ea580c' }}>
+              {orderCounts.waiting_parts || 0}
+            </div>
+            <div className="workshop-kpi-desc">
+              <span>⏳ Esperando piezas / proveedor</span>
+              <span style={{ marginLeft: 'auto' }}>→</span>
+            </div>
+          </div>
+
+          <div
+            className="workshop-kpi-card repair"
+            onClick={() => navigateToOrders('view=kanban&col=in_progress')}
+            title="Ver equipos en mesa de trabajo o pruebas"
+          >
+            <div className="workshop-kpi-top">
+              <span className="workshop-kpi-label">En Reparación / Pruebas</span>
+              <span className="workshop-kpi-badge" style={{ background: '#ede9fe', color: '#7c3aed' }}>Activas</span>
+            </div>
+            <div className="workshop-kpi-number" style={{ color: '#7c3aed' }}>
+              {(orderCounts.repair || 0) + (orderCounts.testing || 0)}
+            </div>
+            <div className="workshop-kpi-desc">
+              <span>⚙️ En mesa técnica y control</span>
+              <span style={{ marginLeft: 'auto' }}>→</span>
+            </div>
+          </div>
+
+          <div
+            className="workshop-kpi-card ready"
+            onClick={() => navigateToOrders('view=kanban&col=ready&status=LISTO_ENTREGA')}
+            title="Ver equipos terminados para retiro"
+          >
+            <div className="workshop-kpi-top">
+              <span className="workshop-kpi-label">Listas para Retiro</span>
+              <span className="workshop-kpi-badge" style={{ background: '#d1fae5', color: '#059669' }}>Por Cobrar</span>
+            </div>
+            <div className="workshop-kpi-number" style={{ color: '#059669' }}>
+              {orderCounts.ready || 0}
+            </div>
+            <div className="workshop-kpi-desc">
+              <span>✅ Listos para entrega y factura</span>
+              <span style={{ marginLeft: 'auto' }}>→</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="panel">
-        <h3 style={{ marginBottom: '14px' }}>Acciones Rápidas</h3>
+        <h3 style={{ marginBottom: '14px' }}>Accesos Directos</h3>
         <div className="quick">
           {quick.map(q => (
             <button key={q[0]} onClick={() => go(q[0])}>
@@ -11098,14 +11554,33 @@ function Deliveries({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   );
 }
 function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Response>, companyInfo?: Any}){
+  // Sincronización de estado en la URL (Principio 4 del plan de arquitectura)
+  const urlInit = React.useMemo(() => {
+    try {
+      const h = window.location.hash || '';
+      const qIdx = h.indexOf('?');
+      if (qIdx !== -1) {
+        const sp = new URLSearchParams(h.slice(qIdx + 1));
+        return {
+          view: (sp.get('view') === 'list' || sp.get('view') === 'kanban') ? (sp.get('view') as 'kanban'|'list') : null,
+          status: sp.get('status') || null,
+          tech: sp.get('tech') || null,
+          q: sp.get('q') || '',
+          col: sp.get('col') || null
+        };
+      }
+    } catch {}
+    return { view: null, status: null, tech: null, q: '', col: null };
+  }, []);
+
   const [r,setR]=React.useState<Any[]>([]);
   const [customers,setCustomers]=React.useState<Any[]>([]);
   const [techs,setTechs]=React.useState<Any[]>([]);
   const [showCreate,setShowCreate]=React.useState(false);
-  const [viewMode,setViewMode]=React.useState<'kanban'|'list'>('kanban');
-  const [filterStatus,setFilterStatus]=React.useState('ALL');
-  const [filterTech,setFilterTech]=React.useState('ALL');
-  const [search,setSearch]=React.useState('');
+  const [viewMode,setViewMode]=React.useState<'kanban'|'list'>(urlInit.view || 'kanban');
+  const [filterStatus,setFilterStatus]=React.useState(urlInit.status || 'ALL');
+  const [filterTech,setFilterTech]=React.useState(urlInit.tech || 'ALL');
+  const [search,setSearch]=React.useState(urlInit.q || '');
   const [msg,setMsg]=React.useState('');
   const [busy,setBusy]=React.useState(false);
   const [qrModal,setQrModal]=React.useState<Any|null>(null);
@@ -11117,7 +11592,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
   const [form,setForm]=React.useState({
     customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
     reportedFault:'',accessories:'',description:'',diagnosis:'',
-    quote:'',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
+    quote:'',diagnosticFee:'10.00',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
   });
 
   const [items,setItems]=React.useState<Array<{itemType:string,name:string,quantity:number,unitPrice:number}>>([]);
@@ -11137,7 +11612,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
 
   const [trustCamModal, setTrustCamModal] = React.useState<Any | null>(null);
   const [trustCamImages, setTrustCamImages] = React.useState<Any[]>([]);
-  const [newPhotoStage, setNewPhotoStage] = React.useState<'RECEPTION' | 'DIAGNOSIS' | 'COMPLETED'>('DIAGNOSIS');
+  const [newPhotoStage, setNewPhotoStage] = React.useState<'RECEPTION' | 'DIAGNOSIS' | 'REPAIR' | 'TESTING' | 'COMPLETED'>('DIAGNOSIS');
   const [newPhotoUrl, setNewPhotoUrl] = React.useState('');
   const [newPhotoCaption, setNewPhotoCaption] = React.useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
@@ -11147,6 +11622,52 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
   const [notifyCustomMsg, setNotifyCustomMsg] = React.useState('');
   const [notifyHistory, setNotifyHistory] = React.useState<Any[]>([]);
   const [sendingNotify, setSendingNotify] = React.useState(false);
+  const [openMenuOrderId, setOpenMenuOrderId] = React.useState<string | null>(null);
+  const [mobileKanbanCol, setMobileKanbanCol] = React.useState<string>(urlInit.col || 'all');
+  const [orderCounts, setOrderCounts] = React.useState<Any>({});
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+
+  // Sincronizar estado actual en la URL mediante replaceState (Principio 4)
+  React.useEffect(() => {
+    try {
+      const sp = new URLSearchParams();
+      if (viewMode !== 'kanban') sp.set('view', viewMode);
+      if (filterStatus !== 'ALL') sp.set('status', filterStatus);
+      if (filterTech !== 'ALL') sp.set('tech', filterTech);
+      if (search.trim()) sp.set('q', search.trim());
+      if (mobileKanbanCol !== 'all') sp.set('col', mobileKanbanCol);
+      const qs = sp.toString();
+      const targetHash = '#work-orders' + (qs ? `?${qs}` : '');
+      if (window.location.hash.startsWith('#work-orders') && window.location.hash !== targetHash) {
+        window.history.replaceState(null, '', targetHash);
+      }
+    } catch {}
+  }, [viewMode, filterStatus, filterTech, search, mobileKanbanCol]);
+
+  // Escuchar cambios de hash (ej. desde accesos rápidos del Dashboard)
+  React.useEffect(() => {
+    const handleHash = () => {
+      const h = window.location.hash || '';
+      if (h.startsWith('#work-orders')) {
+        const qIdx = h.indexOf('?');
+        if (qIdx !== -1) {
+          const sp = new URLSearchParams(h.slice(qIdx + 1));
+          if (sp.has('status')) setFilterStatus(sp.get('status') || 'ALL');
+          if (sp.has('tech')) setFilterTech(sp.get('tech') || 'ALL');
+          if (sp.has('q')) setSearch(sp.get('q') || '');
+          if (sp.has('view')) {
+            const v = sp.get('view');
+            if (v === 'kanban' || v === 'list') setViewMode(v);
+          }
+          if (sp.has('col')) setMobileKanbanCol(sp.get('col') || 'all');
+        }
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   async function openTrustCam(o: Any) {
     setTrustCamModal(o);
@@ -11256,13 +11777,73 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
     }
   }
 
-  const load=React.useCallback(()=>{
-    api('/api/work-orders').then(x=>x.ok?x.json():[]).then(setR);
-    api('/api/customers').then(x=>x.ok?x.json():[]).then(setCustomers);
-    api('/api/work-orders/technicians').then(x=>x.ok?x.json():[]).then(setTechs);
-  },[api]);
+  const loadCounts = React.useCallback(() => {
+    const params = new URLSearchParams();
+    if (filterTech !== 'ALL') params.append('technicianId', filterTech);
+    if (search.trim()) params.append('q', search.trim());
+    const qs = params.toString();
+    api('/api/orders/counts' + (qs ? '?' + qs : ''))
+      .then(x => x.ok ? x.json() : null)
+      .then(c => { if (c) setOrderCounts(c); })
+      .catch(() => {});
+  }, [api, filterTech, search]);
 
-  React.useEffect(()=>{load()},[load]);
+  const load = React.useCallback((isLoadMore = false) => {
+    if (isLoadMore) {
+      if (!nextCursor || loadingMore) return;
+      setLoadingMore(true);
+      const params = new URLSearchParams({ paged: 'true', limit: '30', cursor: nextCursor });
+      if (filterStatus !== 'ALL') params.append('status', filterStatus);
+      if (filterTech !== 'ALL') params.append('technicianId', filterTech);
+      if (search.trim()) params.append('q', search.trim());
+      api('/api/orders?' + params.toString())
+        .then(x => x.ok ? x.json() : null)
+        .then(res => {
+          if (res && Array.isArray(res.data)) {
+            setR(prev => {
+              const existingIds = new Set(prev.map((item: Any) => item.id));
+              const newItems = res.data.filter((item: Any) => !existingIds.has(item.id));
+              return [...prev, ...newItems];
+            });
+            setNextCursor(res.nextCursor || null);
+            setHasMore(!!res.hasMore);
+          }
+        })
+        .finally(() => setLoadingMore(false));
+      return;
+    }
+
+    setBusy(true);
+    const params = new URLSearchParams({ paged: 'true', limit: '40' });
+    if (filterStatus !== 'ALL') params.append('status', filterStatus);
+    if (filterTech !== 'ALL') params.append('technicianId', filterTech);
+    if (search.trim()) params.append('q', search.trim());
+
+    Promise.all([
+      api('/api/orders?' + params.toString()).then(x => x.ok ? x.json() : null),
+      api('/api/customers').then(x => x.ok ? x.json() : []),
+      api('/api/work-orders/technicians').then(x => x.ok ? x.json() : [])
+    ]).then(([ordersRes, custs, techsList]) => {
+      if (ordersRes) {
+        if (Array.isArray(ordersRes)) {
+          setR(ordersRes);
+          setNextCursor(null);
+          setHasMore(false);
+        } else if (ordersRes.data) {
+          setR(ordersRes.data);
+          setNextCursor(ordersRes.nextCursor || null);
+          setHasMore(!!ordersRes.hasMore);
+        }
+      }
+      setCustomers(Array.isArray(custs) ? custs : []);
+      setTechs(Array.isArray(techsList) ? techsList : []);
+      loadCounts();
+    }).finally(() => setBusy(false));
+  }, [api, filterStatus, filterTech, search, nextCursor, loadingMore, loadCounts]);
+
+  React.useEffect(() => {
+    load();
+  }, [filterStatus, filterTech]);
 
   const addItem=()=>{
     setItems([...items,{itemType:'LABOR',name:'',quantity:1,unitPrice:0}]);
@@ -11309,6 +11890,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
         ...form,
         branchId,
         quote:form.quote?Number(form.quote):0,
+        diagnosticFee:form.diagnosticFee?Number(form.diagnosticFee):10,
         slaHours:Number(form.slaHours||48),
         assignedTechnicianId:form.assignedTechnicianId||null,
         items:items.filter(it=>it.name.trim()!==''),
@@ -11324,7 +11906,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       setForm({
         customerId:'',deviceBrand:'',deviceModel:'',serialNumber:'',
         reportedFault:'',accessories:'',description:'',diagnosis:'',
-        quote:'',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
+        quote:'',diagnosticFee:'10.00',estimatedDelivery:'',assignedTechnicianId:'',slaHours:48
       });
       setIntakeChecklist({
         powersOn: 'YES', screenStatus: 'OK', camerasStatus: 'OK', audioStatus: 'OK',
@@ -11374,6 +11956,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       body:JSON.stringify({
         diagnosis:editModal.diagnosis,
         quote:Number(editModal.quote||0),
+        diagnosticFee:editModal.diagnosticFee!==undefined?Number(editModal.diagnosticFee):Number(editModal.diagnostic_fee||0),
         technicianNotes:editModal.technician_notes||editModal.technicianNotes,
         estimatedDelivery:editModal.estimated_delivery||editModal.estimatedDelivery,
         assignedTechnicianId:editModal.assigned_technician_id||editModal.assignedTechnicianId||null,
@@ -11398,73 +11981,119 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
 
   const statusLabel=(s:string)=>({
     OPEN:'Abierta',
+    RECIBIDO:'Recibida',
     DIAGNOSIS:'En diagnóstico',
+    EN_DIAGNOSTICO:'En diagnóstico',
     QUOTED:'Cotizada',
+    COTIZADO:'Cotizada',
     APPROVED:'Aprobada',
-    REJECTED:'Rechazada',
+    APROBADO:'Aprobada',
+    REJECTED:'Rechazada (Solo diagnóstico)',
+    RECHAZADO:'Rechazada (Solo diagnóstico)',
+    WAITING_PARTS:'Esperando repuestos',
+    ESPERANDO_REPUESTOS:'Esperando repuestos',
     IN_PROGRESS:'En reparación',
-    COMPLETED:'Listo para retiro',
-    CANCELLED:'Cancelada'
+    EN_REPARACION:'En reparación',
+    TESTING:'En pruebas',
+    EN_PRUEBAS:'En pruebas',
+    PRUEBAS:'En pruebas',
+    COMPLETED:'Listo para entrega',
+    LISTO_ENTREGA:'Listo para entrega',
+    ENTREGADO:'Entregado',
+    DELIVERED:'Entregado',
+    PAGADO:'Pagado',
+    CANCELLED:'Cancelada',
+    CANCELADO:'Cancelada'
   }[s]||s);
 
   function getSlaInfo(o:Any){
-    if(o.status==='COMPLETED'){
-      return {label:'✅ SLA Cumplido a tiempo',cls:'sla-completed'};
+    if(['COMPLETED', 'DELIVERED', 'PAGADO', 'ENTREGADO'].includes(o.status)){
+      return {label:'✓ Completado',cls:'sla-completed'};
     }
-    if(o.status==='CANCELLED'||o.status==='REJECTED'){
-      return {label:o.status==='REJECTED'?'Cotización Rechazada':'Cancelada',cls:''};
+    if(['CANCELLED', 'CANCELADO', 'REJECTED', 'RECHAZADO'].includes(o.status)){
+      return {label:['REJECTED', 'RECHAZADO'].includes(o.status)?'Cotización Rechazada':'Cancelada',cls:''};
     }
     if(!o.sla_deadline){
-      return {label:`⏱️ Meta ${o.sla_hours||48}h SLA`,cls:'sla-ontime'};
+      return {label:`Meta ${o.sla_hours||48}h`,cls:'sla-ontime'};
     }
     const diffHours=(new Date(o.sla_deadline).getTime()-Date.now())/(1000*60*60);
     if(diffHours<0){
-      const passed=Math.abs(Math.round(diffHours));
-      return {label:`🚨 SLA Vencido hace ${passed}h`,cls:'sla-expired'};
+      const passedHours=Math.abs(Math.round(diffHours));
+      if(passedHours>=48){
+        const days=Math.round(passedHours/24);
+        if(days>=5){
+          return {label:`Atrasada ${days} d`,cls:'sla-archived-overdue'};
+        }
+        return {label:`Vencida hace ${days} d`,cls:'sla-expired'};
+      }
+      return {label:`Vencida hace ${passedHours}h`,cls:'sla-expired'};
     }
-    if(diffHours<6){
-      const left=Math.max(1,Math.round(diffHours));
-      return {label:`⚠️ Urgente: Quedan ${left}h`,cls:'sla-warning'};
+    if(diffHours<2){
+      const mins=Math.max(1,Math.round(diffHours*60));
+      return {label:`⚠️ Crítico: ${mins} min`,cls:'sla-critical'};
     }
-    const left=Math.round(diffHours);
-    return {label:`⏱️ En tiempo (${left}h restantes · SLA ${o.sla_hours||48}h)`,cls:'sla-ontime'};
+    if(diffHours<12){
+      return {label:`⏱️ Urgente: ${Math.round(diffHours)}h`,cls:'sla-warning'};
+    }
+    if(diffHours<48){
+      return {label:`⏱️ En tiempo (${Math.round(diffHours)}h)`,cls:'sla-ontime'};
+    }
+    const daysLeft=Math.round(diffHours/24);
+    return {label:`⏱️ En tiempo (${daysLeft} días)`,cls:'sla-ontime'};
   }
 
   const getFullUrl=(o:Any)=>{
-    if(!o?.approval_url)return '';
-    return window.location.origin+o.approval_url;
+    if(!o)return '';
+    const num=o.order_number||o.orderNumber||o.id;
+    if(!num)return '';
+    return `${window.location.origin}/#order/${encodeURIComponent(num)}`;
   };
 
   const getWaLink=(o:Any)=>{
-    const phone=(o.customer_phone||'').replace(/[^0-9]/g,'');
+    let phone=(o.customer_phone||'').replace(/[^0-9]/g,'');
+    if(phone.startsWith('0')){
+      phone='593'+phone.substring(1);
+    }else if(phone&&!phone.startsWith('593')&&phone.length===9){
+      phone='593'+phone;
+    }
     const url=getFullUrl(o);
     const folio=o.order_number||o.id?.slice(0,8).toUpperCase()||'';
     const name=o.customer_name||'estimado/a cliente';
     const device=`${o.device_brand||''} ${o.device_model||o.description||'dispositivo'}`.trim();
 
     let msg=`Hola ${name}, te saludamos de FixmeTiendas.\nTe compartimos el enlace para consultar tu orden #${folio} (${device}):\n${url}`;
-    if(o.status==='DIAGNOSIS'||o.status==='OPEN'){
-      msg=`Hola ${name}, tu equipo ${device} ha ingresado a taller para diagnóstico.\nOrden #${folio}.\nPuedes hacer seguimiento en vivo aquí:\n${url}`;
-    }else if(o.status==='QUOTED'){
-      msg=`Hola ${name}, tenemos listo el presupuesto para tu equipo ${device}.\nTotal cotizado: $${Number(o.quote||0).toFixed(2)}.\nPuedes revisar los repuestos y autorizar la reparación aquí:\n${url}`;
-    }else if(o.status==='IN_PROGRESS'||o.status==='APPROVED'){
-      msg=`Hola ${name}, tu equipo ${device} se encuentra en proceso de reparación técnica.\nOrden #${folio}.\nAvance en tiempo real: ${url}`;
-    }else if(o.status==='COMPLETED'){
-      msg=`¡Buenas noticias ${name}! 🎉\nTu equipo ${device} (Orden #${folio}) ya está LISTO para retiro en nuestra tienda.\nDetalle final: ${url}\n¡Te esperamos!`;
+    if(['DIAGNOSIS','OPEN','EN_DIAGNOSTICO','RECIBIDO'].includes(o.status)){
+      msg=`Hola ${name}, tu equipo ${device} ha ingresado a taller para diagnóstico y evaluación técnica.\nOrden #${folio}.\nPuedes hacer seguimiento en vivo y ver fotos aquí:\n${url}`;
+    }else if(['QUOTED','COTIZADO'].includes(o.status)){
+      msg=`Hola ${name}, tenemos listo el presupuesto para tu equipo ${device}.\nTotal cotizado: $${Number(o.quote||0).toFixed(2)}.\n⚠️ Por favor revisa los repuestos y aprueba o cancela la reparación desde este enlace:\n${url}`;
+    }else if(['WAITING_PARTS','ESPERANDO_REPUESTOS'].includes(o.status)){
+      msg=`Hola ${name}, tu presupuesto para ${device} fue aprobado. Estamos esperando repuestos para continuar la reparación.\nOrden #${folio}.\nSeguimiento en vivo: ${url}`;
+    }else if(['IN_PROGRESS','APPROVED','APROBADO','EN_REPARACION'].includes(o.status)){
+      msg=`Hola ${name}, tu equipo ${device} se encuentra en proceso de reparación técnica activa.\nOrden #${folio}.\nAvance en tiempo real y fotos: ${url}`;
+    }else if(['TESTING','EN_PRUEBAS','PRUEBAS'].includes(o.status)){
+      msg=`Hola ${name}, tu equipo ${device} está en fase de pruebas finales y control de calidad.\nOrden #${folio}.\nAvance: ${url}`;
+    }else if(['COMPLETED','LISTO_ENTREGA'].includes(o.status)){
+      msg=`¡Buenas noticias ${name}! 🎉\nTu equipo ${device} (Orden #${folio}) ya está LISTO para retiro en nuestra tienda.\nDetalle final y fotos: ${url}\n¡Te esperamos!`;
+    }else if(['DELIVERED','PAGADO','ENTREGADO'].includes(o.status)){
+      msg=`¡Hola ${name}! Agradecemos tu confianza. Tu equipo ${device} (Orden #${folio}) ha sido entregado.\nComprobante y garantía: ${url}`;
     }
     const text=encodeURIComponent(msg);
     return phone?`https://wa.me/${phone}?text=${text}`:`https://wa.me/?text=${text}`;
   };
 
-  const diagCount=r.filter(o=>o.status==='OPEN'||o.status==='DIAGNOSIS').length;
-  const quotedCount=r.filter(o=>o.status==='QUOTED').length;
-  const inProgCount=r.filter(o=>o.status==='APPROVED'||o.status==='IN_PROGRESS').length;
-  const readyCount=r.filter(o=>o.status==='COMPLETED').length;
+  const diagCount=r.filter(o=>['OPEN','DIAGNOSIS','RECIBIDO','EN_DIAGNOSTICO'].includes(o.status)).length;
+  const quotedCount=r.filter(o=>['QUOTED','COTIZADO'].includes(o.status)).length;
+  const inProgCount=r.filter(o=>['APPROVED','APROBADO','IN_PROGRESS','EN_REPARACION','WAITING_PARTS','ESPERANDO_REPUESTOS','TESTING','EN_PRUEBAS'].includes(o.status)).length;
+  const readyCount=r.filter(o=>['COMPLETED','LISTO_ENTREGA','REJECTED','RECHAZADO'].includes(o.status)).length;
 
   const filtered=r.filter(o=>{
     const matchStatus=!filterStatus||filterStatus==='ALL'||(
-      filterStatus==='DIAGNOSIS'?['OPEN','DIAGNOSIS'].includes(o.status):
-      filterStatus==='IN_PROGRESS'?['APPROVED','IN_PROGRESS'].includes(o.status):
+      filterStatus==='DIAGNOSIS'?['OPEN','DIAGNOSIS','RECIBIDO','EN_DIAGNOSTICO'].includes(o.status):
+      filterStatus==='QUOTED'?['QUOTED','COTIZADO'].includes(o.status):
+      filterStatus==='WAITING_PARTS'?['WAITING_PARTS','ESPERANDO_REPUESTOS'].includes(o.status):
+      filterStatus==='IN_PROGRESS'?['APPROVED','APROBADO','IN_PROGRESS','EN_REPARACION','TESTING','EN_PRUEBAS','PRUEBAS'].includes(o.status):
+      filterStatus==='LISTO_ENTREGA'?['COMPLETED','LISTO_ENTREGA','REJECTED','RECHAZADO'].includes(o.status):
+      filterStatus==='DELIVERED'?['DELIVERED','PAGADO','ENTREGADO'].includes(o.status):
       o.status===filterStatus
     );
     const matchTech=!filterTech||filterTech==='ALL'||(
@@ -11715,14 +12344,15 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                   type="file"
                   accept="image/*"
                   style={{display:'none'}}
-                  onChange={(e: Any) => {
+                  onChange={async (e: Any) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (ev: Any) => {
-                        setIntakePhotos(prev => [...prev, { stage: 'RECEPTION', imageUrl: ev.target.result, caption: 'Foto de recepción' }]);
-                      };
-                      reader.readAsDataURL(file);
+                      try {
+                        const compressed = await compressImageFile(file);
+                        setIntakePhotos(prev => [...prev, { stage: 'RECEPTION', imageUrl: compressed, caption: 'Foto de recepción' }]);
+                      } catch (err) {
+                        console.error('Error comprimiendo foto:', err);
+                      }
                     }
                   }}
                 />
@@ -11781,8 +12411,8 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               {items.map((it,idx)=>(
                 <div key={idx} style={{display:'grid',gridTemplateColumns:'130px 1fr 75px 100px 80px 30px',gap:'8px',alignItems:'center',background:'#f8f9fc',padding:'8px 10px',borderRadius:'8px'}}>
                   <select value={it.itemType} onChange={e=>updateItem(idx,'itemType',e.target.value)} style={{fontSize:'12px',padding:'7px'}}>
-                    <option value="LABOR">Mano de Obra</option>
-                    <option value="PART">Repuesto</option>
+                    <option value="LABOR">🛠️ Mano de Obra</option>
+                    <option value="PART">📦 Repuesto</option>
                   </select>
                   <input placeholder="Ej. Cambio de pasta térmica, Pantalla de 15''" value={it.name} onChange={e=>updateItem(idx,'name',e.target.value)} style={{fontSize:'12px',padding:'7px'}} required/>
                   <input type="number" min="1" placeholder="Cant" value={it.quantity} onChange={e=>updateItem(idx,'quantity',Number(e.target.value))} style={{fontSize:'12px',padding:'7px'}}/>
@@ -11794,9 +12424,31 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
             </div>
           )}
 
-          <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'12px',marginTop:'10px'}}>
-            <label style={{fontSize:'13px',fontWeight:700}}>Total Cotización ($):</label>
-            <input type="number" step="0.01" min="0" placeholder="0.00" style={{width:'130px',fontWeight:800,fontSize:'16px',color:'#3157d5',textAlign:'right'}} value={form.quote} onChange={e=>setForm({...form,quote:e.target.value})}/>
+          <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'16px',marginTop:'10px',flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <label style={{fontSize:'13px',fontWeight:700,color:'#475569'}}>Tarifa Diagnóstico ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="10.00"
+                style={{width:'100px',fontWeight:700,fontSize:'14px',color:'#0f172a',textAlign:'right'}}
+                value={form.diagnosticFee}
+                onChange={e=>setForm({...form,diagnosticFee:e.target.value})}
+              />
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <label style={{fontSize:'13px',fontWeight:700,color:'#1d4ed8'}}>Total Cotización ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                style={{width:'130px',fontWeight:800,fontSize:'16px',color:'#3157d5',textAlign:'right'}}
+                value={form.quote}
+                onChange={e=>setForm({...form,quote:e.target.value})}
+              />
+            </div>
           </div>
         </div>
 
@@ -11858,7 +12510,16 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       </div>
 
       <div className="filter-pills">
-        {[['ALL','Todas'],['DIAGNOSIS','Por Diagnosticar'],['QUOTED','Cotizadas'],['IN_PROGRESS','En Reparación'],['COMPLETED','Listas'],['CANCELLED','Canceladas']].map(([k,l])=>(
+        {[
+          ['ALL','Todas'],
+          ['DIAGNOSIS','En Diagnóstico'],
+          ['QUOTED','Cotizadas (Aprobación)'],
+          ['WAITING_PARTS','Esperando Repuestos'],
+          ['IN_PROGRESS','En Reparación & Pruebas'],
+          ['LISTO_ENTREGA','Listas para Retiro'],
+          ['DELIVERED','Pagadas / Entregadas'],
+          ['CANCELLED','Canceladas']
+        ].map(([k,l])=>(
           <button key={k} className={`filter-pill ${filterStatus===k?'active':''}`} onClick={()=>setFilterStatus(k)}>
             {l}
           </button>
@@ -11866,203 +12527,409 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       </div>
 
       {viewMode === 'kanban' ? (
-        <div className="mywork-kanban" style={{ marginTop: '16px' }}>
-          {[
-            {
-              id: 'diag',
-              title: '🔍 En Diagnóstico',
-              color: '#2563eb',
-              subtitle: 'Evaluación y presupuesto preliminar',
-              items: filtered.filter(o => ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status)),
-              emptyText: 'No hay equipos en diagnóstico'
-            },
-            {
-              id: 'quoted',
-              title: '💰 Presupuestadas',
-              color: '#d97706',
-              subtitle: 'Esperando autorización del cliente',
-              items: filtered.filter(o => ['QUOTED', 'REJECTED'].includes(o.status)),
-              emptyText: 'No hay presupuestos pendientes'
-            },
-            {
-              id: 'in_progress',
-              title: '⚙️ En Taller / Reparación',
-              color: '#7c3aed',
-              subtitle: 'Presupuesto aprobado y en trabajo',
-              items: filtered.filter(o => ['APPROVED', 'IN_PROGRESS', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status)),
-              emptyText: 'No hay reparaciones en curso'
-            },
-            {
-              id: 'ready',
-              title: '✅ Listas para Retiro',
-              color: '#059669',
-              subtitle: 'Equipos finalizados para entrega',
-              items: filtered.filter(o => ['COMPLETED', 'DELIVERED', 'LISTO_ENTREGA', 'ENTREGADO'].includes(o.status)),
-              emptyText: 'No hay equipos listos'
-            }
-          ].map(col => (
-            <div className="kanban-column" key={col.id}>
-              <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.color}` }}>
-                <div>
-                  <div style={{ fontWeight: 800, color: col.color, fontSize: '13px' }}>{col.title}</div>
-                  <small style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{col.subtitle}</small>
+        <div>
+          {/* COLUMN QUICK-JUMP NAVIGATOR */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '14px 0 10px 0', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', paddingBottom: 2, flex: 1 }}>
+              <button
+                type="button"
+                className={`filter-pill ${mobileKanbanCol === 'all' ? 'active' : ''}`}
+                onClick={() => setMobileKanbanCol('all')}
+                style={{ fontSize: '11.5px', padding: '5px 12px', whiteSpace: 'nowrap' }}
+              >
+                Todas las Columnas ({orderCounts.total || filtered.length})
+              </button>
+              {[
+                { id: 'diag', label: '🔍 1. Diagnóstico', color: '#2563eb', statuses: ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'] },
+                { id: 'quoted', label: '💰 2. Cotizadas', color: '#d97706', statuses: ['QUOTED', 'COTIZADO'] },
+                { id: 'parts', label: '⏳ 3. Repuestos', color: '#ea580c', statuses: ['WAITING_PARTS', 'ESPERANDO_REPUESTOS'] },
+                { id: 'in_progress', label: '⚙️ 4. Reparación', color: '#7c3aed', statuses: ['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION', 'TESTING', 'EN_PRUEBAS', 'PRUEBAS'] },
+                { id: 'ready', label: '✅ 5. Listas', color: '#059669', statuses: ['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'] },
+                { id: 'delivered', label: '🤝 6. Pagadas', color: '#475569', statuses: ['DELIVERED', 'PAGADO', 'ENTREGADO'] }
+              ].map(c => {
+                const sCount = c.id === 'diag' ? ((orderCounts.diagnosis || 0) + (orderCounts.open || 0)) :
+                               c.id === 'quoted' ? (orderCounts.quoted || 0) :
+                               c.id === 'parts' ? (orderCounts.waiting_parts || 0) :
+                               c.id === 'in_progress' ? ((orderCounts.repair || 0) + (orderCounts.testing || 0)) :
+                               c.id === 'ready' ? (orderCounts.ready || 0) :
+                               c.id === 'delivered' ? (orderCounts.delivered || 0) : 0;
+                const count = sCount > 0 ? sCount : filtered.filter(o => c.statuses.includes(o.status)).length;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setMobileKanbanCol(c.id);
+                      const el = document.getElementById(`kcol-${c.id}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+                    }}
+                    style={{
+                      padding: '5px 11px',
+                      borderRadius: '20px',
+                      border: mobileKanbanCol === c.id ? `2px solid ${c.color}` : '1px solid #cbd5e1',
+                      background: mobileKanbanCol === c.id ? `${c.color}15` : '#fff',
+                      color: c.color,
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <span>{c.label}</span>
+                    <span style={{ background: c.color, color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button
+                type="button"
+                title="Desplazar a la izquierda"
+                onClick={() => {
+                  const board = document.querySelector('.mywork-kanban');
+                  if (board) board.scrollBy({ left: -340, behavior: 'smooth' });
+                }}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                title="Desplazar a la derecha"
+                onClick={() => {
+                  const board = document.querySelector('.mywork-kanban');
+                  if (board) board.scrollBy({ left: 340, behavior: 'smooth' });
+                }}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+
+          <div className="mywork-kanban" style={{ marginTop: '8px' }}>
+            {[
+              {
+                id: 'diag',
+                title: '🔍 1. En Diagnóstico',
+                color: '#2563eb',
+                subtitle: 'Evaluación y presupuesto preliminar',
+                items: filtered.filter(o => ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status)),
+                emptyText: 'No hay equipos en diagnóstico'
+              },
+              {
+                id: 'quoted',
+                title: '💰 2. Cotizadas (Requiere Aprobación)',
+                color: '#d97706',
+                subtitle: 'Esperando autorización del cliente',
+                items: filtered.filter(o => ['QUOTED', 'COTIZADO'].includes(o.status)),
+                emptyText: 'No hay cotizaciones pendientes'
+              },
+              {
+                id: 'parts',
+                title: '⏳ 3. Esperando Repuestos',
+                color: '#ea580c',
+                subtitle: 'Aprobado, esperando repuestos',
+                items: filtered.filter(o => ['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(o.status)),
+                emptyText: 'No hay repuestos pendientes'
+              },
+              {
+                id: 'in_progress',
+                title: '⚙️ 4. En Reparación & Pruebas',
+                color: '#7c3aed',
+                subtitle: 'Trabajo activo en banco técnico',
+                items: filtered.filter(o => ['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION', 'TESTING', 'EN_PRUEBAS', 'PRUEBAS'].includes(o.status)),
+                emptyText: 'No hay reparaciones en curso'
+              },
+              {
+                id: 'ready',
+                title: '✅ 5. Listas para Entrega',
+                color: '#059669',
+                subtitle: 'Terminadas o rechazadas (Cobro diag)',
+                items: filtered.filter(o => ['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'].includes(o.status)),
+                emptyText: 'No hay equipos listos'
+              },
+              {
+                id: 'delivered',
+                title: '🤝 6. Pagadas / Retiradas',
+                color: '#475569',
+                subtitle: 'Cobro y garantía registrados',
+                items: filtered.filter(o => ['DELIVERED', 'PAGADO', 'ENTREGADO'].includes(o.status)),
+                emptyText: 'No hay órdenes entregadas'
+              }
+            ]
+            .filter(col => mobileKanbanCol === 'all' || mobileKanbanCol === col.id)
+            .map(col => (
+              <div className="kanban-column" key={col.id} id={`kcol-${col.id}`}>
+                <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.color}` }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: col.color, fontSize: '13px' }}>{col.title}</div>
+                    <small style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{col.subtitle}</small>
+                  </div>
+                  <span className="kanban-badge" style={{ background: `${col.color}15`, color: col.color }}>
+                    {(() => {
+                      const sCount = col.id === 'diag' ? ((orderCounts.diagnosis || 0) + (orderCounts.open || 0)) :
+                                     col.id === 'quoted' ? (orderCounts.quoted || 0) :
+                                     col.id === 'parts' ? (orderCounts.waiting_parts || 0) :
+                                     col.id === 'in_progress' ? ((orderCounts.repair || 0) + (orderCounts.testing || 0)) :
+                                     col.id === 'ready' ? (orderCounts.ready || 0) :
+                                     col.id === 'delivered' ? (orderCounts.delivered || 0) : 0;
+                      return sCount > 0 ? sCount : col.items.length;
+                    })()}
+                  </span>
                 </div>
-                <span className="kanban-badge" style={{ background: `${col.color}15`, color: col.color }}>
-                  {col.items.length}
-                </span>
-              </div>
 
-              <div className="kanban-col-body">
-                {col.items.map(o => {
-                  const sla = getSlaInfo(o);
-                  return (
-                    <article className="kanban-card" key={o.id}>
-                      <div className="kanban-card-top">
-                        <span className="order-folio" style={{ fontSize: '11px', padding: '2px 6px' }}>{o.order_number || 'OT'}</span>
-                        <span className={`sla-badge ${sla.cls}`} style={{ fontSize: '10px', padding: '2px 6px' }}>{sla.label}</span>
-                      </div>
-
-                      <div className="kanban-device-title" style={{ fontSize: '13px', fontWeight: 800 }}>
-                        📱 {o.device_brand || ''} {o.device_model || o.description || 'Dispositivo'}
-                      </div>
-
-                      <div className="kanban-card-customer">
-                        <span>👤 {o.customer_name || 'Cliente'}</span>
-                        {o.customer_phone && <span style={{ color: '#2563eb' }}>📞 {o.customer_phone}</span>}
-                      </div>
-
-                      <div className="kanban-card-fault">
-                        <strong>Falla:</strong> {o.reported_fault || o.description || 'Sin detalle'}
-                      </div>
-
-                      {o.diagnosis && (
-                        <div style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic', background: '#f8fafc', padding: '4px 6px', borderRadius: 4 }}>
-                          <b>Diag:</b> {o.diagnosis}
+                <div className="kanban-col-body">
+                  {busy && r.length === 0 ? (
+                    <>
+                      <div className="kanban-skeleton-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <div className="skeleton-box" style={{ width: '48px', height: '16px' }} />
+                          <div className="skeleton-box" style={{ width: '56px', height: '16px' }} />
                         </div>
-                      )}
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>👨‍🔧 {o.technician_name || 'Sin técnico'}</span>
-                        <strong style={{ fontSize: '13px', color: '#2563eb' }}>${Number(o.quote || 0).toFixed(2)}</strong>
+                        <div className="skeleton-box" style={{ width: '85%', height: '18px' }} />
+                        <div className="skeleton-box" style={{ width: '60%', height: '13px' }} />
+                        <div className="skeleton-box" style={{ width: '100%', height: '30px', marginTop: 4 }} />
                       </div>
+                      <div className="kanban-skeleton-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <div className="skeleton-box" style={{ width: '48px', height: '16px' }} />
+                          <div className="skeleton-box" style={{ width: '56px', height: '16px' }} />
+                        </div>
+                        <div className="skeleton-box" style={{ width: '75%', height: '18px' }} />
+                        <div className="skeleton-box" style={{ width: '50%', height: '13px' }} />
+                      </div>
+                    </>
+                  ) : (
+                    col.items.map(o => {
+                    const sla = getSlaInfo(o);
+                    return (
+                      <article
+                        className="kanban-card-enhanced"
+                        key={o.id}
+                        onClick={() => openEditModal(o)}
+                        style={{ cursor: 'pointer' }}
+                        title="Clic para abrir Banco de Trabajo"
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span className="card-folio">{o.order_number || 'OT'}</span>
+                          <span className={`sla-badge ${sla.cls}`} style={{ fontSize: '10px', padding: '2px 6px' }}>{sla.label}</span>
+                        </div>
 
-                      {/* QUICK ACTION BUTTON */}
-                      <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status) && (
-                          <button
-                            type="button"
-                            className="primary-action"
-                            style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center', background: '#2563eb' }}
-                            onClick={() => openEditModal(o)}
-                          >
-                            💰 Fijar Presupuesto
-                          </button>
-                        )}
+                        <div className="card-device">📱 {o.device_brand || ''} {o.device_model || o.description || 'Dispositivo'}</div>
 
-                        {o.status === 'QUOTED' && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              type="button"
-                              className="primary-action"
-                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
-                              onClick={() => updateStatus(o.id, 'APPROVED')}
-                            >
-                              👍 Autorizar
-                            </button>
-                            <a
-                              className="btn-sm btn-wa-sm"
-                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center' }}
-                              href={getWaLink(o)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              💬 Presupuesto
-                            </a>
+                        <div className="card-customer">
+                          <span>👤 {o.customer_name || 'Cliente'}</span>
+                          {o.customer_phone && <span style={{ color: 'var(--accent)' }}>📞 {o.customer_phone}</span>}
+                        </div>
+
+                        <div className="card-fault">
+                          <strong>Falla:</strong> {o.reported_fault || o.description || 'Sin detalle'}
+                        </div>
+
+                        {o.diagnosis && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic', background: 'var(--surface-subtle)', padding: '5px 8px', borderRadius: 'var(--r-sm)', marginBottom: 6, borderLeft: '2px solid var(--accent-border)' }}>
+                            <b>Diag:</b> {o.diagnosis}
                           </div>
                         )}
 
-                        {['APPROVED', 'IN_PROGRESS', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status) && (
-                          <button
-                            type="button"
-                            className="primary-action"
-                            style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
-                            onClick={() => updateStatus(o.id, 'COMPLETED')}
-                          >
-                            ✅ Marcar Listo para Retiro
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          <span>👨‍🔧 {o.technician_name || 'Sin técnico'}</span>
+                          <strong style={{ fontSize: '14px', color: 'var(--accent)', letterSpacing: '-.02em' }}>${Number(o.quote || 0).toFixed(2)}</strong>
+                        </div>
 
-                        {['COMPLETED', 'LISTO_ENTREGA'].includes(o.status) && (
-                          <div style={{ display: 'flex', gap: 6 }}>
+                        {/* ACTIONS: 1 Primary Action Button + 1 Dropdown "⋯" */}
+                        <div
+                          style={{ borderTop: '1px solid var(--surface-muted)', paddingTop: 8, marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <div style={{ flex: 1 }}>
+                            {['OPEN', 'RECIBIDO'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: 'var(--accent)' }} onClick={() => updateStatus(o.id, 'DIAGNOSIS')}>
+                                🔍 Pasar a Diagnóstico
+                              </button>
+                            )}
+                            {['DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: 'var(--accent)' }} onClick={() => openEditModal(o)}>
+                                💰 Fijar Presupuesto
+                              </button>
+                            )}
+                            {['QUOTED', 'COTIZADO'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: 'var(--success-hover)' }} onClick={() => updateStatus(o.id, 'ESPERANDO_REPUESTOS')}>
+                                👍 Autorizar Presupuesto
+                              </button>
+                            )}
+                            {['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: '#7c3aed' }} onClick={() => updateStatus(o.id, 'EN_REPARACION')}>
+                                ⚙️ Iniciar Reparación
+                              </button>
+                            )}
+                            {['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: '#9333ea' }} onClick={() => updateStatus(o.id, 'TESTING')}>
+                                🧪 Pasar a Pruebas
+                              </button>
+                            )}
+                            {['TESTING', 'EN_PRUEBAS', 'PRUEBAS'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: 'var(--success-hover)' }} onClick={() => updateStatus(o.id, 'LISTO_ENTREGA')}>
+                                ✅ Marcar Listo Retiro
+                              </button>
+                            )}
+                            {['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'].includes(o.status) && (
+                              <button type="button" className="primary-action" style={{ width: '100%', padding: '7px 10px', fontSize: '11px', justifyContent: 'center', background: ['REJECTED', 'RECHAZADO'].includes(o.status) ? '#b91c1c' : 'var(--success-hover)' }} onClick={() => setCheckoutModal(o)}>
+                                {['REJECTED', 'RECHAZADO'].includes(o.status) ? '🤝 Cobrar Diagnóstico' : '🤝 Cobrar y Entregar'}
+                              </button>
+                            )}
+                            {['DELIVERED', 'PAGADO', 'ENTREGADO'].includes(o.status) && (
+                              <div style={{ padding: '6px', fontSize: '11px', textAlign: 'center', background: 'var(--success-light)', color: '#047857', borderRadius: 'var(--r-sm)', fontWeight: 700 }}>
+                                🤝 Entregado
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Dropdown Menu "⋯" */}
+                          <div style={{ position: 'relative' }}>
                             <button
                               type="button"
-                              className="primary-action"
-                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center', background: '#059669' }}
-                              onClick={() => setCheckoutModal(o)}
+                              onClick={() => setOpenMenuOrderId(openMenuOrderId === o.id ? null : o.id)}
+                              title="Más opciones de la orden"
+                              style={{
+                                padding: '6px 9px',
+                                borderRadius: '7px',
+                                border: '1px solid #cbd5e1',
+                                background: openMenuOrderId === o.id ? 'var(--accent-light)' : '#f8fafc',
+                                color: openMenuOrderId === o.id ? 'var(--accent)' : '#475569',
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                lineHeight: 1
+                              }}
                             >
-                              🤝 Cobrar y Entregar
+                              ⋯
                             </button>
-                            <a
-                              className="btn-sm btn-wa-sm"
-                              style={{ flex: 1, padding: '6px', fontSize: '11px', justifyContent: 'center' }}
-                              href={getWaLink(o)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              💬 Avisar Retiro
-                            </a>
-                          </div>
-                        )}
 
-                        {/* SECONDARY ROW ACTIONS */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 6 }}>
-                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => openTrustCam(o)} title="Trust-Cam Evidencia Visual">
-                            📸 Fotos {o.images && o.images.length > 0 ? `(${o.images.length})` : ''}
-                          </button>
-                          <button className="btn-sm btn-wa-sm" style={{ fontSize: '10px', padding: '5px 2px', justifyContent: 'center' }} onClick={() => openNotifyModal(o)} title="Notificar WhatsApp">
-                            💬 Avisar
-                          </button>
-                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => setQrModal(o)} title="QR">
-                            📱 QR
-                          </button>
-                          <button className="btn-sm btn-secondary-sm" style={{ fontSize: '10px', padding: '5px 2px' }} onClick={() => openEditModal(o)} title="Editar en Taller">
-                            🛠️ Taller
-                          </button>
+                            {openMenuOrderId === o.id && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 'calc(100% + 4px)',
+                                  right: 0,
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '10px',
+                                  boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                                  width: '185px',
+                                  zIndex: 60,
+                                  padding: '5px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '2px'
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuOrderId(null); openEditModal(o); }}
+                                  style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}
+                                >
+                                  🛠️ Banco de Trabajo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuOrderId(null); openTrustCam(o); }}
+                                  style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}
+                                >
+                                  📸 Fotos {o.images && o.images.length > 0 ? `(${o.images.length})` : ''}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuOrderId(null); openNotifyModal(o); }}
+                                  style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a' }}
+                                >
+                                  💬 Avisar por WhatsApp
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuOrderId(null); setQrModal(o); }}
+                                  style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#2563eb' }}
+                                >
+                                  📱 Código QR Cliente
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenMenuOrderId(null); setTicketModal(o); }}
+                                  style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}
+                                >
+                                  🖨️ Imprimir Ticket
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
-                          <button className="btn-sm btn-secondary-sm" style={{ flex: 1, fontSize: '10.5px', padding: '4px' }} onClick={() => setTicketModal(o)} title="Imprimir Ticket">
-                            🖨️ Ticket
-                          </button>
-                          <select
-                            value={o.status}
-                            onChange={e => updateStatus(o.id, e.target.value)}
-                            style={{ flex: 1, fontSize: '10.5px', padding: '4px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                          >
-                            <option value="OPEN">Abierta</option>
-                            <option value="DIAGNOSIS">Diagnóstico</option>
-                            <option value="QUOTED">Cotizada</option>
-                            <option value="APPROVED">Aprobada</option>
-                            <option value="IN_PROGRESS">Taller</option>
-                            <option value="COMPLETED">Listo</option>
-                            <option value="CANCELLED">Cancelada</option>
-                          </select>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-                {col.items.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '24px 10px', color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>
-                    {col.emptyText}
+                      </article>
+                    );
+                  })
+                )}
+                {busy && r.length === 0 ? null : col.items.length === 0 && (
+                  <div className="kanban-empty-micro">
+                    <span style={{ fontSize: '20px' }}>
+                      {col.id === 'diag' ? '🔍' : col.id === 'quoted' ? '💬' : col.id === 'parts' ? '📦' : col.id === 'in_progress' ? '⚙️' : col.id === 'ready' ? '🎉' : '🤝'}
+                    </span>
+                    <strong style={{ color: '#475569' }}>{col.emptyText}</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '11px' }}>Sin equipos en esta fase</span>
+                    {col.id === 'diag' && (
+                      <button
+                        type="button"
+                        onClick={() => { const btn = document.querySelector('button.primary-action') as HTMLButtonElement; if (btn) btn.click(); }}
+                        style={{ marginTop: 6, padding: '4px 10px', fontSize: '11px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        ＋ Recibir Equipo
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
+              </div>
+            ))}
+          </div>
+          {hasMore && (
+            <div style={{ textAlign: 'center', margin: '20px 0 10px', padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ marginBottom: 10, fontSize: '13px', color: '#475569' }}>
+                Mostrando <strong>{r.length}</strong> órdenes en pantalla{orderCounts.total ? ` de un total de ${orderCounts.total} en el sistema` : ''}.
+              </div>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => load(true)}
+                disabled={loadingMore}
+                style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                {loadingMore ? '⏳ Cargando siguientes órdenes...' : '⬇️ Cargar más órdenes (+30 por cursor)'}
+              </button>
             </div>
-          ))}
+          )}
         </div>
       ) : (
         /* LIST VIEW */
-        filtered.length ? (
+        busy && r.length === 0 ? (
+          <div className="order-list" style={{ marginTop: '16px' }}>
+            {[1, 2, 3, 4].map(idx => (
+              <div className="kanban-skeleton-card" key={idx} style={{ padding: '16px' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <div className="skeleton-box" style={{ width: '80px', height: '22px' }} />
+                  <div className="skeleton-box" style={{ width: '100px', height: '22px' }} />
+                  <div className="skeleton-box" style={{ width: '70px', height: '22px' }} />
+                </div>
+                <div className="skeleton-box" style={{ width: '40%', height: '20px', margin: '8px 0' }} />
+                <div className="skeleton-box" style={{ width: '60%', height: '14px' }} />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length ? (
           <div className="order-list" style={{ marginTop: '16px' }}>
             {filtered.map(o => {
               const sla = getSlaInfo(o);
@@ -12098,33 +12965,51 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                     </div>
 
                     {o.items && o.items.length > 0 && (
-                      <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {o.items.map((it: Any, idx: number) => (
+                      <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {o.items.slice(0, 3).map((it: Any, idx: number) => (
                           <span key={idx} className="order-folio" style={{ fontSize: '10px', padding: '2px 7px', background: it.itemType === 'LABOR' ? '#e0e7ff' : '#fef3c7', color: it.itemType === 'LABOR' ? '#3730a3' : '#92400e' }}>
                             {it.quantity}x {it.name} (${Number(it.subtotal || it.quantity * it.unitPrice || 0).toFixed(2)})
                           </span>
                         ))}
+                        {o.items.length > 3 && (
+                          <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
+                            +{o.items.length - 3} ítems más ({o.items.length} total)
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {/* QUICK TRANSITION BAR IN LIST */}
+                    {/* QUICK TRANSITION BAR IN LIST (Unified 8-State Lifecycle) */}
                     <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      {['OPEN', 'DIAGNOSIS'].includes(o.status) && (
+                      {['OPEN', 'RECIBIDO'].includes(o.status) && (
                         <button
                           type="button"
                           className="btn-sm btn-primary-sm"
-                          onClick={() => openEditModal(o)}
+                          style={{ background: '#2563eb' }}
+                          onClick={() => updateStatus(o.id, 'DIAGNOSIS')}
                         >
-                          💰 Fijar Presupuesto
+                          🔍 Pasar a Diagnóstico
                         </button>
                       )}
-                      {o.status === 'QUOTED' && (
+
+                      {['DIAGNOSIS', 'EN_DIAGNOSTICO'].includes(o.status) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-primary-sm"
+                          style={{ background: '#2563eb' }}
+                          onClick={() => openEditModal(o)}
+                        >
+                          💰 Fijar Presupuesto / Cotizar
+                        </button>
+                      )}
+
+                      {['QUOTED', 'COTIZADO'].includes(o.status) && (
                         <>
                           <button
                             type="button"
                             className="btn-sm btn-primary-sm"
                             style={{ background: '#059669', color: '#fff' }}
-                            onClick={() => updateStatus(o.id, 'APPROVED')}
+                            onClick={() => updateStatus(o.id, 'ESPERANDO_REPUESTOS')}
                           >
                             👍 Autorizar Presupuesto
                           </button>
@@ -12133,30 +13018,60 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                           </a>
                         </>
                       )}
-                      {['APPROVED', 'IN_PROGRESS'].includes(o.status) && (
+
+                      {['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(o.status) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-primary-sm"
+                          style={{ background: '#7c3aed', color: '#fff' }}
+                          onClick={() => updateStatus(o.id, 'EN_REPARACION')}
+                        >
+                          ⚙️ Iniciar Reparación
+                        </button>
+                      )}
+
+                      {['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION'].includes(o.status) && (
+                        <button
+                          type="button"
+                          className="btn-sm btn-primary-sm"
+                          style={{ background: '#9333ea', color: '#fff' }}
+                          onClick={() => updateStatus(o.id, 'TESTING')}
+                        >
+                          🧪 Pasar a Pruebas Finales
+                        </button>
+                      )}
+
+                      {['TESTING', 'EN_PRUEBAS', 'PRUEBAS'].includes(o.status) && (
                         <button
                           type="button"
                           className="btn-sm btn-primary-sm"
                           style={{ background: '#059669', color: '#fff' }}
-                          onClick={() => updateStatus(o.id, 'COMPLETED')}
+                          onClick={() => updateStatus(o.id, 'LISTO_ENTREGA')}
                         >
-                          ✅ Marcar Listo para Retiro
+                          ✅ Listo para Retiro
                         </button>
                       )}
-                      {o.status === 'COMPLETED' && (
+
+                      {['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'].includes(o.status) && (
                         <>
                           <button
                             type="button"
                             className="btn-sm btn-primary-sm"
-                            style={{ background: '#059669', color: '#fff' }}
+                            style={{ background: ['REJECTED', 'RECHAZADO'].includes(o.status) ? '#b91c1c' : '#059669', color: '#fff' }}
                             onClick={() => setCheckoutModal(o)}
                           >
-                            🤝 Cobrar y Entregar
+                            {['REJECTED', 'RECHAZADO'].includes(o.status) ? '🤝 Cobrar Diagnóstico' : '🤝 Cobrar y Entregar'}
                           </button>
                           <a className="btn-sm btn-wa-sm" href={getWaLink(o)} target="_blank" rel="noreferrer">
                             💬 Avisar Retiro
                           </a>
                         </>
+                      )}
+
+                      {['DELIVERED', 'PAGADO', 'ENTREGADO'].includes(o.status) && (
+                        <div style={{ padding: '6px 12px', fontSize: '11px', textAlign: 'center', background: '#ecfdf5', color: '#047857', borderRadius: 6, fontWeight: 700 }}>
+                          🤝 Pagado y Entregado
+                        </div>
                       )}
                     </div>
                   </div>
@@ -12183,24 +13098,86 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                     </button>
 
                     <select value={o.status} onChange={e => updateStatus(o.id, e.target.value)}>
-                      <option value="OPEN">Abierta</option>
-                      <option value="DIAGNOSIS">En diagnóstico</option>
-                      <option value="QUOTED">Cotizada</option>
-                      <option value="APPROVED">Aprobada</option>
-                      <option value="IN_PROGRESS">En reparación</option>
-                      <option value="COMPLETED">Listo para retiro</option>
+                      <option value="OPEN">1. Orden Abierta</option>
+                      <option value="DIAGNOSIS">2. En Diagnóstico</option>
+                      <option value="COTIZADO">3. Cotizado (Requiere Aprobación)</option>
+                      <option value="ESPERANDO_REPUESTOS">4. Esperando Repuestos</option>
+                      <option value="EN_REPARACION">5. En Reparación</option>
+                      <option value="TESTING">6. Pruebas Finales</option>
+                      <option value="LISTO_ENTREGA">7. Listo para Entrega</option>
+                      <option value="DELIVERED">8. Pagado / Retirado</option>
                       <option value="CANCELLED">Cancelada</option>
+                      {o.status === 'RECIBIDO' && <option value="RECIBIDO">📥 Recibido</option>}
+                      {o.status === 'EN_DIAGNOSTICO' && <option value="EN_DIAGNOSTICO">🔍 En diagnóstico</option>}
+                      {o.status === 'QUOTED' && <option value="QUOTED">💰 Cotizada</option>}
+                      {o.status === 'APROBADO' && <option value="APROBADO">👍 Cotización Aprobada</option>}
+                      {o.status === 'APPROVED' && <option value="APPROVED">👍 Cotización Aprobada</option>}
+                      {o.status === 'WAITING_PARTS' && <option value="WAITING_PARTS">⏳ Esperando repuestos</option>}
+                      {o.status === 'IN_PROGRESS' && <option value="IN_PROGRESS">⚙️ En reparación</option>}
+                      {o.status === 'EN_PRUEBAS' && <option value="EN_PRUEBAS">🧪 En pruebas</option>}
+                      {o.status === 'COMPLETED' && <option value="COMPLETED">📦 Listo para retiro</option>}
+                      {o.status === 'ENTREGADO' && <option value="ENTREGADO">🤝 Entregado</option>}
+                      {o.status === 'PAGADO' && <option value="PAGADO">🤝 Pagado</option>}
+                      {o.status === 'REJECTED' && <option value="REJECTED">❌ Rechazada</option>}
+                      {o.status === 'RECHAZADO' && <option value="RECHAZADO">❌ Rechazada</option>}
                     </select>
                   </div>
                 </article>
               );
             })}
+            {hasMore && (
+              <div style={{ textAlign: 'center', margin: '20px 0 10px', padding: '16px', background: '#ffffff', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div style={{ marginBottom: 10, fontSize: '13px', color: '#475569' }}>
+                  Mostrando <strong>{r.length}</strong> órdenes en lista{orderCounts.total ? ` de un total de ${orderCounts.total} en el sistema` : ''}.
+                </div>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => load(true)}
+                  disabled={loadingMore}
+                  style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {loadingMore ? '⏳ Cargando más órdenes...' : '⬇️ Cargar más órdenes (+30 por cursor)'}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="empty">
-            <b>📋</b>
-            <p>No hay órdenes de servicio en este criterio.</p>
-            <small>Registra una nueva orden o cambia los filtros.</small>
+          <div className="actionable-empty-state">
+            <div className="empty-hero-icon">📋</div>
+            <h3>No se encontraron órdenes de servicio</h3>
+            <p>
+              {search || filterStatus !== 'ALL' || filterTech !== 'ALL'
+                ? `No hay órdenes que coincidan con los filtros aplicados. Intenta restablecer los filtros para ver todos los registros.`
+                : 'Aún no tienes órdenes registradas en este período. Ingresa el primer equipo para iniciar el ciclo técnico del taller.'}
+            </p>
+            <div className="empty-actions">
+              {(search || filterStatus !== 'ALL' || filterTech !== 'ALL') && (
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => {
+                    setSearch('');
+                    setFilterStatus('ALL');
+                    setFilterTech('ALL');
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  🔄 Limpiar Filtros
+                </button>
+              )}
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => {
+                  const btn = document.querySelector('button.primary-action') as HTMLButtonElement;
+                  if (btn) btn.click();
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                ＋ Recibir Nueva Orden
+              </button>
+            </div>
           </div>
         )
       )}
@@ -12317,8 +13294,8 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                   {editItems.map((it,idx)=>(
                     <div key={idx} style={{display:'grid',gridTemplateColumns:'120px 1fr 65px 85px 70px 24px',gap:'6px',alignItems:'center',background:'#f8f9fc',padding:'6px 8px',borderRadius:'8px'}}>
                       <select value={it.itemType} onChange={e=>updateEditItem(idx,'itemType',e.target.value)} style={{fontSize:'11px',padding:'5px'}}>
-                        <option value="LABOR">Mano de Obra</option>
-                        <option value="PART">Repuesto</option>
+                        <option value="LABOR">🛠️ Mano de Obra</option>
+                        <option value="PART">📦 Repuesto</option>
                       </select>
                       <input placeholder="Concepto / repuesto" value={it.name} onChange={e=>updateEditItem(idx,'name',e.target.value)} style={{fontSize:'11px',padding:'5px'}} required/>
                       <input type="number" min="1" placeholder="Cant" value={it.quantity} onChange={e=>updateEditItem(idx,'quantity',Number(e.target.value))} style={{fontSize:'11px',padding:'5px'}}/>
@@ -12331,17 +13308,31 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               )}
             </div>
 
-            <label>Monto Total de la Cotización ($)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                style={{fontWeight:800,fontSize:'16px',color:'#3157d5'}}
-                value={editModal.quote||''}
-                onChange={e=>setEditModal({...editModal,quote:e.target.value})}
-              />
-            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <label>Tarifa de Diagnóstico ($)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="10.00"
+                  style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}
+                  value={editModal.diagnosticFee !== undefined ? editModal.diagnosticFee : (editModal.diagnostic_fee || '10.00')}
+                  onChange={e => setEditModal({ ...editModal, diagnosticFee: e.target.value })}
+                />
+              </label>
+
+              <label>Total Cotización ($)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  style={{ fontWeight: 800, fontSize: '16px', color: '#3157d5' }}
+                  value={editModal.quote || ''}
+                  onChange={e => setEditModal({ ...editModal, quote: e.target.value })}
+                />
+              </label>
+            </div>
 
             <label>Notas internas del taller
               <input
@@ -12356,13 +13347,17 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                 value={editModal.status||'OPEN'}
                 onChange={e=>setEditModal({...editModal,status:e.target.value})}
               >
-                <option value="OPEN">Abierta</option>
-                <option value="DIAGNOSIS">En diagnóstico</option>
-                <option value="QUOTED">Cotizada (esperando cliente)</option>
-                <option value="APPROVED">Aprobada</option>
-                <option value="IN_PROGRESS">En reparación</option>
-                <option value="COMPLETED">Listo para retiro</option>
-                <option value="CANCELLED">Cancelada</option>
+                <option value="RECIBIDO">📥 Recibido / Ingreso</option>
+                <option value="EN_DIAGNOSTICO">🔍 En diagnóstico</option>
+                <option value="COTIZADO">💰 Cotizada (esperando cliente)</option>
+                <option value="APROBADO">👍 Cotización Aprobada</option>
+                <option value="ESPERANDO_REPUESTOS">⏳ Esperando repuestos</option>
+                <option value="EN_REPARACION">⚙️ En reparación</option>
+                <option value="EN_PRUEBAS">🧪 En pruebas</option>
+                <option value="LISTO_ENTREGA">📦 Listo para retiro</option>
+                <option value="ENTREGADO">🤝 Entregado</option>
+                <option value="RECHAZADO">❌ Cotización Rechazada (Cobro diagnóstico)</option>
+                <option value="CANCELLED">🚫 Cancelada</option>
               </select>
             </label>
           </div>
@@ -12428,12 +13423,14 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                 {[
                   ['RECEPTION', '📥 Recepción'],
                   ['DIAGNOSIS', '🔬 Diagnóstico'],
-                  ['COMPLETED', '✨ Reparación Culminada']
+                  ['REPAIR', '⚙️ Reparación'],
+                  ['TESTING', '🧪 Pruebas'],
+                  ['COMPLETED', '✨ Culminada']
                 ].map(([stg, lbl]) => (
                   <button
                     key={stg}
                     type="button"
-                    onClick={() => setNewPhotoStage(stg as 'RECEPTION' | 'DIAGNOSIS' | 'COMPLETED')}
+                    onClick={() => setNewPhotoStage(stg as any)}
                     style={{
                       padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
                       border: newPhotoStage === stg ? '2px solid #2563eb' : '1px solid #cbd5e1',
@@ -12463,14 +13460,15 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                     type="file"
                     accept="image/*"
                     style={{ display: 'none' }}
-                    onChange={(e: Any) => {
+                    onChange={async (e: Any) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (ev: Any) => {
-                          setNewPhotoUrl(ev.target.result);
-                        };
-                        reader.readAsDataURL(file);
+                        try {
+                          const compressed = await compressImageFile(file);
+                          setNewPhotoUrl(compressed);
+                        } catch (err) {
+                          console.error('Error comprimiendo evidencia:', err);
+                        }
                       }
                     }}
                   />

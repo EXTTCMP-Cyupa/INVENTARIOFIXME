@@ -1047,6 +1047,7 @@ export function TechnicianWorkbenchModal({
   );
 
   const [products, setProducts] = React.useState<Any[]>([]);
+  const [partSearch, setPartSearch] = React.useState('');
   const [showAddLabor, setShowAddLabor] = React.useState(false);
   const [laborForm, setLaborForm] = React.useState({ name: '', price: '' });
 
@@ -1056,6 +1057,25 @@ export function TechnicianWorkbenchModal({
   const [saving, setSaving] = React.useState(false);
   const [statusUpdating, setStatusUpdating] = React.useState(false);
   const [showReceiptModal, setShowReceiptModal] = React.useState(false);
+
+  // Common quick repair service presets for technicians
+  const QUICK_SERVICES = [
+    { label: '📱 Pantalla / Display', name: 'Cambio de Pantalla y Calibración Táctil', price: '25.00' },
+    { label: '🔋 Batería', name: 'Cambio de Batería Original y Ciclos', price: '20.00' },
+    { label: '⚡ Pin de Carga', name: 'Reparación / Cambio de Puerto de Carga', price: '15.00' },
+    { label: '🧼 Mantenimiento', name: 'Mantenimiento Preventivo y Limpieza Ultrasonido', price: '12.00' },
+    { label: '💻 Software', name: 'Reinstalación de Software y Respaldo', price: '15.00' },
+    { label: '🔬 Microsoldadura', name: 'Diagnóstico de Placa y Microsoldadura', price: '35.00' },
+  ];
+
+  const filteredProducts = React.useMemo(() => {
+    if (!partSearch.trim()) return products.slice(0, 150);
+    const q = partSearch.toLowerCase();
+    return products.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.sku || '').toLowerCase().includes(q)
+    ).slice(0, 150);
+  }, [products, partSearch]);
 
   // Load products for spare parts catalog picker
   React.useEffect(() => {
@@ -1186,8 +1206,10 @@ export function TechnicianWorkbenchModal({
   }
 
   function getSmartWhatsAppLink() {
-    const cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
+    let cleanPhone = (order.customer_phone || '').replace(/[^0-9]/g, '');
     if (!cleanPhone) return null;
+    if (cleanPhone.startsWith('0')) cleanPhone = '593' + cleanPhone.slice(1);
+    else if (!cleanPhone.startsWith('593') && cleanPhone.length === 9) cleanPhone = '593' + cleanPhone;
 
     let itemsBreakdown = '';
     if (items.length > 0) {
@@ -1196,11 +1218,14 @@ export function TechnicianWorkbenchModal({
       ).join('\n') + `\n*TOTAL PRESUPUESTO:* $${totalQuote.toFixed(2)}`;
     }
 
+    const orderNum = order.order_number || order.orderNumber || order.id?.slice(0, 8).toUpperCase() || '';
+    const trackingUrl = `${window.location.origin}/#order/${encodeURIComponent(orderNum)}`;
     const diagText = diagnosis ? `\n*Diagnóstico:* ${diagnosis}` : '';
     const text = encodeURIComponent(
       `Hola *${order.customer_name || 'Estimado cliente'}*, te saludamos de *${tenantName || 'Fixme Tiendas'}*.\n\n` +
-      `Te informamos sobre tu equipo *${order.device_brand || ''} ${order.device_model || ''}* (Orden *#${order.order_number || ''}*):\n` +
+      `Te informamos sobre tu equipo *${order.device_brand || ''} ${order.device_model || ''}* (Orden *#${orderNum}*):\n` +
       `*Estado actual:* ${order.status}${diagText}${itemsBreakdown}\n\n` +
+      `🔍 Puedes ver el avance en vivo, fotos de inspección y autorizar la cotización aquí:\n${trackingUrl}\n\n` +
       `Quedamos atentos a tu confirmación. ¡Muchas gracias!`
     );
     return `https://wa.me/${cleanPhone}?text=${text}`;
@@ -1386,7 +1411,37 @@ export function TechnicianWorkbenchModal({
               {/* Labor Input Form */}
               {showAddLabor && (
                 <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, padding: 14, marginBottom: 14 }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '13px' }}>🛠️ Nueva Mano de Obra o Servicio Técnico</h4>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '13px' }}>🛠️ Nueva Mano de Obra o Servicio Técnico</h4>
+                  
+                  {/* Quick Preset Chips */}
+                  <div style={{ marginBottom: 10 }}>
+                    <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      ⚡ Servicios Frecuentes (1 toque para autocompletar):
+                    </span>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {QUICK_SERVICES.map((qs, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setLaborForm({ name: qs.name, price: qs.price })}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '16px',
+                            border: '1px solid #c7d2fe',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {qs.label} (${qs.price})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 10, alignItems: 'end' }}>
                     <div>
                       <label style={{ fontSize: '11px', display: 'block', marginBottom: 4 }}>Descripción del trabajo</label>
@@ -1421,6 +1476,31 @@ export function TechnicianWorkbenchModal({
               {showAddPart && (
                 <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, padding: 14, marginBottom: 14 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '13px' }}>📦 Nuevo Repuesto / Pieza Utilizada</h4>
+                  
+                  {/* Instant Search Bar for Products */}
+                  <div style={{ marginBottom: 10 }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 Buscar repuesto en inventario por nombre o código..."
+                      value={partSearch}
+                      onChange={e => setPartSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '7px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #94a3b8',
+                        background: '#fff',
+                        fontSize: '12px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    {partSearch && (
+                      <small style={{ color: '#64748b', fontSize: '11px', marginTop: 3, display: 'block' }}>
+                        Mostrando {filteredProducts.length} de {products.length} productos coincidentes
+                      </small>
+                    )}
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
                     <div>
                       <label style={{ fontSize: '11px', display: 'block', marginBottom: 4 }}>Elegir del Inventario Tienda:</label>
@@ -1438,8 +1518,8 @@ export function TechnicianWorkbenchModal({
                         }}
                         style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '12px' }}
                       >
-                        <option value="">-- Seleccionar producto de inventario --</option>
-                        {products.map(p => (
+                        <option value="">-- {filteredProducts.length > 0 ? 'Seleccionar repuesto de inventario' : 'Sin coincidencias en inventario'} --</option>
+                        {filteredProducts.map(p => (
                           <option key={p.id} value={p.id}>
                             {p.name} (Stock: {p.stock} | ${Number(p.price).toFixed(2)})
                           </option>
@@ -1496,47 +1576,63 @@ export function TechnicianWorkbenchModal({
                   <div style={{ fontSize: '11px', marginTop: 4 }}>Usa los botones superiores para armar el presupuesto técnico.</div>
                 </div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="items-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '110px' }}>Tipo</th>
-                        <th>Descripción</th>
-                        <th style={{ width: '65px', textAlign: 'center' }}>Cant</th>
-                        <th style={{ width: '90px', textAlign: 'right' }}>P. Unit</th>
-                        <th style={{ width: '90px', textAlign: 'right' }}>Subtotal</th>
-                        <th style={{ width: '40px' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((it, idx) => {
-                        const lineTotal = Number(it.quantity) * Number(it.unitPrice);
-                        return (
-                          <tr key={idx}>
-                            <td>
-                              <span className={it.itemType === 'PART' ? 'badge-part' : 'badge-service'}>
-                                {it.itemType === 'PART' ? '📦 Repuesto' : '🛠️ M. Obra'}
-                              </span>
-                            </td>
-                            <td><strong>{it.name}</strong></td>
-                            <td style={{ textAlign: 'center' }}>{it.quantity}</td>
-                            <td style={{ textAlign: 'right' }}>${Number(it.unitPrice).toFixed(2)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700 }}>${lineTotal.toFixed(2)}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(idx)}
-                                title="Eliminar ítem"
-                                style={{ background: 'transparent', border: 0, color: '#ef4444', fontSize: '14px', cursor: 'pointer' }}
-                              >
-                                🗑️
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, fontSize: '11px', color: '#64748b' }}>
+                    <span><strong>{items.length}</strong> ítems registrados ({items.filter(i => i.itemType === 'SERVICE').length} M. Obra, {items.filter(i => i.itemType === 'PART').length} Repuestos)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txt = items.map(it => `${it.itemType === 'PART' ? '📦' : '🛠️'} ${it.name} (x${it.quantity}): $${(Number(it.quantity) * Number(it.unitPrice)).toFixed(2)}`).join('\n') + `\nTotal: $${totalQuote.toFixed(2)}`;
+                        navigator.clipboard.writeText(txt);
+                        notify?.('✓ Presupuesto copiado al portapapeles');
+                      }}
+                      style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 8px', fontSize: '11px', cursor: 'pointer', color: '#334155' }}
+                    >
+                      📋 Copiar lista
+                    </button>
+                  </div>
+                  <div style={{ overflowX: 'auto', maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    <table className="items-table" style={{ margin: 0 }}>
+                      <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                        <tr>
+                          <th style={{ width: '110px' }}>Tipo</th>
+                          <th>Descripción</th>
+                          <th style={{ width: '65px', textAlign: 'center' }}>Cant</th>
+                          <th style={{ width: '90px', textAlign: 'right' }}>P. Unit</th>
+                          <th style={{ width: '90px', textAlign: 'right' }}>Subtotal</th>
+                          <th style={{ width: '40px' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((it, idx) => {
+                          const lineTotal = Number(it.quantity) * Number(it.unitPrice);
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                <span className={it.itemType === 'PART' ? 'badge-part' : 'badge-service'}>
+                                  {it.itemType === 'PART' ? '📦 Repuesto' : '🛠️ M. Obra'}
+                                </span>
+                              </td>
+                              <td><strong>{it.name}</strong></td>
+                              <td style={{ textAlign: 'center' }}>{it.quantity}</td>
+                              <td style={{ textAlign: 'right' }}>${Number(it.unitPrice).toFixed(2)}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700 }}>${lineTotal.toFixed(2)}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItem(idx)}
+                                  title="Eliminar ítem"
+                                  style={{ background: 'transparent', border: 0, color: '#ef4444', fontSize: '14px', cursor: 'pointer' }}
+                                >
+                                  🗑️
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1553,11 +1649,21 @@ export function TechnicianWorkbenchModal({
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   <button
                     type="button"
-                    className="tech-action-btn tech-action-repair"
+                    className="tech-action-btn"
+                    style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
                     disabled={statusUpdating}
-                    onClick={() => handleQuickStatus('EN_REPARACION', 'Técnico inició los trabajos de reparación')}
+                    onClick={() => handleQuickStatus('DIAGNOSIS', 'En proceso de diagnóstico y evaluación')}
                   >
-                    ▶ 1. En Reparación
+                    🔍 1. En Diagnóstico
+                  </button>
+                  <button
+                    type="button"
+                    className="tech-action-btn"
+                    style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                    disabled={statusUpdating}
+                    onClick={() => handleQuickStatus('COTIZADO', 'Cotización generada para el cliente')}
+                  >
+                    💰 2. Marcar Cotizado
                   </button>
                   <button
                     type="button"
@@ -1565,24 +1671,41 @@ export function TechnicianWorkbenchModal({
                     disabled={statusUpdating}
                     onClick={() => handleQuickStatus('ESPERANDO_REPUESTOS', 'Esperando repuestos')}
                   >
-                    ⏳ 2. Esperar Repuestos
+                    ⏳ 3. Esperar Repuestos
+                  </button>
+                  <button
+                    type="button"
+                    className="tech-action-btn tech-action-repair"
+                    disabled={statusUpdating}
+                    onClick={() => handleQuickStatus('EN_REPARACION', 'Técnico inició los trabajos de reparación')}
+                  >
+                    ▶ 4. En Reparación
+                  </button>
+                  <button
+                    type="button"
+                    className="tech-action-btn"
+                    style={{ background: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe' }}
+                    disabled={statusUpdating}
+                    onClick={() => handleQuickStatus('TESTING', 'Pruebas finales y control de calidad')}
+                  >
+                    🧪 5. Pruebas Finales
                   </button>
                   <button
                     type="button"
                     className="tech-action-btn tech-action-ready"
                     disabled={statusUpdating}
-                    onClick={() => handleQuickStatus('LISTO_ENTREGA', 'Equipo reparado y comprobado')}
+                    onClick={() => handleQuickStatus('LISTO_ENTREGA', 'Equipo listo para entrega en recepción')}
                   >
-                    ✓ 3. Marcar Listo para Entrega
+                    ✅ 6. Listo para Entrega
                   </button>
                   <button
                     type="button"
                     className="tech-action-btn"
-                    style={{ background: '#f1f5f9', color: '#334155' }}
+                    style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}
                     disabled={statusUpdating}
-                    onClick={() => handleQuickStatus('ENTREGADO', 'Equipo entregado con conformidad al cliente')}
+                    onClick={() => handleQuickStatus('DELIVERED', 'Equipo entregado y pagado')}
                   >
-                    🤝 4. Entregar al Cliente
+                    🤝 7. Pagado / Retirado
                   </button>
                 </div>
               </div>

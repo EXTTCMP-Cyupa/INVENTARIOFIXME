@@ -36,10 +36,14 @@ public class WorkOrder {
   private String intakeChecklist = "{}";
   private Boolean legalDisclaimerAccepted = true;
   private String clientSignature;
+  private BigDecimal diagnosticFee = BigDecimal.ZERO;
 
   public static final Set<String> VALID_STATUSES = Set.of(
       "OPEN", "DIAGNOSIS", "QUOTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "CANCELLED",
-      "RECIBIDO", "EN_DIAGNOSTICO", "EN_REPARACION", "ESPERANDO_REPUESTOS", "WAITING_PARTS", "LISTO_ENTREGA", "ENTREGADO"
+      "RECIBIDO", "EN_DIAGNOSTICO", "COTIZADO", "APROBADO", "RECHAZADO", "CANCELADO",
+      "EN_REPARACION", "ESPERANDO_REPUESTOS", "WAITING_PARTS",
+      "TESTING", "EN_PRUEBAS", "PRUEBAS",
+      "LISTO_ENTREGA", "ENTREGADO", "DELIVERED", "PAGADO"
   );
 
   public WorkOrder(
@@ -94,18 +98,18 @@ public class WorkOrder {
     this.createdAt = createdAt != null ? createdAt : OffsetDateTime.now();
     this.slaDeadline = slaDeadline != null ? slaDeadline : this.createdAt.plusHours(this.slaHours);
     this.updatedAt = updatedAt != null ? updatedAt : OffsetDateTime.now();
+    this.diagnosticFee = BigDecimal.ZERO;
   }
 
   public boolean isApprovalActive() {
-    return (approvalExpiresAt == null || approvalExpiresAt.isAfter(OffsetDateTime.now()))
-        && Set.of("OPEN", "DIAGNOSIS", "QUOTED", "RECIBIDO", "EN_DIAGNOSTICO").contains(status);
+    return Set.of("OPEN", "DIAGNOSIS", "QUOTED", "RECIBIDO", "EN_DIAGNOSTICO", "COTIZADO").contains(status);
   }
 
   public void approve(String clientNotes) {
     if (!isApprovalActive()) {
       throw new IllegalStateException("La cotización no está disponible para aprobación o ha expirado");
     }
-    this.status = "APPROVED";
+    this.status = "ESPERANDO_REPUESTOS";
     this.approvedAt = OffsetDateTime.now();
     this.clientNotes = clientNotes;
     this.updatedAt = OffsetDateTime.now();
@@ -115,8 +119,8 @@ public class WorkOrder {
     if (!isApprovalActive()) {
       throw new IllegalStateException("La cotización no está disponible para rechazo o ha expirado");
     }
-    this.status = "REJECTED";
-    this.rejectionReason = reason;
+    this.status = "LISTO_ENTREGA";
+    this.rejectionReason = (reason != null && !reason.isBlank()) ? reason : "Cotización rechazada por el cliente";
     this.updatedAt = OffsetDateTime.now();
   }
 
@@ -143,8 +147,8 @@ public class WorkOrder {
         throw new IllegalArgumentException("La cotización no puede ser negativa");
       }
       this.quote = quote;
-      if ("OPEN".equals(this.status) || "DIAGNOSIS".equals(this.status)) {
-        this.status = "QUOTED";
+      if ("OPEN".equals(this.status) || "DIAGNOSIS".equals(this.status) || "RECIBIDO".equals(this.status) || "EN_DIAGNOSTICO".equals(this.status)) {
+        this.status = "COTIZADO";
       }
     }
     if (techNotes != null) this.technicianNotes = techNotes;
@@ -216,4 +220,6 @@ public class WorkOrder {
   public void setLegalDisclaimerAccepted(Boolean legalDisclaimerAccepted) { this.legalDisclaimerAccepted = legalDisclaimerAccepted; }
   public String getClientSignature() { return clientSignature; }
   public void setClientSignature(String clientSignature) { this.clientSignature = clientSignature; }
+  public BigDecimal getDiagnosticFee() { return diagnosticFee != null ? diagnosticFee : BigDecimal.ZERO; }
+  public void setDiagnosticFee(BigDecimal diagnosticFee) { this.diagnosticFee = diagnosticFee != null && diagnosticFee.compareTo(BigDecimal.ZERO) >= 0 ? diagnosticFee : BigDecimal.ZERO; }
 }

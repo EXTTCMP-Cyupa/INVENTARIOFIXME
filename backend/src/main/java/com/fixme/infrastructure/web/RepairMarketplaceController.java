@@ -619,7 +619,15 @@ public class RepairMarketplaceController {
     Map<String, Object> order = orderRows.get(0);
 
     String paymentMethod = String.valueOf(body.getOrDefault("paymentMethod", "CASH")).toUpperCase(Locale.ROOT);
-    BigDecimal paymentAmount = decimal(body.get("paymentAmount"), (BigDecimal) order.get("quote"));
+    BigDecimal defaultAmount = (BigDecimal) order.get("quote");
+    String currentStatus = String.valueOf(order.getOrDefault("status", ""));
+    if (Set.of("REJECTED", "RECHAZADO", "CANCELLED", "CANCELADO").contains(currentStatus)) {
+      BigDecimal diagFee = (BigDecimal) order.get("diagnostic_fee");
+      if (diagFee != null && diagFee.compareTo(BigDecimal.ZERO) > 0) {
+        defaultAmount = diagFee;
+      }
+    }
+    BigDecimal paymentAmount = decimal(body.get("paymentAmount"), defaultAmount);
     if (paymentAmount == null || paymentAmount.compareTo(BigDecimal.ZERO) < 0) {
       paymentAmount = BigDecimal.ZERO;
     }

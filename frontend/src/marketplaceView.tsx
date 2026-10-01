@@ -588,14 +588,18 @@ export function WorkOrderCheckoutModal({
   onClose: () => void;
   onSuccess: (data: Any) => void;
 }) {
+  const isRejected = ['REJECTED', 'RECHAZADO', 'CANCELLED', 'CANCELADO'].includes(String(order.status || '').toUpperCase());
+  const diagFee = Number(order.diagnostic_fee || order.diagnosticFee || 0);
+  const quoteAmt = Number(order.quote || 0);
+  const initialAmt = isRejected && diagFee > 0 ? diagFee : (quoteAmt > 0 ? quoteAmt : (diagFee > 0 ? diagFee : 0));
   const [paymentMethod, setPaymentMethod] = React.useState('CASH');
-  const [paymentAmount, setPaymentAmount] = React.useState(String(order.quote || 0));
-  const [warrantyDays, setWarrantyDays] = React.useState(90);
+  const [paymentAmount, setPaymentAmount] = React.useState(String(initialAmt));
+  const [warrantyDays, setWarrantyDays] = React.useState(isRejected ? 0 : 90);
   const [warrantyTerms, setWarrantyTerms] = React.useState(
-    order.warranty_terms || 'Garantía por servicio técnico en mano de obra y repuestos especificados.'
+    order.warranty_terms || (isRejected ? 'Cobro exclusivo de diagnóstico técnico. Sin garantía de reparación.' : 'Garantía por servicio técnico en mano de obra y repuestos especificados.')
   );
   const [techNotes, setTechNotes] = React.useState(
-    order.technician_notes || 'Equipo reparado, probado y entregado a entera conformidad del cliente.'
+    order.technician_notes || (isRejected ? 'Equipo entregado sin reparación por cancelación/rechazo de cotización. Cobro de revisión técnica.' : 'Equipo reparado, probado y entregado a entera conformidad del cliente.')
   );
   const [loading, setLoading] = React.useState(false);
 
@@ -641,7 +645,9 @@ export function WorkOrderCheckoutModal({
       <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 11, color: '#059669', fontWeight: 800, textTransform: 'uppercase' }}>Cobro y Entrega Final</div>
+            <div style={{ fontSize: 11, color: isRejected ? '#b91c1c' : '#059669', fontWeight: 800, textTransform: 'uppercase' }}>
+              {isRejected ? 'Cobro de Revisión Técnica (Cancelado)' : 'Cobro y Entrega Final'}
+            </div>
             <h3 style={{ fontSize: 18, fontWeight: 900, margin: '2px 0 0', color: '#0f172a' }}>
               🤝 Finalizar Orden #{order.order_number || 'OT'}
             </h3>
@@ -659,7 +665,16 @@ export function WorkOrderCheckoutModal({
         <div style={{ background: '#f8fafc', borderRadius: 10, padding: 12, fontSize: 12, color: '#334155', marginBottom: 16, border: '1px solid #f1f5f9' }}>
           <div>📱 <b>Equipo:</b> {order.device_brand} {order.device_model || order.description}</div>
           <div>👤 <b>Cliente:</b> {order.customer_name || 'Cliente'} {order.customer_phone ? `(📞 ${order.customer_phone})` : ''}</div>
-          <div>💰 <b>Cotización Aprobada:</b> ${Number(order.quote || 0).toFixed(2)}</div>
+          {isRejected ? (
+            <div style={{ marginTop: 4, color: '#b91c1c', fontWeight: 700 }}>
+              ❌ <b>Cotización rechazada/cancelada:</b> Solo se cobra valor de diagnóstico (${diagFee.toFixed(2)})
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              <span>💰 <b>Cotización:</b> ${quoteAmt.toFixed(2)}</span>
+              {diagFee > 0 && <span style={{ color: '#64748b' }}>🔍 (Diagnóstico base: ${diagFee.toFixed(2)})</span>}
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -42,8 +42,32 @@ public class WorkOrderService {
       Integer slaHours,
       List<OrderItemInput> items,
       String intakeChecklist,
-      Boolean legalDisclaimerAccepted
+      Boolean legalDisclaimerAccepted,
+      BigDecimal diagnosticFee
   ) {
+    public CreateOrderCommand(
+        UUID customerId,
+        UUID branchId,
+        String deviceBrand,
+        String deviceModel,
+        String serialNumber,
+        String reportedFault,
+        String accessories,
+        String description,
+        String diagnosis,
+        BigDecimal quote,
+        OffsetDateTime estimatedDelivery,
+        UUID assignedTechnicianId,
+        Integer slaHours,
+        List<OrderItemInput> items,
+        String intakeChecklist,
+        Boolean legalDisclaimerAccepted
+    ) {
+      this(customerId, branchId, deviceBrand, deviceModel, serialNumber, reportedFault,
+           accessories, description, diagnosis, quote, estimatedDelivery, assignedTechnicianId,
+           slaHours, items, intakeChecklist, legalDisclaimerAccepted, BigDecimal.ZERO);
+    }
+
     public CreateOrderCommand(
         UUID customerId,
         UUID branchId,
@@ -62,7 +86,7 @@ public class WorkOrderService {
     ) {
       this(customerId, branchId, deviceBrand, deviceModel, serialNumber, reportedFault,
            accessories, description, diagnosis, quote, estimatedDelivery, assignedTechnicianId,
-           slaHours, items, "{}", true);
+           slaHours, items, "{}", true, BigDecimal.ZERO);
     }
   }
 
@@ -73,8 +97,8 @@ public class WorkOrderService {
     String rawToken = tenantId + "." + UUID.randomUUID();
     String tokenHash = sha256(rawToken);
     OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(15);
-    String publicUrl = "/public/work-orders/approve?token=" + rawToken;
     String orderNumber = port.generateNextOrderNumber(tenantId);
+    String publicUrl = "/#order/" + orderNumber;
 
     String fullDesc = (cmd.description() != null && !cmd.description().isBlank())
         ? cmd.description()
@@ -144,6 +168,9 @@ public class WorkOrderService {
     if (cmd.legalDisclaimerAccepted() != null) {
       order.setLegalDisclaimerAccepted(cmd.legalDisclaimerAccepted());
     }
+    if (cmd.diagnosticFee() != null) {
+      order.setDiagnosticFee(cmd.diagnosticFee());
+    }
     order.setItems(orderItems);
     return port.save(order);
   }
@@ -151,6 +178,16 @@ public class WorkOrderService {
   public List<Map<String, Object>> listOrders(UUID tenantId, String status, String search, UUID technicianId) {
     modules.require(tenantId, "WORK_ORDERS");
     return port.listEnriched(tenantId, status, search, technicianId);
+  }
+
+  public WorkOrderPort.PagedOrdersResult listOrdersPaged(UUID tenantId, WorkOrderPort.WorkOrderQueryParams query) {
+    modules.require(tenantId, "WORK_ORDERS");
+    return port.listEnrichedPaged(tenantId, query);
+  }
+
+  public Map<String, Object> getOrderCounts(UUID tenantId, UUID technicianId, String search, String from, String to) {
+    modules.require(tenantId, "WORK_ORDERS");
+    return port.countOrdersByStatus(tenantId, technicianId, search, from, to);
   }
 
   public WorkOrder updateStatus(UUID tenantId, UUID orderId, String newStatus, String techNotes) {
@@ -166,9 +203,21 @@ public class WorkOrderService {
       UUID tenantId, UUID orderId, String diagnosis, BigDecimal quote, String techNotes,
       OffsetDateTime estDelivery, UUID assignedTechnicianId, Integer slaHours, List<OrderItemInput> items
   ) {
+    return updateTechnicalDetails(tenantId, orderId, diagnosis, quote, techNotes, estDelivery, assignedTechnicianId, slaHours, items, null);
+  }
+
+  public WorkOrder updateTechnicalDetails(
+      UUID tenantId, UUID orderId, String diagnosis, BigDecimal quote, String techNotes,
+      OffsetDateTime estDelivery, UUID assignedTechnicianId, Integer slaHours, List<OrderItemInput> items,
+      BigDecimal diagnosticFee
+  ) {
     modules.require(tenantId, "WORK_ORDERS");
     WorkOrder order = port.findById(tenantId, orderId)
         .orElseThrow(() -> new IllegalArgumentException("Orden no encontrada: " + orderId));
+
+    if (diagnosticFee != null) {
+      order.setDiagnosticFee(diagnosticFee);
+    }
 
     if (items != null) {
       List<WorkOrderItem> newItems = new ArrayList<>();

@@ -112,6 +112,7 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
   const [loadingPlans, setLoadingPlans] = React.useState(true);
   const [showRegisterModal, setShowRegisterModal] = React.useState(false);
   const [showLoginModal, setShowLoginModal] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [selectedPlanCode, setSelectedPlanCode] = React.useState<string>('PRO');
 
   // Registration Form State
@@ -130,8 +131,14 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
   // Login Form State
   const [loginEmail, setLoginEmail] = React.useState('');
   const [loginPassword, setLoginPassword] = React.useState('');
+  const [showLoginPassword, setShowLoginPassword] = React.useState(false);
   const [loggingIn, setLoggingIn] = React.useState(false);
   const [loginError, setLoginError] = React.useState('');
+  const [loginTargetMode, setLoginTargetMode] = React.useState<'POCKET' | 'DESKTOP'>(() => {
+    const saved = localStorage.getItem('fixme_view_mode');
+    if (saved === 'DESKTOP' || saved === 'POCKET') return saved;
+    return (window.innerWidth <= 768) ? 'POCKET' : 'DESKTOP';
+  });
 
   // Load public plans from backend
   React.useEffect(() => {
@@ -227,6 +234,7 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
           localStorage.removeItem('trialDaysRemaining');
           localStorage.removeItem('trialEndsAt');
         }
+        localStorage.setItem('fixme_view_mode', loginTargetMode);
         onLogin(data.accessToken);
       } else {
         if (data?.error === 'TRIAL_EXPIRED') {
@@ -272,22 +280,20 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
                 background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#ffffff',
                 border: 'none',
-                padding: '8px 14px',
+                padding: '8px 12px',
                 borderRadius: '8px',
                 fontWeight: 800,
-                fontSize: '13px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 2px 4px rgba(37,99,235,0.25)'
+                gap: '6px',
+                boxShadow: '0 2px 4px rgba(37,99,235,0.25)',
+                whiteSpace: 'nowrap'
               }}
               title="Acceso seguro con Celular y Cédula a tus reparaciones activas, autorizaciones, facturas y garantías"
             >
               <span>👤 Portal Clientes</span>
-              <span style={{ background: 'rgba(255,255,255,0.22)', padding: '2px 7px', borderRadius: 6, fontSize: '11px', fontWeight: 700 }}>
-                Reparaciones · Facturas · Garantías
-              </span>
             </button>
 
             <button
@@ -306,6 +312,69 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
               onClick={() => handleChoosePlan('PRO')}
             >
               Crear Tienda Gratis
+            </button>
+
+            <button
+              type="button"
+              className="landing-mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Abrir menú de navegación"
+            >
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+          </div>
+        </div>
+
+        {/* MOBILE SLIDE-DOWN DRAWER */}
+        <div className={`landing-mobile-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+          <a href="#marketplace-service" onClick={() => setMobileMenuOpen(false)}>
+            <span>🛠️ Red de Talleres & Averías</span>
+            <span>→</span>
+          </a>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>
+            <span>✨ Funcionalidades Clave</span>
+            <span>→</span>
+          </a>
+          <a href="#modules" onClick={() => setMobileMenuOpen(false)}>
+            <span>📦 Módulos del Sistema</span>
+            <span>→</span>
+          </a>
+          <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>
+            <span>💰 Planes & Tarifas</span>
+            <span>→</span>
+          </a>
+          <a href="#payments" onClick={() => setMobileMenuOpen(false)}>
+            <span>⚡ Pasarelas DeUna & Payphone</span>
+            <span>→</span>
+          </a>
+          <a href="#faq" onClick={() => setMobileMenuOpen(false)}>
+            <span>❓ Preguntas Frecuentes</span>
+            <span>→</span>
+          </a>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <button
+              type="button"
+              className="landing-btn-hero-primary"
+              style={{ width: '100%', textAlign: 'center', justifyContent: 'center', padding: '12px' }}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleChoosePlan('PRO');
+              }}
+            >
+              🚀 Crear Tienda (15 Días Gratis)
+            </button>
+            <button
+              type="button"
+              className="landing-btn-secondary"
+              style={{ width: '100%', textAlign: 'center', justifyContent: 'center', padding: '12px' }}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onOpenDirectLogin) onOpenDirectLogin();
+                else setShowLoginModal(true);
+              }}
+            >
+              🔐 Iniciar Sesión en Mi Tienda
             </button>
           </div>
         </div>
@@ -1235,6 +1304,25 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
               </div>
             )}
 
+
+            {/* MODE SWITCHER */}
+            <div className="pocket-mode-toggle" style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                className={`pocket-mode-btn ${loginTargetMode === 'POCKET' ? 'active' : ''}`}
+                onClick={() => setLoginTargetMode('POCKET')}
+              >
+                📱 Pocket Móvil (Técnico / POS)
+              </button>
+              <button
+                type="button"
+                className={`pocket-mode-btn ${loginTargetMode === 'DESKTOP' ? 'active' : ''}`}
+                onClick={() => setLoginTargetMode('DESKTOP')}
+              >
+                💻 Panel Desktop
+              </button>
+            </div>
+
             <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <label style={{ fontSize: '12px', fontWeight: 600 }}>
                 Correo electrónico
@@ -1244,20 +1332,41 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
                   onChange={e => setLoginEmail(e.target.value)}
                   placeholder="ejemplo@correo.com"
                   required
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4, boxSizing: 'border-box' }}
                 />
               </label>
 
               <label style={{ fontSize: '12px', fontWeight: 600 }}>
                 Contraseña
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={e => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4 }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    style={{ width: '100%', padding: '9px 36px 9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', marginTop: 4, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '55%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      color: '#64748b',
+                      padding: 2
+                    }}
+                    title={showLoginPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                  >
+                    {showLoginPassword ? '👁️' : '🔒'}
+                  </button>
+                </div>
               </label>
 
               <button
@@ -1266,7 +1375,7 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
                 disabled={loggingIn}
                 style={{ width: '100%', padding: '11px', marginTop: 8, justifyContent: 'center' }}
               >
-                {loggingIn ? 'Validando...' : 'Entrar a Mi Panel'}
+                {loggingIn ? 'Validando...' : loginTargetMode === 'POCKET' ? '⚡ Entrar a Fixme Pocket' : '🚀 Entrar a Mi Panel'}
               </button>
 
               <p style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', margin: '8px 0 0 0' }}>

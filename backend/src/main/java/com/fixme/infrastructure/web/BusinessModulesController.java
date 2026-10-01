@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import com.fixme.application.ModuleService;
+import com.fixme.application.WorkOrderPort;
 import com.fixme.application.WorkOrderService;
 import com.fixme.domain.WorkOrder;
 
@@ -422,28 +423,101 @@ public class BusinessModulesController {
         """, t);
   }
 
-  @GetMapping("/api/work-orders")
+  @GetMapping(value = {"/api/work-orders", "/api/orders"})
   @PreAuthorize("isAuthenticated()")
-  public List<Map<String, Object>> orders(
+  public Object orders(
       @AuthenticationPrincipal Jwt j,
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String search,
-      @RequestParam(required = false) UUID technicianId
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String technicianId,
+      @RequestParam(required = false) String sla,
+      @RequestParam(required = false) String from,
+      @RequestParam(required = false) String to,
+      @RequestParam(required = false) String sort,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) Boolean paged
   ) {
     UUID t = tenant(j);
-    return workOrderService.listOrders(t, status, search, technicianId);
+    String querySearch = (q != null && !q.isBlank()) ? q : search;
+
+    UUID techUuid = null;
+    Boolean unassignedOnly = null;
+    if ("me".equalsIgnoreCase(technicianId)) {
+      techUuid = user(t, j.getSubject());
+    } else if ("unassigned".equalsIgnoreCase(technicianId)) {
+      unassignedOnly = true;
+    } else if (technicianId != null && !technicianId.isBlank()) {
+      try {
+        techUuid = UUID.fromString(technicianId);
+      } catch (Exception ignored) {}
+    }
+
+    boolean isPagedRequest = cursor != null || limit != null || Boolean.TRUE.equals(paged);
+
+    if (isPagedRequest) {
+      WorkOrderPort.WorkOrderQueryParams query = new WorkOrderPort.WorkOrderQueryParams(
+          status, querySearch, techUuid, unassignedOnly, sla, from, to, sort, limit, cursor
+      );
+      return workOrderService.listOrdersPaged(t, query);
+    }
+
+    return workOrderService.listOrders(t, status, querySearch, techUuid);
+  }
+
+  @GetMapping(value = {"/api/work-orders/counts", "/api/orders/counts"})
+  @PreAuthorize("isAuthenticated()")
+  public Map<String, Object> orderCounts(
+      @AuthenticationPrincipal Jwt j,
+      @RequestParam(required = false) String technicianId,
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String from,
+      @RequestParam(required = false) String to
+  ) {
+    UUID t = tenant(j);
+    String querySearch = (q != null && !q.isBlank()) ? q : search;
+    UUID techUuid = null;
+    if ("me".equalsIgnoreCase(technicianId)) {
+      techUuid = user(t, j.getSubject());
+    } else if (technicianId != null && !technicianId.isBlank() && !"unassigned".equalsIgnoreCase(technicianId)) {
+      try {
+        techUuid = UUID.fromString(technicianId);
+      } catch (Exception ignored) {}
+    }
+    return workOrderService.getOrderCounts(t, techUuid, querySearch, from, to);
   }
 
   @GetMapping("/api/work-orders/my-work")
   @PreAuthorize("isAuthenticated()")
-  public List<Map<String, Object>> myWorkOrders(
+  public Object myWorkOrders(
       @AuthenticationPrincipal Jwt j,
       @RequestParam(required = false) String status,
-      @RequestParam(required = false) String search
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String sla,
+      @RequestParam(required = false) String from,
+      @RequestParam(required = false) String to,
+      @RequestParam(required = false) String sort,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) Boolean paged
   ) {
     UUID t = tenant(j);
     UUID u = user(t, j.getSubject());
-    return workOrderService.listOrders(t, status, search, u);
+    String querySearch = (q != null && !q.isBlank()) ? q : search;
+
+    boolean isPagedRequest = cursor != null || limit != null || Boolean.TRUE.equals(paged);
+
+    if (isPagedRequest) {
+      WorkOrderPort.WorkOrderQueryParams query = new WorkOrderPort.WorkOrderQueryParams(
+          status, querySearch, u, false, sla, from, to, sort, limit, cursor
+      );
+      return workOrderService.listOrdersPaged(t, query);
+    }
+
+    return workOrderService.listOrders(t, status, querySearch, u);
   }
 
   @GetMapping("/api/work-orders/my-work/stats")
@@ -496,6 +570,7 @@ public class BusinessModulesController {
       }
     }
     Boolean legalDisclaimer = b.get("legalDisclaimerAccepted") instanceof Boolean bool ? bool : true;
+    BigDecimal diagnosticFee = decimal(b.get("diagnosticFee"));
 
     WorkOrderService.CreateOrderCommand cmd = new WorkOrderService.CreateOrderCommand(
         id(b.get("customerId").toString()),
@@ -513,7 +588,8 @@ public class BusinessModulesController {
         sla,
         items,
         checklistStr,
-        legalDisclaimer
+        legalDisclaimer,
+        diagnosticFee
     );
 
     WorkOrder created = workOrderService.createOrder(t, cmd);
@@ -559,6 +635,7 @@ public class BusinessModulesController {
     List<WorkOrderService.OrderItemInput> items = b.containsKey("items") ? parseItems(b.get("items")) : null;
     UUID techId = uuidOrNull(b.get("assignedTechnicianId"));
     Integer sla = b.get("slaHours") != null ? Integer.parseInt(b.get("slaHours").toString()) : null;
+    BigDecimal diagFee = b.containsKey("diagnosticFee") ? decimal(b.get("diagnosticFee")) : null;
 
     if (b.containsKey("intakeChecklist")) {
       String chk = "{}";
@@ -580,7 +657,8 @@ public class BusinessModulesController {
         estDelivery,
         techId,
         sla,
-        items
+        items,
+        diagFee
     );
   }
 
@@ -605,7 +683,7 @@ public class BusinessModulesController {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "imageUrl es obligatorio");
     }
     String stage = String.valueOf(b.getOrDefault("stage", "DIAGNOSIS")).trim().toUpperCase();
-    if (!List.of("RECEPTION", "DIAGNOSIS", "COMPLETED").contains(stage)) {
+    if (!List.of("RECEPTION", "DIAGNOSIS", "PARTS", "WAITING_PARTS", "REPAIR", "TESTING", "COMPLETED", "LISTO_ENTREGA", "ENTREGA").contains(stage)) {
       stage = "DIAGNOSIS";
     }
     String caption = b.get("caption") != null ? b.get("caption").toString().trim() : null;
@@ -835,8 +913,12 @@ public class BusinessModulesController {
       @PathVariable String code,
       @RequestBody(required = false) Map<String, Object> body
   ) {
-    String comments = body != null && body.get("comments") != null ? String.valueOf(body.get("comments")) : "";
-    return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, true, comments));
+    try {
+      String comments = body != null && body.get("comments") != null ? String.valueOf(body.get("comments")) : "";
+      return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, true, comments));
+    } catch (Exception e) {
+      return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+    }
   }
 
   @PostMapping("/api/public/work-orders/{code}/reject")
@@ -844,8 +926,12 @@ public class BusinessModulesController {
       @PathVariable String code,
       @RequestBody(required = false) Map<String, Object> body
   ) {
-    String reason = body != null && body.get("reason") != null ? String.valueOf(body.get("reason")) : "Rechazado por el cliente";
-    return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, false, reason));
+    try {
+      String reason = body != null && body.get("reason") != null ? String.valueOf(body.get("reason")) : "Rechazado por el cliente";
+      return ResponseEntity.ok(workOrderService.respondToQuoteByCode(code, false, reason));
+    } catch (Exception e) {
+      return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+    }
   }
 
   @GetMapping(value = {"/api/public/work-orders/approve", "/public/work-orders/approve", "/api/auth/work-orders/approve"}, produces = MediaType.TEXT_HTML_VALUE)
