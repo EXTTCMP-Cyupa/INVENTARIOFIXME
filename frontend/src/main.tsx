@@ -13,9 +13,14 @@ import { PayphoneModal } from './payphoneModal';
 import { LandingPage } from './landingPage';
 import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement, getCompanyReceiptInfo } from './ticketPrinter';
 import { compressImageFile } from './imageUtils';
+import { Sidebar } from './Sidebar';
+import { PageHeader, KpiStrip, FilterTabs } from './sharedLayout';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
 const nav=[['home','Resumen','🏠'],['cash','Caja','💵'],['pos','Punto de venta','💳'],['sales','Ventas','🛒'],['quotes','Cotizaciones','📝'],['my-work','Mi Trabajo','🛠️'],['work-orders','Ordenes de servicio','📋'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','📦'],['customers','Clientes','👥'],['deliveries','Entregas','🚚'],['warranties','Garantias','🛡️'],['reports','Reportes','📊'],['administration','Empresa','🏢']];
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
+const [sidebarCollapsed, setSidebarCollapsed] = React.useState<boolean>(() => localStorage.getItem('fixme_sidebar_collapsed') === 'true');
+const toggleSidebarCollapsed = () => setSidebarCollapsed(prev => { const next = !prev; localStorage.setItem('fixme_sidebar_collapsed', String(next)); return next; });
+const [shellOrderCounts, setShellOrderCounts] = React.useState<Any | null>(null);
 const [viewMode, setViewMode] = React.useState<'DESKTOP' | 'POCKET'>(() => {
   const saved = localStorage.getItem('fixme_view_mode');
   if (saved === 'DESKTOP' || saved === 'POCKET') return saved;
@@ -119,7 +124,7 @@ if(viewMode==='POCKET'&&!isSaasOwner){
       notify={setToast}
     />
   );
-}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><aside className={menuOpen?'drawer-open':''}><div className="brand"><b>F</b> {isSaasOwner?<>Fixme<span>SaaS</span></>:<>Fixme<span>Tiendas</span></>}</div><div className="branch-switch"><small>{isSaasOwner?'CONTROL MAESTRO':'EMPRESA / SUCURSAL'}</small><strong>{isSaasOwner?'Plataforma Multi-Empresas':(localStorage.tenantName||'Principal')}</strong><span>{isSaasOwner?'● Conectado como SaaS Owner':'● Sucursal Principal Operativa'}</span></div><div className="sidebar-nav-scroll">{isSaasOwner?<section className="nav-group"><small>ADMINISTRACIÓN SAAS</small>{saasNav.map(n=><button key={n[0]} className={page===n[0]?'nav-item active':'nav-item'} onClick={()=>go(n[0])}><i>{n[2]}</i>{n[1]}</button>)}</section>:(<><button className={page==='home'?'nav-item active':'nav-item'} onClick={()=>go('home')}><i>🏠</i>Resumen</button>{groups.map(g=><section className="nav-group" key={g[0]}><small>{g[0]}</small>{g[1].map(k=>{const n=nav.find(x=>x[0]===k);return n&&visible.includes(k)&&(k==='administration'||enabled(moduleKey(k)))?<button className={page===k?'nav-item active':'nav-item'} onClick={()=>go(k)} key={k}><i>{n[2]}</i>{n[1]}</button>:null})}</section>)}</>)}</div><div className="sidebar-user"><div className="user-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div><div><strong>{isSaasOwner?'DUEÑO DEL SISTEMA':(role||'USUARIO')}</strong><small>{isSaasOwner?'Acceso Global SaaS':'Sesión activa'}</small><button className="theme-toggle-btn" style={{marginTop:'4px',padding:'3px 6px',fontSize:'10px'}} onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')}>{theme==='dark'?'☀️ Claro':'🌙 Oscuro'}</button></div><button aria-label="Cerrar sesión" onClick={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home')}}>↪</button></div></aside><main>
+}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><Sidebar page={page} go={go} role={role} isSaasOwner={isSaasOwner} companyInfo={companyInfo} visiblePages={visible} theme={theme} setTheme={setTheme} onLogout={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home');}} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} mobileMenuOpen={menuOpen} onCloseMobileMenu={()=>setMenuOpen(false)} orderCounts={shellOrderCounts}/><main>
 {!isSaasOwner&&trialInfo?.isTrial&&(
   <div className="trial-top-banner">
     <div className="trial-banner-info">
@@ -143,7 +148,33 @@ if(viewMode==='POCKET'&&!isSaasOwner){
     </div>
   </div>
 )}
-<header className="app-header"><div><small>{isSaasOwner?'👑 DUEÑO DEL SISTEMA · ADMINISTRACIÓN GLOBAL SAAS':(role||'USUARIO')+' · '+(localStorage.tenantName?(localStorage.tenantName.toUpperCase()+' · '):'')+'SUCURSAL PRINCIPAL'}</small><h1>{item(page)?.[1]||'Panel'}</h1><p className="header-subtitle">{isSaasOwner?(page==='platform-trials'?'Monitoreo en tiempo real de tiendas en prueba de 15 días, extensión de días y vinculación a plan definitivo':page==='platform-rates'?'Tarifas mensuales acordadas, planes, descuentos y ciclo de cobro por empresa':page==='platform-plans'?'Catálogo de planes de suscripción, módulos incluidos y paquetes contratables':page==='platform-payments'?'Registro y comprobantes oficiales de recaudación de suscripciones SaaS':page==='platform-overview'?'Métricas financieras globales, MRR y alertas de cobro':'Directorio de empresas, estado de cuenta y suspensión preventiva'):'Información operativa en tiempo real de tu tienda'}</p></div><div className="header-actions"><button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button><div style={{position:'relative'}}><button type="button" className="header-icon" onClick={()=>setShowQuickAccess(!showQuickAccess)} title="Accesos Rápidos y Enlaces Públicos" style={{background:'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer',whiteSpace:'nowrap'}}><span>⚡ Accesos</span><span style={{fontSize:'9px'}}>▼</span></button>{showQuickAccess&&<div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'#ffffff',border:'1px solid #cbd5e1',borderRadius:'12px',boxShadow:'0 12px 30px rgba(0,0,0,0.15)',width:'230px',zIndex:1000,padding:'6px',display:'flex',flexDirection:'column',gap:'4px'}} onClick={()=>setShowQuickAccess(false)}><button type="button" onClick={()=>{setViewMode('POCKET');localStorage.setItem('fixme_view_mode','POCKET');}} style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #fde68a',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>📱</span><div><div>Modo Pocket Móvil</div><small style={{fontSize:'10px',color:'#b45309'}}>Taller y POS para celulares</small></div></button><button type="button" onClick={()=>setShowCatalogModal(true)} style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛒</span><div><div>Catálogo Digital</div><small style={{fontSize:'10px',color:'#2563eb'}}>Compartir productos con QR</small></div></button><button type="button" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} style={{background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛠️</span><div><div>Solicitar Reparación</div><small style={{fontSize:'10px',color:'#15803d'}}>Portal de recepción online</small></div></button><button type="button" onClick={()=>{window.location.hash='#portal-cliente';setHash('#portal-cliente');}} style={{background:'#f8fafc',color:'#0f172a',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>👤</span><div><div>Portal de Clientes</div><small style={{fontSize:'10px',color:'#64748b'}}>Consulta por Cédula / Celular</small></div></button></div>}</div><button className="header-icon" aria-label="Notificaciones">●</button><div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div></div></header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+<header className="app-header" style={{ marginBottom: 18, alignItems: 'center' }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+    <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+      {isSaasOwner ? 'Fixme SaaS' : (companyInfo.name || 'Fixme Tiendas')}
+    </span>
+    <span>/</span>
+    <span style={{ color: 'var(--primary)', fontWeight: 500 }}>
+      {item(page)?.[1] || 'Panel'}
+    </span>
+  </div>
+  <div className="header-actions">
+    <button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button>
+    <div style={{position:'relative'}}>
+      <button type="button" className="header-icon" onClick={()=>setShowQuickAccess(!showQuickAccess)} title="Accesos Rápidos y Enlaces Públicos" style={{background:'var(--primary-soft)',color:'var(--primary)',fontWeight:600,fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid var(--border)',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer',whiteSpace:'nowrap'}}>
+        <span>⚡ Accesos</span>
+        <span style={{fontSize:'9px'}}>▼</span>
+      </button>
+      {showQuickAccess&&<div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'12px',boxShadow:'0 12px 30px rgba(0,0,0,0.15)',width:'230px',zIndex:1000,padding:'6px',display:'flex',flexDirection:'column',gap:'4px'}} onClick={()=>setShowQuickAccess(false)}>
+        <button type="button" onClick={()=>{setViewMode('POCKET');localStorage.setItem('fixme_view_mode','POCKET');}} style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #fde68a',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>📱</span><div><div>Modo Pocket Móvil</div><small style={{fontSize:'10px',color:'#b45309'}}>Taller y POS para celulares</small></div></button>
+        <button type="button" onClick={()=>setShowCatalogModal(true)} style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛒</span><div><div>Catálogo Digital</div><small style={{fontSize:'10px',color:'#2563eb'}}>Compartir productos con QR</small></div></button>
+        <button type="button" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} style={{background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛠️</span><div><div>Solicitar Reparación</div><small style={{fontSize:'10px',color:'#15803d'}}>Portal de recepción online</small></div></button>
+        <button type="button" onClick={()=>{window.location.hash='#portal-cliente';setHash('#portal-cliente');}} style={{background:'#f8fafc',color:'#0f172a',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>👤</span><div><div>Portal de Clientes</div><small style={{fontSize:'10px',color:'#64748b'}}>Consulta por Cédula / Celular</small></div></button>
+      </div>}
+    </div>
+    <div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div>
+  </div>
+</header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -8283,136 +8314,191 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
 
   return (
     <>
-      {/* Header Section */}
-      <div className="section-header" style={{ marginBottom: 16 }}>
-        <div>
-          <h2>🛠️ Mi Trabajo y Taller Personal</h2>
-          <p>Banco técnico de órdenes asignadas. Administra diagnósticos, notas de avance, repuestos del inventario y mano de obra con cálculo en tiempo real.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* View Mode Switcher */}
-          <div className="view-mode-toggle">
+      {/* 1. Page Header (Section 6) */}
+      <PageHeader
+        title="Mi Trabajo"
+        description="Banco técnico de órdenes asignadas, avance de diagnósticos y repuestos"
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
-              className={`view-mode-btn ${viewMode === 'KANBAN' ? 'active' : ''}`}
+              type="button"
+              className="secondary-action"
+              onClick={() => { if (go) go('marketplace'); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              🎯 Tomar de la Bolsa
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={load}
+              title="Recargar órdenes"
+            >
+              🔄 Refrescar
+            </button>
+          </div>
+        }
+      />
+
+      {/* 2. KPI Strip (Section 4) */}
+      <KpiStrip
+        items={[
+          {
+            label: 'Asignadas',
+            value: stats.total || orders.length,
+            hint: 'Órdenes activas',
+            active: filter === 'ALL',
+            onClick: () => { setFilter('ALL'); setMobileKanbanCol('all'); }
+          },
+          {
+            label: 'En reparación',
+            value: stats.in_repair || 0,
+            hint: 'En banco de trabajo',
+            active: filter === 'IN_REPAIR',
+            onClick: () => { setFilter('IN_REPAIR'); setMobileKanbanCol('COL_REPAIR'); }
+          },
+          {
+            label: 'Esperando repuestos',
+            value: stats.waiting_parts || 0,
+            hint: 'Piezas pendientes',
+            active: filter === 'WAITING_PARTS',
+            onClick: () => { setFilter('WAITING_PARTS'); setMobileKanbanCol('COL_PARTS'); }
+          },
+          {
+            label: 'Listas para entrega',
+            value: stats.ready || 0,
+            hint: 'Finalizadas',
+            active: filter === 'READY',
+            onClick: () => { setFilter('READY'); setMobileKanbanCol('COL_READY'); }
+          },
+          {
+            label: 'SLA crítico (<12h)',
+            value: stats.urgent_sla || 0,
+            hint: 'Prioridad inmediata',
+            tone: Number(stats.urgent_sla || 0) > 0 ? 'danger' : 'default',
+            active: filter === 'URGENT',
+            onClick: () => { setFilter('URGENT'); setMobileKanbanCol('all'); }
+          }
+        ]}
+      />
+
+      {/* 3. Botonsitos Táctiles de Filtro */}
+      <div className="filter-pills-container">
+        {[
+          { id: 'ALL', label: 'Todas las asignadas', icon: '📌', count: orders.length, color: '#2563eb', colId: 'all' },
+          { id: 'ACTIVE', label: 'Activas en taller', icon: '⚡', count: stats.active || 0, color: '#0284c7', colId: 'all' },
+          { id: 'IN_REPAIR', label: 'En Reparación', icon: '⚙️', count: stats.in_repair || 0, color: '#2563eb', colId: 'COL_REPAIR' },
+          { id: 'WAITING_PARTS', label: 'Esperando Repuestos', icon: '⏳', count: stats.waiting_parts || 0, color: '#d97706', colId: 'COL_PARTS' },
+          { id: 'READY', label: 'Listas para Retiro', icon: '✅', count: stats.ready || 0, color: '#059669', colId: 'COL_READY' },
+          { id: 'URGENT', label: 'SLA Crítico (<12h)', icon: '🚨', count: stats.urgent_sla || 0, color: '#dc2626', colId: 'all' }
+        ].map(btn => {
+          const isActive = filter === btn.id;
+          return (
+            <button
+              key={btn.id}
+              type="button"
+              className={`pill-btn ${isActive ? 'active' : ''}`}
+              style={{
+                borderColor: isActive ? btn.color : undefined,
+                background: isActive ? `${btn.color}15` : undefined,
+                color: isActive ? btn.color : undefined
+              }}
+              onClick={() => {
+                setFilter(btn.id);
+                setMobileKanbanCol(btn.colId);
+              }}
+            >
+              <span>{btn.icon}</span>
+              <span>{btn.label}</span>
+              <span
+                className="pill-badge"
+                style={{
+                  background: isActive ? btn.color : undefined,
+                  color: isActive ? '#ffffff' : undefined
+                }}
+              >
+                {btn.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 4. Barra Secundaria: Búsqueda, Selector de Vista y Flechas de Navegación */}
+      <div className="secondary-controls-bar">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="search-box-modern">
+            <span>🔍</span>
+            <input
+              placeholder="Buscar por orden, cliente, serie, modelo o falla..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} className="search-clear-btn" title="Limpiar búsqueda">✕</button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="view-mode-pill-toggle">
+            <button
+              type="button"
+              className={`view-mode-item ${viewMode === 'KANBAN' ? 'active' : ''}`}
               onClick={() => setViewMode('KANBAN')}
-              title="Vista Tablero Kanban"
             >
               📊 Tablero
             </button>
             <button
-              className={`view-mode-btn ${viewMode === 'TABLE' ? 'active' : ''}`}
+              type="button"
+              className={`view-mode-item ${viewMode === 'TABLE' ? 'active' : ''}`}
               onClick={() => setViewMode('TABLE')}
-              title="Vista Tabla Compacta (Para alto volumen)"
             >
               📋 Tabla
             </button>
-            <button
-              className={`view-mode-btn ${viewMode === 'CARDS' ? 'active' : ''}`}
-              onClick={() => setViewMode('CARDS')}
-              title="Vista Cuadrícula de Tarjetas"
-            >
-              🗂️ Tarjetas
-            </button>
           </div>
-          <button className="secondary-action" onClick={load} title="Recargar órdenes">🔄 Refrescar</button>
+
+          {viewMode === 'KANBAN' && (
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                type="button"
+                className="board-arrow-btn"
+                title="Desplazar tablero a la izquierda"
+                onClick={() => {
+                  const b = document.getElementById('mywork-kanban-canvas');
+                  if (b) b.scrollBy({ left: -340, behavior: 'smooth' });
+                }}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="board-arrow-btn"
+                title="Desplazar tablero a la derecha"
+                onClick={() => {
+                  const b = document.getElementById('mywork-kanban-canvas');
+                  if (b) b.scrollBy({ left: 340, behavior: 'smooth' });
+                }}
+              >
+                ▶
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
-      <div className="summary-grid" style={{ marginBottom: 18 }}>
-        <div
-          className="summary-card"
-          onClick={() => setFilter('ALL')}
-          style={{ cursor: 'pointer', borderLeft: filter === 'ALL' ? '4px solid #3157d5' : undefined }}
-        >
-          <small>Total Asignadas</small>
-          <strong>{stats.total || orders.length}</strong>
-          <span>Todas mis órdenes activas</span>
+      {viewMode === 'KANBAN' && mobileKanbanCol !== 'all' && (
+        <div style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() => { setMobileKanbanCol('all'); setFilter('ALL'); }}
+            style={{ fontSize: 12, padding: '5px 14px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            ← Ver todas las columnas del taller
+          </button>
         </div>
-        <div
-          className="summary-card"
-          onClick={() => setFilter('IN_REPAIR')}
-          style={{ cursor: 'pointer', borderLeft: filter === 'IN_REPAIR' ? '4px solid #2563eb' : undefined }}
-        >
-          <small>En Reparación</small>
-          <strong style={{ color: '#2563eb' }}>{stats.in_repair || 0}</strong>
-          <span>En mi banco de trabajo</span>
-        </div>
-        <div
-          className="summary-card"
-          onClick={() => setFilter('WAITING_PARTS')}
-          style={{ cursor: 'pointer', borderLeft: filter === 'WAITING_PARTS' ? '4px solid #d97706' : undefined }}
-        >
-          <small>Esperando Repuestos</small>
-          <strong style={{ color: '#d97706' }}>{stats.waiting_parts || 0}</strong>
-          <span>Piezas pendientes</span>
-        </div>
-        <div
-          className="summary-card"
-          onClick={() => setFilter('READY')}
-          style={{ cursor: 'pointer', borderLeft: filter === 'READY' ? '4px solid #059669' : undefined }}
-        >
-          <small>Listos para Entrega</small>
-          <strong style={{ color: '#059669' }}>{stats.ready || 0}</strong>
-          <span>Trabajo finalizado</span>
-        </div>
-        <div
-          className="summary-card"
-          onClick={() => setFilter('URGENT')}
-          style={{
-            cursor: 'pointer',
-            borderLeft: filter === 'URGENT' ? '4px solid #dc2626' : undefined,
-            background: Number(stats.urgent_sla || 0) > 0 ? '#fef2f2' : undefined,
-            borderColor: Number(stats.urgent_sla || 0) > 0 ? '#fca5a5' : undefined
-          }}
-        >
-          <small style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : undefined }}>SLA Crítico (&lt;12h)</small>
-          <strong style={{ color: Number(stats.urgent_sla || 0) > 0 ? '#dc2626' : '#64748b' }}>{stats.urgent_sla || 0}</strong>
-          <span>Prioridad inmediata</span>
-        </div>
-      </div>
-
-      {/* Filter Tabs & Search Toolbar */}
-      <div className="toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div className="filter-group" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-          {[
-            ['ALL', `Todas (${orders.length})`],
-            ['ACTIVE', `Activas (${stats.active || 0})`],
-            ['IN_REPAIR', `En Reparación (${stats.in_repair || 0})`],
-            ['WAITING_PARTS', `Esperando Repuestos (${stats.waiting_parts || 0})`],
-            ['READY', `Listas para Entrega (${stats.ready || 0})`],
-            ['URGENT', `SLA Crítico (${stats.urgent_sla || 0})`]
-          ].map(([k, label]) => (
-            <button
-              key={k}
-              className={filter === k ? 'btn-filter active' : 'btn-filter'}
-              onClick={() => setFilter(k)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '20px',
-                border: filter === k ? '1px solid #3157d5' : '1px solid #cbd5e1',
-                background: filter === k ? '#eff6ff' : '#ffffff',
-                color: filter === k ? '#1d4ed8' : '#475569',
-                fontWeight: filter === k ? 700 : 500,
-                cursor: 'pointer',
-                fontSize: '12px',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div style={{ minWidth: '240px', flex: '1 1 240px', maxWidth: '380px' }}>
-          <input
-            type="text"
-            placeholder="🔍 Buscar por orden, equipo, cliente, serie..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* Main Content Area */}
       {loading ? (
@@ -8426,92 +8512,31 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
           </p>
         </div>
       ) : viewMode === 'KANBAN' ? (
-        /* ================= 1. KANBAN VIEW ================= */
+        /* ================= 1. KANBAN VIEW (ZERO OVERLAP CANVAS) ================= */
         <div>
-          {/* Quick-Jump Nav Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '14px 0 10px 0', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', paddingBottom: 2, flex: 1 }}>
-              <button
-                type="button"
-                className={`filter-pill ${mobileKanbanCol === 'all' ? 'active' : ''}`}
-                onClick={() => setMobileKanbanCol('all')}
-                style={{ fontSize: '11.5px', padding: '5px 12px', whiteSpace: 'nowrap' }}
-              >
-                Todas las Columnas ({filteredOrders.length})
-              </button>
-              {kanbanColumns.map(c => {
-                const count = filteredOrders.filter(o => c.statuses.includes(o.status)).length;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setMobileKanbanCol(c.id);
-                      const el = document.getElementById(`mywork-kcol-${c.id}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-                    }}
-                    style={{
-                      padding: '5px 11px',
-                      borderRadius: '20px',
-                      border: mobileKanbanCol === c.id ? `2px solid ${c.borderColor}` : '1px solid #cbd5e1',
-                      background: mobileKanbanCol === c.id ? `${c.borderColor}15` : '#fff',
-                      color: c.borderColor,
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <span>{c.title}</span>
-                    <span style={{ background: c.borderColor, color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <button
-                type="button"
-                title="Desplazar a la izquierda"
-                onClick={() => {
-                  const board = document.querySelector('.mywork-kanban');
-                  if (board) board.scrollBy({ left: -340, behavior: 'smooth' });
-                }}
-                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                title="Desplazar a la derecha"
-                onClick={() => {
-                  const board = document.querySelector('.mywork-kanban');
-                  if (board) board.scrollBy({ left: 340, behavior: 'smooth' });
-                }}
-                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
-              >
-                ▶
-              </button>
-            </div>
-          </div>
-
-          <div className="mywork-kanban">
+          <div className="kanban-board-canvas" id="mywork-kanban-canvas">
             {kanbanColumns
               .filter(col => mobileKanbanCol === 'all' || mobileKanbanCol === col.id)
               .map(col => {
                 const colOrders = filteredOrders.filter(o => col.statuses.includes(o.status));
                 return (
-                  <div className="kanban-column" key={col.id} id={`mywork-kcol-${col.id}`} style={{ borderTop: `4px solid ${col.borderColor}` }}>
-                    <div className="kanban-col-head">
-                      <span>{col.title}</span>
-                      <span className="kanban-badge">{colOrders.length}</span>
+                  <div
+                    className={`kanban-column ${mobileKanbanCol !== 'all' ? 'single-focus' : ''}`}
+                    key={col.id}
+                    id={`mywork-kcol-${col.id}`}
+                  >
+                    <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.borderColor}`, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="col-dot" style={{ background: col.borderColor }} />
+                        <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
+                          {col.title.replace(/^[0-9]\.\s*/, '')}
+                        </span>
+                      </div>
+                      <span className="kanban-badge" style={{ background: `${col.borderColor}18`, color: col.borderColor, fontWeight: 700, borderRadius: 12, padding: '2px 8px', fontSize: 11 }}>
+                        {colOrders.length}
+                      </span>
                     </div>
-                    <div className="kanban-col-body">
+                    <div className="kanban-col-body col-scroll">
                       {colOrders.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '30px 10px', color: '#94a3b8', fontSize: '12px' }}>
                           Sin órdenes aquí
@@ -8994,18 +9019,22 @@ function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Respons
 
   return (
     <>
-      <section className="welcome">
-        <div>
-          <h2>{title}</h2>
-          <p>{global ? 'Supervisión en tiempo real de tiendas y rentabilidad.' : `FixmeTiendas · Sesión activa con rol ${role}.`}</p>
-        </div>
-        {!global && ['MANAGER', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(role) && (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="secondary-action" onClick={() => go('pos')}>🛒 Nueva Venta</button>
-            <button className="primary-action" onClick={() => go('products')}>＋ Nuevo Producto</button>
-          </div>
-        )}
-      </section>
+      <PageHeader
+        title={title}
+        description={global ? 'Supervisión en tiempo real de empresas y rentabilidad' : `Fixme Tiendas · Sesión activa (${role.replace('_', ' ')})`}
+        actions={
+          !global && ['MANAGER', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(role) ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="primary-action" onClick={() => go('pos')}>
+                🛒 Nueva Venta
+              </button>
+              <button type="button" className="secondary-action" onClick={() => go('products')}>
+                ＋ Producto
+              </button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {financial && (
         <div className="finance-grid">
@@ -12462,158 +12491,175 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       </form>
     </section>}
 
-    <section className="panel">
-      <div className="catalog-toolbar">
-        <div>
-          <h3>Órdenes Registradas</h3>
-          <p>{filtered.length} órdenes encontradas</p>
-        </div>
-        <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+    <PageHeader
+      title="Órdenes de Servicio"
+      description="Recepción, presupuestos, flujo técnico y entregas de taller"
+      actions={
+        <button
+          type="button"
+          className="primary-action"
+          onClick={() => setShowCreate(!showCreate)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          ＋ Nueva Orden
+        </button>
+      }
+    />
+
+    <section className="panel" style={{ padding: '18px 20px', marginTop: 12 }}>
+      {/* 1. Botonsitos Principales de Filtro y Estado */}
+      <div className="filter-pills-container">
+        {[
+          { id: 'ALL', label: 'Todas las órdenes', icon: '📋', count: orderCounts.total || r.length, color: '#2563eb' },
+          { id: 'DIAGNOSIS', label: '1. Diagnóstico', icon: '🔍', count: (orderCounts.diagnosis || 0) + (orderCounts.open || 0), color: '#2563eb' },
+          { id: 'QUOTED', label: '2. Cotizadas', icon: '💰', count: orderCounts.quoted || 0, color: '#d97706' },
+          { id: 'WAITING_PARTS', label: '3. Repuestos', icon: '⏳', count: orderCounts.waiting_parts || 0, color: '#ea580c' },
+          { id: 'IN_PROGRESS', label: '4. En Reparación', icon: '⚙️', count: (orderCounts.repair || 0) + (orderCounts.testing || 0), color: '#7c3aed' },
+          { id: 'LISTO_ENTREGA', label: '5. Listas Retiro', icon: '✅', count: orderCounts.ready || 0, color: '#059669' },
+          { id: 'DELIVERED', label: '6. Pagadas / Retiradas', icon: '🤝', count: orderCounts.delivered || 0, color: '#475569' }
+        ].map(btn => {
+          const isActive = filterStatus === btn.id;
+          return (
+            <button
+              key={btn.id}
+              type="button"
+              className={`pill-btn ${isActive ? 'active' : ''}`}
+              onClick={() => {
+                setFilterStatus(btn.id);
+                if (btn.id === 'ALL') {
+                  setMobileKanbanCol('all');
+                } else {
+                  const colMap: Record<string, string> = {
+                    DIAGNOSIS: 'diag',
+                    QUOTED: 'quoted',
+                    WAITING_PARTS: 'parts',
+                    IN_PROGRESS: 'in_progress',
+                    LISTO_ENTREGA: 'ready',
+                    DELIVERED: 'delivered'
+                  };
+                  if (colMap[btn.id]) {
+                    setMobileKanbanCol(colMap[btn.id]);
+                  }
+                }
+              }}
+              style={{
+                borderColor: isActive ? btn.color : undefined,
+                background: isActive ? `${btn.color}15` : undefined,
+                color: isActive ? btn.color : undefined
+              }}
+            >
+              <span>{btn.icon}</span>
+              <span>{btn.label}</span>
+              <span
+                className="pill-badge"
+                style={{
+                  background: isActive ? btn.color : undefined,
+                  color: isActive ? '#fff' : undefined
+                }}
+              >
+                {btn.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 2. Barra de Búsqueda, Filtro de Técnico y Selector de Vista */}
+      <div className="secondary-controls-bar">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <select
             value={filterTech}
-            onChange={e=>setFilterTech(e.target.value)}
-            style={{fontSize:'13px',padding:'8px 12px',borderRadius:'8px',border:'1px solid #cbd5e1'}}
+            onChange={e => setFilterTech(e.target.value)}
+            className="filter-select-modern"
           >
             <option value="ALL">👨‍🔧 Todos los técnicos ({r.length})</option>
-            {techs.map(t=>(
+            {techs.map(t => (
               <option key={t.id} value={t.id}>
-                👨‍🔧 {t.fullName} ({r.filter(o=>o.assigned_technician_id===t.id).length})
+                👨‍🔧 {t.fullName} ({r.filter(o => o.assigned_technician_id === t.id).length})
               </option>
             ))}
-            <option value="UNASSIGNED">Sin técnico asignado ({r.filter(o=>!o.assigned_technician_id).length})</option>
+            <option value="UNASSIGNED">Sin técnico asignado ({r.filter(o => !o.assigned_technician_id).length})</option>
           </select>
 
-          <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
-            <button
-              type="button"
-              className={`toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`}
-              onClick={() => setViewMode('kanban')}
-              style={{fontSize:'12px',padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:'6px'}}
-            >
-              📊 Tablero Kanban
-            </button>
-            <button
-              type="button"
-              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
-              style={{fontSize:'12px',padding:'7px 12px',display:'inline-flex',alignItems:'center',gap:'6px'}}
-            >
-              📋 Lista Detallada
-            </button>
-          </div>
-
-          <div className="search-box">
+          <div className="search-box-modern">
             <span>🔍</span>
-            <input placeholder="Buscar orden, cliente, técnico, modelo o serie..." value={search} onChange={e=>setSearch(e.target.value)}/>
+            <input
+              placeholder="Buscar orden, cliente, serie, modelo..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} className="search-clear-btn" title="Limpiar búsqueda">✕</button>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="filter-pills">
-        {[
-          ['ALL','Todas'],
-          ['DIAGNOSIS','En Diagnóstico'],
-          ['QUOTED','Cotizadas (Aprobación)'],
-          ['WAITING_PARTS','Esperando Repuestos'],
-          ['IN_PROGRESS','En Reparación & Pruebas'],
-          ['LISTO_ENTREGA','Listas para Retiro'],
-          ['DELIVERED','Pagadas / Entregadas'],
-          ['CANCELLED','Canceladas']
-        ].map(([k,l])=>(
-          <button key={k} className={`filter-pill ${filterStatus===k?'active':''}`} onClick={()=>setFilterStatus(k)}>
-            {l}
-          </button>
-        ))}
-      </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="view-mode-pill-toggle">
+            <button
+              type="button"
+              className={`view-mode-item ${viewMode === 'kanban' ? 'active' : ''}`}
+              onClick={() => setViewMode('kanban')}
+            >
+              📊 Tablero
+            </button>
+            <button
+              type="button"
+              className={`view-mode-item ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+            >
+              📋 Lista
+            </button>
+          </div>
 
-      {viewMode === 'kanban' ? (
-        <div>
-          {/* COLUMN QUICK-JUMP NAVIGATOR */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '14px 0 10px 0', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflowX: 'auto', paddingBottom: 2, flex: 1 }}>
+          {viewMode === 'kanban' && (
+            <div style={{ display: 'flex', gap: 4 }}>
               <button
                 type="button"
-                className={`filter-pill ${mobileKanbanCol === 'all' ? 'active' : ''}`}
-                onClick={() => setMobileKanbanCol('all')}
-                style={{ fontSize: '11.5px', padding: '5px 12px', whiteSpace: 'nowrap' }}
-              >
-                Todas las Columnas ({orderCounts.total || filtered.length})
-              </button>
-              {[
-                { id: 'diag', label: '🔍 1. Diagnóstico', color: '#2563eb', statuses: ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'] },
-                { id: 'quoted', label: '💰 2. Cotizadas', color: '#d97706', statuses: ['QUOTED', 'COTIZADO'] },
-                { id: 'parts', label: '⏳ 3. Repuestos', color: '#ea580c', statuses: ['WAITING_PARTS', 'ESPERANDO_REPUESTOS'] },
-                { id: 'in_progress', label: '⚙️ 4. Reparación', color: '#7c3aed', statuses: ['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION', 'TESTING', 'EN_PRUEBAS', 'PRUEBAS'] },
-                { id: 'ready', label: '✅ 5. Listas', color: '#059669', statuses: ['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'] },
-                { id: 'delivered', label: '🤝 6. Pagadas', color: '#475569', statuses: ['DELIVERED', 'PAGADO', 'ENTREGADO'] }
-              ].map(c => {
-                const sCount = c.id === 'diag' ? ((orderCounts.diagnosis || 0) + (orderCounts.open || 0)) :
-                               c.id === 'quoted' ? (orderCounts.quoted || 0) :
-                               c.id === 'parts' ? (orderCounts.waiting_parts || 0) :
-                               c.id === 'in_progress' ? ((orderCounts.repair || 0) + (orderCounts.testing || 0)) :
-                               c.id === 'ready' ? (orderCounts.ready || 0) :
-                               c.id === 'delivered' ? (orderCounts.delivered || 0) : 0;
-                const count = sCount > 0 ? sCount : filtered.filter(o => c.statuses.includes(o.status)).length;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setMobileKanbanCol(c.id);
-                      const el = document.getElementById(`kcol-${c.id}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-                    }}
-                    style={{
-                      padding: '5px 11px',
-                      borderRadius: '20px',
-                      border: mobileKanbanCol === c.id ? `2px solid ${c.color}` : '1px solid #cbd5e1',
-                      background: mobileKanbanCol === c.id ? `${c.color}15` : '#fff',
-                      color: c.color,
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <span>{c.label}</span>
-                    <span style={{ background: c.color, color: '#fff', borderRadius: '10px', padding: '1px 6px', fontSize: '10px' }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <button
-                type="button"
-                title="Desplazar a la izquierda"
+                className="board-arrow-btn"
+                title="Desplazar tablero a la izquierda"
                 onClick={() => {
-                  const board = document.querySelector('.mywork-kanban');
-                  if (board) board.scrollBy({ left: -340, behavior: 'smooth' });
+                  const b = document.querySelector('.kanban-board-canvas');
+                  if (b) b.scrollBy({ left: -340, behavior: 'smooth' });
                 }}
-                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
               >
                 ◀
               </button>
               <button
                 type="button"
-                title="Desplazar a la derecha"
+                className="board-arrow-btn"
+                title="Desplazar tablero a la derecha"
                 onClick={() => {
-                  const board = document.querySelector('.mywork-kanban');
-                  if (board) board.scrollBy({ left: 340, behavior: 'smooth' });
+                  const b = document.querySelector('.kanban-board-canvas');
+                  if (b) b.scrollBy({ left: 340, behavior: 'smooth' });
                 }}
-                style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
               >
                 ▶
               </button>
             </div>
-          </div>
+          )}
+        </div>
+      </div>
 
-          <div className="mywork-kanban" style={{ marginTop: '8px' }}>
+      {viewMode === 'kanban' && mobileKanbanCol !== 'all' && (
+        <div style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="secondary-action"
+            onClick={() => { setMobileKanbanCol('all'); setFilterStatus('ALL'); }}
+            style={{ fontSize: 12, padding: '5px 14px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            ← Ver todas las columnas del taller
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            Filtro de columna activo
+          </span>
+        </div>
+      )}
+
+      {viewMode === 'kanban' ? (
+        <div>
+          <div className="kanban-board-canvas">
             {[
               {
                 id: 'diag',
@@ -12666,13 +12712,22 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
             ]
             .filter(col => mobileKanbanCol === 'all' || mobileKanbanCol === col.id)
             .map(col => (
-              <div className="kanban-column" key={col.id} id={`kcol-${col.id}`}>
-                <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.color}` }}>
-                  <div>
-                    <div style={{ fontWeight: 800, color: col.color, fontSize: '13px' }}>{col.title}</div>
-                    <small style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{col.subtitle}</small>
+              <div
+                className={`kanban-column ${mobileKanbanCol !== 'all' ? 'single-focus' : ''}`}
+                key={col.id}
+                id={`kcol-${col.id}`}
+              >
+                <div className="kanban-col-head" style={{ borderTop: `3px solid ${col.color}`, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="col-dot" style={{ background: col.color }} />
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
+                        {col.title.replace(/^[0-9]\.\s*/, '')}
+                      </div>
+                      <small style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{col.subtitle}</small>
+                    </div>
                   </div>
-                  <span className="kanban-badge" style={{ background: `${col.color}15`, color: col.color }}>
+                  <span className="kanban-badge" style={{ background: `${col.color}18`, color: col.color, fontWeight: 800, padding: '2px 8px', borderRadius: 12, fontSize: 11 }}>
                     {(() => {
                       const sCount = col.id === 'diag' ? ((orderCounts.diagnosis || 0) + (orderCounts.open || 0)) :
                                      col.id === 'quoted' ? (orderCounts.quoted || 0) :
@@ -12685,7 +12740,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                   </span>
                 </div>
 
-                <div className="kanban-col-body">
+                <div className="kanban-col-body col-scroll">
                   {busy && r.length === 0 ? (
                     <>
                       <div className="kanban-skeleton-card">
