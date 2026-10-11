@@ -817,49 +817,163 @@ export function WorkOrderReceiptModal({
 // ==========================================================================
 export function BarcodeTagsModal({
   products,
-  onClose
+  onClose,
+  storeName = 'FIXME TIENDAS'
 }: {
   products: Any[];
   onClose: () => void;
+  storeName?: string;
 }) {
+  const [selectedId, setSelectedId] = React.useState<string>('ALL');
+  const [copies, setCopies] = React.useState<number>(1);
+  const [format, setFormat] = React.useState<'50x30' | '58mm' | '80mm'>('50x30');
+
+  const targetProducts = selectedId === 'ALL'
+    ? products
+    : products.filter(p => (p.id || p.sku) === selectedId);
+
+  // Generate label items based on copies
+  const labelItems: Any[] = [];
+  targetProducts.forEach(p => {
+    const qty = Math.max(1, Math.min(100, copies));
+    for (let i = 0; i < qty; i++) {
+      labelItems.push({ ...p, copyIndex: i });
+    }
+  });
+
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card" style={{ maxWidth: '750px' }}>
+      <div className="modal-card" style={{ maxWidth: '820px' }}>
         <div className="modal-head no-print">
-          <h3>🏷️ Etiquetas de Códigos de Barras</h3>
+          <h3>🏷️ Generador e Impresión de Etiquetas Térmicas</h3>
           <button className="close-button" onClick={onClose}>✕</button>
         </div>
 
-        <div id="printable-barcodes">
-          <div className="barcode-print-grid">
-            {products.map(p => (
-              <div className="barcode-tag-card" key={p.id}>
-                <div className="barcode-tag-title">{p.name}</div>
-                <div className="barcode-tag-price">${Number(p.price).toFixed(2)}</div>
-                <div className="barcode-bars" />
-                <div style={{ fontSize: '11px', marginTop: '4px' }}>{p.barcode || p.sku}</div>
-              </div>
-            ))}
+        {/* Controls */}
+        <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, marginBottom: 16, background: 'var(--surface-subtle)', padding: 12, borderRadius: 10 }}>
+          <label style={{ margin: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Producto a imprimir:</span>
+            <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={{ padding: '6px 10px', fontSize: 13, width: '100%', marginTop: 4 }}>
+              <option value="ALL">-- Todos los productos ({products.length}) --</option>
+              {products.map(p => (
+                <option key={p.id || p.sku} value={p.id || p.sku}>
+                  {p.name || p.product_name} - ${Number(p.price || p.regular_price || 0).toFixed(2)} ({p.sku || 'S/N'})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ margin: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Copias por artículo:</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={copies}
+              onChange={e => setCopies(Math.max(1, Number(e.target.value) || 1))}
+              style={{ padding: '6px 10px', fontSize: 13, width: '100%', marginTop: 4 }}
+            />
+          </label>
+
+          <label style={{ margin: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Formato Térmico:</span>
+            <select value={format} onChange={e => setFormat(e.target.value as any)} style={{ padding: '6px 10px', fontSize: 13, width: '100%', marginTop: 4 }}>
+              <option value="50x30">50 x 30 mm (Adhesiva)</option>
+              <option value="58mm">58 mm (Rollo continuo)</option>
+              <option value="80mm">80 mm (Rollo POS)</option>
+            </select>
+          </label>
+        </div>
+
+        {/* Printable Area */}
+        <div id="printable-barcodes" style={{ maxHeight: '420px', overflowY: 'auto', padding: '10px 4px' }}>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: format === '50x30' ? '8px' : '14px',
+            justifyContent: 'center'
+          }}>
+            {labelItems.map((p, idx) => {
+              const code = p.barcode || p.sku || '000000';
+              const price = Number(p.price || p.regular_price || 0).toFixed(2);
+              const name = p.name || p.product_name || 'Producto';
+
+              return (
+                <div
+                  key={`${p.id || p.sku}-${idx}`}
+                  style={{
+                    width: format === '50x30' ? '190px' : format === '58mm' ? '210px' : '260px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    textAlign: 'center',
+                    background: '#ffffff',
+                    color: '#000000',
+                    fontFamily: 'monospace',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                  }}
+                >
+                  <div style={{ fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700, marginBottom: 2 }}>
+                    {storeName}
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 4 }}>
+                    {name}
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', marginBottom: 4 }}>
+                    ${price}
+                  </div>
+
+                  {/* SVG Code128 pattern */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 28, margin: '2px 0' }}>
+                    <svg width="140" height="26" viewBox="0 0 140 26">
+                      {Array.from({ length: 35 }).map((_, i) => {
+                        const width = ((i * 7 + (code.charCodeAt(i % code.length) || 3)) % 3) + 1;
+                        const x = i * 4;
+                        return (
+                          <rect
+                            key={i}
+                            x={x}
+                            y="0"
+                            width={width}
+                            height="26"
+                            fill="#000000"
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+
+                  <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1px', marginTop: 2 }}>
+                    {code}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="modal-actions no-print" style={{ marginTop: '16px' }}>
-          <button
-            type="button"
-            className="btn-primary-sm"
-            style={{ padding: '12px' }}
-            onClick={() => printTicketElement('printable-barcodes')}
-          >
-            🖨️ Imprimir Todas las Etiquetas
-          </button>
-          <button
-            type="button"
-            className="btn-secondary-sm"
-            style={{ padding: '12px' }}
-            onClick={onClose}
-          >
-            Cerrar
-          </button>
+        <div className="modal-actions no-print" style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+            Total a imprimir: <strong>{labelItems.length} etiquetas</strong>
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="primary-action"
+              style={{ padding: '8px 16px' }}
+              onClick={() => printTicketElement('printable-barcodes')}
+            >
+              🖨️ Imprimir {labelItems.length} Etiquetas
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              style={{ padding: '8px 16px' }}
+              onClick={onClose}
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

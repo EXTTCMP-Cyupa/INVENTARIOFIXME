@@ -1,0 +1,1037 @@
+/**
+ * ===================================================
+ * FIXME TIENDAS — Design System (visual layer only)
+ * Import AFTER style.css; overrides & adds polish.
+ * ===================================================
+ */
+
+/* ── 1. UNIFIED TOKEN LAYER ──────────────────────── */
+:root {
+  /* Superficies */
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f9;
+  --surface-subtle: #f7f8fc;
+  --surface-muted: #eef0f6;
+
+  /* Bordes */
+  --border: #e3e6ef;
+  --border-strong: #cfd5e3;
+
+  /* Texto (contraste WCAG AA) */
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+
+  /* Alias para variables legacy que el código existente usa */
+  --text-heading: var(--text);
+  --text-body: var(--text-secondary);
+  --text-placeholder: var(--text-subtle);
+
+  /* Marca */
+  --primary: #2f54eb;
+  --primary-hover: #1e40c8;
+  --primary-soft: #eaefff;
+  --primary-fg: #ffffff;
+  --accent: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --accent-light: var(--primary-soft);
+  --accent-border: #c4d0fc;
+
+  /* Semánticos */
+  --success: #15803d;
+  --success-hover: #126b34;
+  --success-light: #e7f6ec;
+  --success-dark: #0f5a2c;
+  --success-subtle: #d1fae5;
+  --success-border: #a7f3d0;
+  --success-soft: #e7f6ec;
+
+  --warning: #b45309;
+  --warning-hover: #923f05;
+  --warning-light: #fdf1dc;
+  --warning-dark: #7c2d12;
+  --warning-subtle: #fef3c7;
+  --warning-border: #fde68a;
+  --warning-soft: #fdf1dc;
+
+  --danger: #b91c1c;
+  --danger-hover: #991313;
+  --danger-light: #fdecec;
+  --danger-dark: #7f1d1d;
+  --danger-subtle: #fee2e2;
+  --danger-border: #fca5a5;
+  --danger-soft: #fdecec;
+
+  --info: #0369a1;
+  --info-light: #e3f2fb;
+  --info-soft: #e3f2fb;
+
+  /* Forma */
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  /* alias legacy */
+  --r-md: 8px;
+  --r-2xl: 20px;
+  --r-pill: 9999px;
+
+  /* Sombras */
+  --shadow-1: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-pop: 0 12px 32px rgba(15,23,42,.14);
+  --shadow-xs: 0 1px 3px rgba(15,23,42,.04);
+  --shadow-sm: 0 2px 6px rgba(15,23,42,.06);
+  --shadow-md: 0 4px 14px rgba(15,23,42,.08);
+  --shadow-lg: 0 8px 26px rgba(15,23,42,.10);
+  --shadow-xl: 0 14px 42px rgba(15,23,42,.13);
+  --shadow-focus: 0 0 0 3px rgba(47,84,235,.22);
+  --ring: 0 0 0 3px rgba(47,84,235,.22);
+
+  /* Controles */
+  --h-control: 36px;
+  --h-control-sm: 30px;
+  --h-control-lg: 42px;
+
+  /* Tipografía */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* WhatsApp */
+  --wa-green: #25d366;
+  --wa-hover: #1fbb5b;
+
+  /* Ease */
+  --ease: cubic-bezier(0.16,1,0.3,1);
+  --dur-fast: .15s;
+  --dur-normal: .2s;
+  --dur-slow: .35s;
+}
+
+/* ── DARK THEME ──────────────────────────────────── */
+[data-theme="dark"] {
+  --bg: #0b1020;
+  --surface: #121829;
+  --surface-2: #0f1527;
+  --surface-subtle: #10172b;
+  --surface-muted: #1a2238;
+  --border: #232b42;
+  --border-strong: #33405f;
+  --text: #e6e9f5;
+  --text-secondary: #b3bbd3;
+  --text-muted: #8d97b3;
+  --text-subtle: #6b7490;
+  --primary: #4f72f5;
+  --primary-hover: #6989f8;
+  --primary-soft: #1b2750;
+  --primary-fg: #0b1020;
+  --accent: #4f72f5;
+  --accent-light: #1b2750;
+  --success: #10b981;
+  --success-light: #10291a;
+  --warning: #f59e0b;
+  --warning-light: #33240c;
+  --danger: #ef4444;
+  --danger-light: #33141a;
+  --danger-soft: #33141a;
+  --info: #38bdf8;
+  --info-light: #0e2433;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.25);
+  --shadow-pop: 0 12px 32px rgba(0,0,0,.50);
+}
+
+/* ── 2. BASE RESET ───────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+/* Tabular-nums for money/numbers */
+.num, .money, td.num, th.num { font-variant-numeric: tabular-nums; }
+
+/* Focus visible only on keyboard navigation */
+:focus { outline: none; }
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r);
+  z-index: 1;
+}
+
+/* ── 3. TOPBAR FIX (evita que el avatar se superponga) ── */
+.app-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  height: 52px !important;
+  margin-bottom: 16px !important;
+  padding: 0 2px !important;
+  flex-shrink: 0 !important;
+  min-width: 0 !important;
+}
+.app-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important; /* never wraps or overlaps */
+  position: relative !important;
+}
+.header-actions > .header-icon,
+.header-actions > .icon-btn,
+.header-actions > .header-avatar {
+  position: static !important;
+  flex-shrink: 0 !important;
+}
+.header-quick-access-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+.header-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: var(--h-control) !important;
+  padding: 0 10px !important;
+  border-radius: var(--r) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  transition: background var(--dur-fast) !important;
+}
+.header-icon:hover {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+}
+.header-avatar {
+  width: var(--h-control) !important;
+  height: var(--h-control) !important;
+  border-radius: 50% !important;
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  display: grid !important;
+  place-items: center !important;
+  flex-shrink: 0 !important;
+  position: static !important;
+  border: 2px solid var(--border) !important;
+}
+
+/* ── 4. BUTTONS — unified hierarchy ─────────────── */
+.primary-action,
+.secondary-action,
+.ghost-action,
+.danger-action {
+  font-family: var(--font) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  height: var(--h-control) !important;
+  padding: 0 14px !important;
+  border-radius: var(--r) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition: background var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast) !important;
+  text-decoration: none !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important; /* remove old blue glow */
+}
+.primary-action {
+  background: var(--primary) !important;
+  color: var(--primary-fg) !important;
+  border: 1px solid transparent !important;
+}
+.primary-action:hover:not(:disabled) {
+  background: var(--primary-hover) !important;
+  transform: none !important; /* remove translateY(-1px) */
+}
+/* FIXED: secondary-action no longer has blue background */
+.secondary-action {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+.secondary-action:hover:not(:disabled) {
+  background: var(--surface-2) !important;
+  transform: none !important;
+}
+.ghost-action {
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid transparent !important;
+}
+.ghost-action:hover:not(:disabled) { background: var(--surface-2) !important; }
+.danger-action {
+  background: var(--danger) !important;
+  color: #fff !important;
+  border: 1px solid transparent !important;
+}
+.danger-action:hover:not(:disabled) { background: var(--danger-hover) !important; }
+button:disabled, .primary-action:disabled, .secondary-action:disabled {
+  opacity: .5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* Small icon-only button */
+.icon-btn {
+  width: var(--h-control) !important;
+  padding: 0 !important;
+  border-radius: var(--r) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text-secondary) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  height: var(--h-control) !important;
+  transition: background var(--dur-fast), color var(--dur-fast) !important;
+  flex-shrink: 0 !important;
+}
+.icon-btn:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+
+/* btn-sm legacy */
+.btn-sm {
+  height: var(--h-control-sm) !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  border-radius: var(--r-sm) !important;
+}
+
+/* ── 5. INPUTS & SELECTS — uniform 36px ─────────── */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea {
+  font-family: var(--font) !important;
+  font-size: 14px !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--r) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast) !important;
+  max-width: 100% !important;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select {
+  height: var(--h-control) !important;
+  padding: 0 12px !important;
+}
+textarea {
+  height: auto !important;
+  padding: 8px 12px !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: var(--ring) !important;
+  outline: none !important;
+}
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  padding-right: 32px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  cursor: pointer !important;
+}
+
+/* Modern search box (keeps existing .search-box-modern too) */
+.search-box {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--r) !important;
+  background: var(--surface) !important;
+  padding: 0 10px !important;
+  height: var(--h-control) !important;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast) !important;
+}
+.search-box:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: var(--ring) !important;
+}
+.search-box input {
+  border: none !important;
+  box-shadow: none !important;
+  height: auto !important;
+  padding: 0 6px !important;
+  font-size: 13px !important;
+  background: transparent !important;
+  flex: 1 !important;
+}
+.search-box input:focus { box-shadow: none !important; }
+.search-box span { color: var(--text-subtle) !important; font-size: 14px !important; }
+
+/* ── 6. PANELS & CARDS ───────────────────────────── */
+.panel, .card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+.panel { padding: 20px !important; margin-bottom: 16px !important; }
+.panel h3 { font-size: 15px !important; font-weight: 600 !important; margin: 0 !important; }
+
+/* KPI cards (legacy .kpi) */
+.kpi {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-1) !important;
+  padding: 16px !important;
+}
+.kpi small { color: var(--text-muted) !important; font-size: 12px !important; font-weight: 500 !important; }
+.kpi strong {
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -.015em !important;
+  margin: 6px 0 3px !important;
+  color: var(--text) !important;
+}
+.kpi span { color: var(--text-subtle) !important; font-size: 11px !important; }
+
+/* ── 7. TABLES — clean, no uppercase headers ─────── */
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-subtle) !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  text-transform: none !important;        /* remove UPPERCASE */
+  letter-spacing: 0 !important;
+  white-space: nowrap;
+}
+td {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  vertical-align: middle !important;
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+}
+tbody tr:hover { background: var(--surface-subtle) !important; }
+td.num, th.num { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+/* ── 8. STATUS BADGES — dot + text, NO emojis ────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.badge.success { background: var(--success-light); color: var(--success); }
+.badge.warning { background: var(--warning-light); color: var(--warning); }
+.badge.danger  { background: var(--danger-light);  color: var(--danger); }
+.badge.info    { background: var(--info-light);    color: var(--info); }
+.badge.neutral { background: var(--surface-muted); color: var(--text-secondary); }
+.badge.brand   { background: var(--primary-soft);  color: var(--primary); }
+
+/* Legacy status-badge compatibility */
+.status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 3px 9px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+}
+
+/* ── 9. TYPOGRAPHY CLEANUP ───────────────────────── */
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -.015em; margin: 0; color: var(--text); }
+h2 { font-size: 18px; font-weight: 600; margin: 0; color: var(--text); }
+h3 { font-size: 15px; font-weight: 600; margin: 0; color: var(--text); }
+h4 { font-size: 13px; font-weight: 600; margin: 0; color: var(--text); }
+
+/* Kill eyebrow uppercase labels */
+.eyebrow {
+  font-size: 11px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  text-transform: none !important; /* No MAYÚSCULAS */
+}
+
+/* ── 10. SHELL LAYOUT ────────────────────────────── */
+.shell {
+  display: flex !important;
+  min-height: 100dvh !important;
+  background: var(--bg) !important;
+}
+.shell main {
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow-x: clip !important;
+  padding: 0 24px 40px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+@media (max-width: 768px) {
+  .shell main { padding: 0 12px 36px !important; }
+}
+
+.header-quick-access-dropdown {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: auto !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-pop) !important;
+  width: 230px !important;
+  z-index: 1000 !important;
+  padding: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+}
+.qa-menu-btn {
+  background: transparent !important;
+  border: none !important;
+  border-radius: var(--r) !important;
+  padding: 9px 10px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+  width: 100% !important;
+  text-align: left !important;
+  transition: background var(--dur-fast) !important;
+  color: var(--text) !important;
+}
+.qa-menu-btn:hover { background: var(--surface-2) !important; }
+.qa-menu-btn .qa-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.qa-menu-btn .qa-label { font-size: 13px; font-weight: 500; line-height: 1.3; color: var(--text); }
+.qa-menu-btn .qa-hint { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* ── 12. FILTER PILLS POLISH ─────────────────────── */
+.filter-pills-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  height: var(--h-control);
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur-fast);
+  white-space: nowrap;
+}
+.pill-btn:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.pill-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+.pill-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pill-btn.active .pill-badge { background: var(--primary); color: var(--primary-fg); }
+
+/* ── 13. KANBAN FIX: ensure no horizontal overflow ── */
+.kanban-board-canvas {
+  scrollbar-color: var(--border-strong) transparent !important;
+}
+.kanban-board-canvas::-webkit-scrollbar { height: 6px !important; }
+.kanban-board-canvas::-webkit-scrollbar-thumb {
+  background: var(--border-strong) !important;
+  border-radius: 3px !important;
+}
+.kanban-board-canvas .kanban-column {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+
+/* ── 14. TRIAL BANNER ────────────────────────────── */
+.trial-top-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px;
+  background: var(--warning-light);
+  border: 1px solid var(--warning-border, #fde68a);
+  border-radius: var(--r-lg);
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--warning);
+  flex-wrap: wrap;
+}
+.trial-banner-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #fff;
+  margin-right: 8px;
+}
+.trial-banner-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.trial-btn-upgrade {
+  height: var(--h-control-sm);
+  padding: 0 12px;
+  border-radius: var(--r);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.trial-btn-wa {
+  height: var(--h-control-sm);
+  padding: 0 12px;
+  border-radius: var(--r);
+  background: var(--wa-green);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── 15. EMPTY STATE ─────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  text-align: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  color: var(--text-subtle);
+  margin-bottom: 6px;
+}
+.empty-state h3 { font-size: 15px; color: var(--text-secondary); margin: 0; }
+.empty-state p { font-size: 13px; margin: 4px 0 0; }
+
+/* ── 16. SKELETON ────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-muted) 50%, var(--surface-2) 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: var(--r);
+}
+.skeleton-box {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-muted) 50%, var(--surface-2) 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: var(--r);
+}
+
+/* ── 17. MODAL SYSTEM POLISH ─────────────────────── */
+.modal-card {
+  border-radius: var(--r-xl) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-pop) !important;
+}
+.modal-card input, .modal-card select, .modal-card textarea {
+  background: var(--surface-subtle) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+.modal-card input:focus, .modal-card select:focus, .modal-card textarea:focus {
+  background: var(--surface) !important;
+  border-color: var(--primary) !important;
+  box-shadow: var(--ring) !important;
+}
+
+/* ── 18. SIDEBAR COLLAPSED mode (72px) ──────────── */
+.modern-sidebar.collapsed {
+  width: 72px !important;
+  flex: 0 0 72px !important;
+}
+.modern-sidebar.expanded {
+  width: 248px !important;
+  flex: 0 0 248px !important;
+}
+/* When collapsed, hide text labels with display:none */
+.modern-sidebar.collapsed .sb-label,
+.modern-sidebar.collapsed .workspace-name,
+.modern-sidebar.collapsed .workspace-branch,
+.modern-sidebar.collapsed .workspace-chevron,
+.modern-sidebar.collapsed .user-text-info,
+.modern-sidebar.collapsed .brand-title,
+.modern-sidebar.collapsed .nav-btn-label,
+.modern-sidebar.collapsed .nav-btn-badge {
+  display: none !important;
+}
+/* Collapsed: brand header and expand button stay at the top */
+.modern-sidebar.collapsed .sidebar-brand-header {
+  height: 48px !important;
+  min-height: 48px !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+.modern-sidebar.collapsed .brand-logo-wrap {
+  justify-content: center !important;
+}
+.modern-sidebar.collapsed .sidebar-collapse-btn {
+  position: static !important;
+  transform: none !important;
+  margin: 0 auto !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+  transition: all var(--dur-fast) !important;
+}
+.modern-sidebar.collapsed .sidebar-collapse-btn:hover {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+}
+.modern-sidebar.collapsed .collapsed-brand-toggle {
+  position: relative !important;
+}
+.modern-sidebar.collapsed .collapsed-brand-toggle .expand-panel-icon {
+  display: none !important;
+}
+.modern-sidebar.collapsed .collapsed-brand-toggle:hover .brand-icon-box {
+  display: none !important;
+}
+.modern-sidebar.collapsed .collapsed-brand-toggle:hover .expand-panel-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--primary) !important;
+}
+/* Collapsed: workspace badge centered */
+.modern-sidebar.collapsed .workspace-switcher-row {
+  width: 44px !important;
+  height: 44px !important;
+  margin: 8px auto !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  border-radius: 10px !important;
+}
+/* Collapsed: nav items centered 44px */
+.modern-sidebar.collapsed .sidebar-nav-btn {
+  width: 44px !important;
+  height: 44px !important;
+  margin: 2px auto !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  border-radius: 10px !important;
+}
+.modern-sidebar.collapsed .sidebar-nav-btn:hover { transform: none !important; }
+.modern-sidebar.collapsed .sidebar-nav-btn.active {
+  width: 44px !important;
+}
+/* Group separators replace group labels in collapsed mode */
+.modern-sidebar.collapsed .sidebar-group::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+  margin: 8px auto 4px;
+}
+/* Tooltip for collapsed items via data-tooltip attribute */
+.modern-sidebar.collapsed .sidebar-nav-btn {
+  position: relative !important;
+  outline: none !important;
+}
+.modern-sidebar.collapsed .sidebar-nav-btn:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.modern-sidebar.collapsed .sidebar-nav-btn:focus-visible {
+  box-shadow: var(--ring) !important;
+}
+
+.modern-sidebar.collapsed .sidebar-nav-btn[data-tooltip]::after,
+.modern-sidebar.collapsed .workspace-switcher-row[data-tooltip]::after,
+.modern-sidebar.collapsed .collapsed-brand-toggle[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--text);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease 0.15s, visibility 0.15s ease 0.15s;
+  z-index: 1000;
+  box-shadow: var(--shadow-pop);
+}
+.modern-sidebar.collapsed .sidebar-nav-btn:hover::after,
+.modern-sidebar.collapsed .sidebar-nav-btn:focus-visible::after,
+.modern-sidebar.collapsed .workspace-switcher-row:hover::after,
+.modern-sidebar.collapsed .collapsed-brand-toggle:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Badge count over collapsed icon */
+.modern-sidebar.collapsed .sb-count {
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 4px !important;
+  border-radius: 999px !important;
+  background: var(--danger) !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  z-index: 2 !important;
+}
+
+/* User footer collapsed */
+.modern-sidebar.collapsed .sidebar-user-footer {
+  justify-content: center !important;
+  padding: 0 !important;
+  position: relative !important;
+}
+.modern-sidebar.collapsed .user-avatar-circle {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 13px !important;
+}
+.modern-sidebar.collapsed .user-menu-dropdown-wrapper {
+  position: static !important;
+}
+.modern-sidebar.collapsed .user-context-menu {
+  left: calc(100% + 12px) !important;
+  right: auto !important;
+  bottom: 8px !important;
+}
+
+/* Remove double outline on active nav item */
+.sidebar-nav-btn:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.sidebar-nav-btn:focus-visible {
+  outline: none !important;
+  box-shadow: var(--ring) !important;
+}
+
+/* Hide scrollbar within sidebar nav */
+.sidebar-nav {
+  overflow-y: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.sidebar-nav::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ── 19. FILTER TABS (no scroll, no arrows) ──────── */
+.filter-tabs-bar {
+  overflow-x: visible !important;
+  flex-wrap: wrap !important;
+}
+/* Remove any scrollbar from filter tabs */
+.filter-tabs-bar::-webkit-scrollbar { display: none !important; }
+
+/* ── 20. PAGE HEADER cleanup ─────────────────────── */
+.page-header-clean {
+  padding-bottom: 14px !important;
+  margin-bottom: 16px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.page-title {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  letter-spacing: -.015em !important;
+  color: var(--text) !important;
+}
+.page-desc {
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+  margin: 3px 0 0 !important;
+}
+.page-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+  flex-wrap: nowrap !important;
+}
+
+/* ── 21. KPI STRIP ───────────────────────────────── */
+.kpi-strip {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-1) !important;
+  margin-bottom: 16px !important;
+  overflow: hidden !important;
+}
+.kpi-strip-cell {
+  padding: 13px 16px !important;
+  border-right: 1px solid var(--border) !important;
+  border-bottom: none !important;
+}
+.kpi-strip-cell:last-child { border-right: none !important; }
+.kpi-cell-label {
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+}
+.kpi-cell-value {
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums !important;
+  margin: 4px 0 2px !important;
+}
+.kpi-cell-hint { font-size: 11px !important; color: var(--text-subtle) !important; }
+
+/* ── 22. SECONDARY CONTROLS BAR ─────────────────── */
+.secondary-controls-bar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ── 23. RESPONSIVE FIXES ────────────────────────── */
+@media (max-width: 1024px) {
+  .modern-sidebar.expanded { width: 220px !important; flex: 0 0 220px !important; }
+}
+@media (max-width: 900px) {
+  .shell main { padding: 0 16px 32px !important; }
+}
+
+/* ── 24. PUBLIC CATALOG PRODUCT IMAGES ───────────── */
+.catalog-card-img-wrap {
+  width: 100%;
+  height: 140px;
+  background: var(--surface-2, #f8fafc);
+  border-radius: var(--r-md, 10px);
+  overflow: hidden;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: 1px solid var(--border-subtle, #f1f5f9);
+}
+
+.catalog-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--dur-norm, 0.25s) ease;
+}
+
+.catalog-card:hover .catalog-card-img {
+  transform: scale(1.05);
+}
+
+

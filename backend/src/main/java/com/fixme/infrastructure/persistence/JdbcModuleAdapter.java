@@ -10,7 +10,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcModuleAdapter implements ModulePort {
   private static final List<String> STANDARD_MODULES = List.of(
-      "INVENTORY", "POS", "DELIVERIES", "WORK_ORDERS", "CUSTOMERS", "REPORTS", "CASH_REGISTER", "QUOTES"
+      "INVENTORY", "POS", "DELIVERIES", "WORK_ORDERS", "CUSTOMERS", "REPORTS", "CASH_REGISTER", "QUOTES",
+      "IMPORTS", "PURCHASES", "WARRANTIES"
   );
 
   private final JdbcTemplate jdbc;

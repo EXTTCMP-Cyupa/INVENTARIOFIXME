@@ -24,7 +24,9 @@ import {
   Sparkles,
   CircleDollarSign,
   Layers,
-  Store
+  Store,
+  Plane,
+  ShoppingBag
 } from 'lucide-react';
 
 type Any = Record<string, any>;
@@ -77,24 +79,6 @@ export function Sidebar({
 }: SidebarProps) {
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
 
-  // Group state for collapsibles
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
-    resumen: true,
-    ventas: true,
-    taller: true,
-    operacion: true,
-    gestion: true,
-    saas_admin: true
-  });
-
-  const tenantName = companyInfo?.name || localStorage.tenantName || 'FIXME TIENDAS';
-  const tenantInitials = tenantName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w: string) => w[0].toUpperCase())
-    .join('') || 'FT';
-
   const navGroups: NavGroupConfig[] = React.useMemo(() => {
     if (isSaasOwner) {
       return [
@@ -104,10 +88,10 @@ export function Sidebar({
           items: [
             { id: 'platform-overview', label: 'Panel SaaS', icon: LayoutDashboard },
             { id: 'platform-companies', label: 'Empresas', icon: Building2 },
-            { id: 'platform-trials', label: 'Empresas de Prueba', icon: Sparkles },
-            { id: 'platform-rates', label: 'Tarifas por Empresa', icon: CircleDollarSign },
-            { id: 'platform-plans', label: 'Planes & Módulos', icon: Layers },
-            { id: 'platform-payments', label: 'Cobranzas y Recibos', icon: Receipt }
+            { id: 'platform-trials', label: 'Empresas de prueba', icon: Sparkles },
+            { id: 'platform-rates', label: 'Tarifas por empresa', icon: CircleDollarSign },
+            { id: 'platform-plans', label: 'Planes y módulos', icon: Layers },
+            { id: 'platform-payments', label: 'Cobranzas y recibos', icon: Receipt }
           ]
         }
       ];
@@ -136,7 +120,7 @@ export function Sidebar({
       },
       {
         id: 'taller',
-        label: 'Taller Técnico',
+        label: 'Taller',
         items: [
           { id: 'my-work', label: 'Mi trabajo', icon: Wrench, badge: urgentCount && urgentCount > 0 ? urgentCount : null },
           { id: 'work-orders', label: 'Órdenes de servicio', icon: ClipboardList },
@@ -146,15 +130,17 @@ export function Sidebar({
       },
       {
         id: 'operacion',
-        label: 'Operación & Stock',
+        label: 'Operación y stock',
         items: [
           { id: 'products', label: 'Inventario', icon: Package },
+          { id: 'purchases', label: 'Compras & Kardex', icon: ShoppingBag },
+          { id: 'imports', label: 'Importaciones & Arribos', icon: Plane },
           { id: 'customers', label: 'Clientes', icon: Users }
         ]
       },
       {
         id: 'gestion',
-        label: 'Gestión & Control',
+        label: 'Gestión y control',
         items: [
           { id: 'reports', label: 'Reportes', icon: BarChart3 },
           { id: 'administration', label: 'Empresa', icon: Building2 }
@@ -163,15 +149,22 @@ export function Sidebar({
     ];
   }, [isSaasOwner, orderCounts]);
 
-  // Keep group containing active page open
-  React.useEffect(() => {
+  const activeGroupId = React.useMemo(() => {
     for (const group of navGroups) {
       if (group.items.some(item => item.id === page)) {
-        setOpenGroups(prev => ({ ...prev, [group.id]: true }));
-        break;
+        return group.id;
       }
     }
+    return navGroups[1]?.id || 'ventas';
   }, [page, navGroups]);
+
+  // Exclusive accordion: only one group open at a time
+  const [openGroupId, setOpenGroupId] = React.useState<string>(activeGroupId);
+
+  // Keep group containing active page open
+  React.useEffect(() => {
+    setOpenGroupId(activeGroupId);
+  }, [activeGroupId]);
 
   // Keyboard shortcut '[' to toggle collapsed state
   React.useEffect(() => {
@@ -198,8 +191,16 @@ export function Sidebar({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [userMenuOpen]);
 
+  const tenantName = companyInfo?.name || localStorage.tenantName || 'FIXME TIENDAS';
+  const tenantInitials = tenantName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w: string) => w[0].toUpperCase())
+    .join('') || 'FT';
+
   const toggleGroup = (groupId: string) => {
-    setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+    setOpenGroupId(prev => (prev === groupId ? '' : groupId));
   };
 
   return (
@@ -219,33 +220,48 @@ export function Sidebar({
       >
         {/* 1. Header / Marca (48px) */}
         <div className="sidebar-brand-header">
-          <div className="brand-logo-wrap">
-            <div className="brand-icon-box">F</div>
-            {!collapsed && (
-              <span className="brand-title">
-                {isSaasOwner ? (
-                  <>Fixme<span className="brand-highlight">SaaS</span></>
-                ) : (
-                  <>Fixme<span className="brand-highlight">Tiendas</span></>
-                )}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            className="sidebar-collapse-btn"
-            onClick={onToggleCollapsed}
-            title={collapsed ? 'Expandir menú ([)' : 'Colapsar menú ([)'}
-            aria-label={collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
-          >
-            {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-          </button>
+          {!collapsed ? (
+            <>
+              <div className="brand-logo-wrap">
+                <div className="brand-icon-box">F</div>
+                <span className="brand-title">
+                  {isSaasOwner ? (
+                    <>Fixme<span className="brand-highlight">SaaS</span></>
+                  ) : (
+                    <>Fixme<span className="brand-highlight">Tiendas</span></>
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="sidebar-collapse-btn"
+                onClick={onToggleCollapsed}
+                title="Colapsar menú ([)"
+                aria-label="Colapsar menú lateral"
+              >
+                <PanelLeftClose size={17} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-collapse-btn collapsed-brand-toggle"
+              onClick={onToggleCollapsed}
+              title="Expandir menú ([)"
+              aria-label="Expandir menú lateral"
+              data-tooltip="Expandir menú ([)"
+            >
+              <span className="brand-icon-box">F</span>
+              <span className="expand-panel-icon"><PanelLeftOpen size={18} /></span>
+            </button>
+          )}
         </div>
 
         {/* 2. Selector de Empresa / Sucursal (UNA fila, 48px) */}
         <div
           className="workspace-switcher-row"
-          title={isSaasOwner ? 'Control Global SaaS' : `${tenantName} · Sucursal Principal`}
+          data-tooltip={collapsed ? `${tenantName} · Sucursal Principal` : undefined}
+          title={!collapsed ? (isSaasOwner ? 'Control Global SaaS' : `${tenantName} · Sucursal Principal`) : undefined}
           onClick={() => { if (!isSaasOwner) go('administration'); }}
         >
           <div className="workspace-badge">{tenantInitials}</div>
@@ -270,7 +286,7 @@ export function Sidebar({
             const visibleItems = group.items.filter(item => visiblePages.includes(item.id));
             if (visibleItems.length === 0) return null;
 
-            const isOpen = openGroups[group.id] ?? true;
+            const isOpen = openGroupId === group.id;
 
             return (
               <div key={group.id} className="sidebar-group">
@@ -305,7 +321,8 @@ export function Sidebar({
                             go(item.id);
                             onCloseMobileMenu();
                           }}
-                          title={collapsed ? item.label : undefined}
+                          data-tooltip={collapsed ? item.label : undefined}
+                          title={!collapsed ? undefined : item.label}
                           aria-current={isActive ? 'page' : undefined}
                         >
                           <span className="nav-btn-icon">
@@ -321,6 +338,12 @@ export function Sidebar({
                               {item.badge}
                             </span>
                           )}
+
+                          {collapsed && item.badge != null && (
+                            <span className="sb-count" title="Atención requerida">
+                              {item.badge}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -333,7 +356,12 @@ export function Sidebar({
 
         {/* 4. Pie de Usuario (UNA fila, 56px) */}
         <div className="sidebar-user-footer">
-          <div className="user-avatar-circle" title={`Usuario: ${role}`}>
+          <div
+            className="user-avatar-circle"
+            title={`Usuario: ${role}`}
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            style={{ cursor: 'pointer' }}
+          >
             {isSaasOwner ? '👑' : (role ? role.slice(0, 1).toUpperCase() : 'U')}
           </div>
 
@@ -349,18 +377,20 @@ export function Sidebar({
           )}
 
           <div className="user-menu-dropdown-wrapper">
-            <button
-              type="button"
-              className="user-menu-trigger-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserMenuOpen(!userMenuOpen);
-              }}
-              aria-label="Opciones de usuario"
-              title="Perfil, tema y sesión"
-            >
-              <MoreVertical size={16} />
-            </button>
+            {!collapsed && (
+              <button
+                type="button"
+                className="user-menu-trigger-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUserMenuOpen(!userMenuOpen);
+                }}
+                aria-label="Opciones de usuario"
+                title="Perfil, tema y sesión"
+              >
+                <MoreVertical size={16} />
+              </button>
+            )}
 
             {/* Contextual User Menu Popover */}
             {userMenuOpen && (

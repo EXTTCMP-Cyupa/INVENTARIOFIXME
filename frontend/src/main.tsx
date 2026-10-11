@@ -1,4 +1,4 @@
-import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';
+import React from 'react';import{createRoot}from'react-dom/client';import'./style.css';import'./design-system.css';
 import { PublicCatalog, PublicDeliveryTracking, PublicWorkOrderTracking, CatalogShareModal, PublicRepairRequestWizard, PublicLeadTracking } from './publicModules';
 import { CustomerPortal } from './customerPortal';
 import { MarketplaceView, WorkOrderCheckoutModal } from './marketplaceView';
@@ -14,9 +14,26 @@ import { LandingPage } from './landingPage';
 import { TicketFormatSelector, TicketPaperWidth, getStoredPaperWidth, setStoredPaperWidth, printTicketElement, getCompanyReceiptInfo } from './ticketPrinter';
 import { compressImageFile } from './imageUtils';
 import { Sidebar } from './Sidebar';
-import { PageHeader, KpiStrip, FilterTabs } from './sharedLayout';
+import { PurchasesModule } from './purchasesModule';
+import { ImportsModule } from './importsModule';
+import { PageHeader, KpiStrip, FilterTabs, IconButton, StatusBadge, SlaBadge, ActionMenu } from './sharedLayout';
+import { Inbox, RefreshCw, Search, Smartphone, User, Phone, Package, Wrench, Check, Plus, Upload, Download, Tag, Edit2, Printer, ShoppingCart, Camera } from 'lucide-react';
 type Any=Record<string,any>;let tenantId=localStorage.tenantId||'00000000-0000-0000-0000-000000000001',branchId=localStorage.branchId||'00000000-0000-0000-0000-000000000010';
-const nav=[['home','Resumen','🏠'],['cash','Caja','💵'],['pos','Punto de venta','💳'],['sales','Ventas','🛒'],['quotes','Cotizaciones','📝'],['my-work','Mi Trabajo','🛠️'],['work-orders','Ordenes de servicio','📋'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','📦'],['customers','Clientes','👥'],['deliveries','Entregas','🚚'],['warranties','Garantias','🛡️'],['reports','Reportes','📊'],['administration','Empresa','🏢']];
+const nav=[['home','Resumen','🏠'],['cash','Caja','💵'],['pos','Punto de venta','💳'],['sales','Ventas','🛒'],['quotes','Cotizaciones','📝'],['my-work','Mi Trabajo','🛠️'],['work-orders','Ordenes de servicio','📋'],['marketplace','Bolsa de Reparaciones','🎯'],['products','Inventario','📦'],['purchases','Compras y Kardex','🛍️'],['imports','Importaciones','✈️'],['customers','Clientes','👥'],['deliveries','Entregas','🚚'],['warranties','Garantias','🛡️'],['reports','Reportes','📊'],['administration','Empresa','🏢']];
+function moduleKey(item: string): string {
+  if (item === 'cash') return 'CASH_REGISTER';
+  if (item === 'products') return 'INVENTORY';
+  if (item === 'my-work' || item === 'work-orders' || item === 'marketplace') return 'WORK_ORDERS';
+  if (item === 'quotes') return 'QUOTES';
+  if (item === 'pos' || item === 'sales') return 'POS';
+  if (item === 'purchases') return 'PURCHASES';
+  if (item === 'imports') return 'IMPORTS';
+  if (item === 'warranties') return 'WARRANTIES';
+  if (item === 'deliveries') return 'DELIVERIES';
+  if (item === 'reports') return 'REPORTS';
+  if (item === 'customers') return 'CUSTOMERS';
+  return item.toUpperCase().replace('-', '_');
+}
 function App(){const[token,setToken]=React.useState(localStorage.token||''),[page,setPage]=React.useState('home'),[mods,setMods]=React.useState<Any[]>([]),[toast,setToast]=React.useState(''),[menuOpen,setMenuOpen]=React.useState(false),[hash,setHash]=React.useState(window.location.hash||window.location.search),[showCatalogModal,setShowCatalogModal]=React.useState(false),[theme,setTheme]=React.useState<string>(localStorage.theme||'light');
 const [sidebarCollapsed, setSidebarCollapsed] = React.useState<boolean>(() => localStorage.getItem('fixme_sidebar_collapsed') === 'true');
 const toggleSidebarCollapsed = () => setSidebarCollapsed(prev => { const next = !prev; localStorage.setItem('fixme_sidebar_collapsed', String(next)); return next; });
@@ -48,7 +65,7 @@ const [companyInfo, setCompanyInfo] = React.useState<Any>(() => ({
   slogan: localStorage.tenantSlogan || 'Con la Mejor Innovación en Tecnología'
 }));
 
-React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}if(!userPerms.includes('marketplace')){userPerms=[...userPerms,'marketplace'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);const reqMatch=hash.match(/#solicitud\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]solicitud=([a-zA-Z0-9\-\.]+)/i);const newReqMatch=hash.match(/#solicitar-reparacion/i)||hash.match(/#reparar/i);const portalMatch=hash.match(/#portal-cliente/i)||hash.match(/#mi-cuenta/i)||hash.match(/#portal/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(reqMatch)return<PublicLeadTracking code={reqMatch[1]} onBack={()=>{window.location.hash='';setHash('');}}/>;if(newReqMatch)return<PublicRepairRequestWizard onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(portalMatch)return<CustomerPortal onBack={()=>{window.location.hash='';setHash('');}}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','customers','deliveries','work-orders','marketplace','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','customers','work-orders','marketplace','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','marketplace','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['TALLER / LEADS',['my-work','work-orders','marketplace','warranties']],['OPERACION',['products','customers']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=['SUPER_ADMIN','TENANT_ADMIN','MANAGER'].includes(role);React.useEffect(()=>{if(token&&canReadModules&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods)},[token,api,canReadModules,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
+React.useEffect(()=>{document.documentElement.setAttribute('data-theme',theme);localStorage.theme=theme;},[theme]);React.useEffect(()=>{const h=()=>setHash(window.location.hash||window.location.search);window.addEventListener('hashchange',h);window.addEventListener('popstate',h);return()=>{window.removeEventListener('hashchange',h);window.removeEventListener('popstate',h);};},[]);React.useEffect(()=>{if(!showQuickAccess)return;const h=(e:MouseEvent)=>{const t=e.target as HTMLElement;if(!t.closest('.header-quick-access-wrap')){setShowQuickAccess(false);}};document.addEventListener('click',h);return()=>document.removeEventListener('click',h);},[showQuickAccess]);let role='';let userPerms:string[]=[];let userTenantId=tenantId;try{const claims=token?JSON.parse(atob(token.split('.')[1])):{};role=(claims.primary_role||claims.scope||'').replace('SCOPE_','').split(' ')[0];if(claims.tenant_id){userTenantId=claims.tenant_id;tenantId=claims.tenant_id;localStorage.tenantId=claims.tenant_id;}if(claims.branch_id){branchId=claims.branch_id;localStorage.branchId=claims.branch_id;}if(Array.isArray(claims.permissions)){userPerms=claims.permissions;if((role==='MANAGER'||role==='SELLER'||role==='ACCOUNTANT')&&!userPerms.includes('quotes')){userPerms=[...userPerms,'quotes'];}if((role==='MANAGER'||role==='SELLER')&&!userPerms.includes('purchases')){userPerms=[...userPerms,'purchases','imports'];}if(!userPerms.includes('marketplace')){userPerms=[...userPerms,'marketplace'];}}}catch{}const catMatch=hash.match(/#catalog\/([a-f0-9\-]+)/i)||hash.match(/[?&]catalog=([a-f0-9\-]+)/i);const trkMatch=hash.match(/#tracking\/([a-zA-Z0-9\-]+)/i)||hash.match(/[?&]tracking=([a-zA-Z0-9\-]+)/i);const orderMatch=hash.match(/#order\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]order=([a-zA-Z0-9\-\.]+)/i);const quoteMatch=hash.match(/#quote\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]quote=([a-zA-Z0-9\-\.]+)/i);const reqMatch=hash.match(/#solicitud\/([a-zA-Z0-9\-\.]+)/i)||hash.match(/[?&]solicitud=([a-zA-Z0-9\-\.]+)/i);const newReqMatch=hash.match(/#solicitar-reparacion/i)||hash.match(/#reparar/i);const portalMatch=hash.match(/#portal-cliente/i)||hash.match(/#mi-cuenta/i)||hash.match(/#portal/i);if(catMatch)return<PublicCatalog tenantId={catMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(trkMatch)return<PublicDeliveryTracking code={trkMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(orderMatch)return<PublicWorkOrderTracking code={orderMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(quoteMatch)return<PublicQuoteView token={quoteMatch[1]} onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(reqMatch)return<PublicLeadTracking code={reqMatch[1]} onBack={()=>{window.location.hash='';setHash('');}}/>;if(newReqMatch)return<PublicRepairRequestWizard onBack={()=>{window.location.hash='';setHash('');}} isLogged={!!token}/>;if(portalMatch)return<CustomerPortal onBack={()=>{window.location.hash='';setHash('');}}/>;const isSaasOwner=role==='TENANT_ADMIN'||role==='SUPER_ADMIN';const saasNav:[string,string,string][]=[['platform-overview','Panel SaaS','📊'],['platform-companies','Empresas','🏢'],['platform-trials','Empresas de Prueba','🧪'],['platform-rates','Tarifas por Empresa','🏷️'],['platform-plans','Planes & Módulos','🧩'],['platform-payments','Cobranzas y Recibos','🧾']];const allowed:Record<string,string[]>={SUPER_ADMIN:saasNav.map(n=>n[0]),TENANT_ADMIN:saasNav.map(n=>n[0]),MANAGER:['home','my-work','cash','pos','sales','quotes','administration','products','purchases','imports','customers','deliveries','work-orders','marketplace','warranties','reports'],SELLER:['home','cash','pos','sales','quotes','products','purchases','imports','customers','work-orders','marketplace','warranties'],DELIVERY:['home','customers','deliveries'],TECHNICIAN:['home','my-work','customers','work-orders','marketplace','warranties'],ACCOUNTANT:['home','cash','sales','quotes','reports']};React.useEffect(()=>{if(isSaasOwner&&(page==='home'||!saasNav.some(n=>n[0]===page))){setPage('platform-companies')}},[isSaasOwner,page]);const groups:[string,string[]][]=[['VENTAS',['pos','sales','quotes','cash','deliveries']],['TALLER / LEADS',['my-work','work-orders','marketplace','warranties']],['OPERACION',['products','purchases','imports','customers']],['GESTION',['reports','administration']]];const api=React.useCallback((url:string,opt:RequestInit={})=>fetch(url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token}}),[token]);const canReadModules=!!token&&!isSaasOwner;React.useEffect(()=>{if(token&&!isSaasOwner)api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods).catch(()=>{});},[token,api,isSaasOwner]);React.useEffect(()=>{if(token&&!isSaasOwner){api('/api/branches').then(r=>r.ok?r.json():[]).then(branches=>{if(Array.isArray(branches)&&branches.length>0){if(!branches.some((b:Any)=>b.id===branchId)){branchId=branches[0].id;localStorage.branchId=branches[0].id;}}}).catch(()=>{});}},[token,api,isSaasOwner]);
 React.useEffect(() => {
   if (token && !isSaasOwner) {
     api('/api/administration/profile')
@@ -111,7 +128,7 @@ React.useEffect(()=>{
       .catch(()=>{});
   }
 },[token,api,isSaasOwner]);
-const moduleKey=(item:string)=>item==='cash'?'CASH_REGISTER':item==='products'?'INVENTORY':item==='my-work'?'WORK_ORDERS':item==='quotes'?'QUOTES':(item==='warranties'||item==='sales'?'POS':item.toUpperCase()).replace('-','_');const enabled=(key:string)=>{if(!canReadModules||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token){const isDirectLogin=hash==='#login'||hash==='login'||hash.includes('login')||hash.includes('pocket');if(isDirectLogin){return <Login onLogin={(t:string,mode?:'POCKET'|'DESKTOP')=>{if(mode)setViewMode(mode);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onBack={()=>{window.location.hash='';setHash('');}}/>;}return <LandingPage onLogin={(t:string)=>{const m=localStorage.getItem('fixme_view_mode') as 'POCKET'|'DESKTOP';if(m)setViewMode(m);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onOpenDirectLogin={()=>{window.location.hash='#login';setHash('#login');}}/>;}
+const enabled=(key:string)=>{if(isSaasOwner||mods.length===0)return true;const found=mods.find(m=>m.moduleKey===key);return found?found.enabled:true;};if(!token){const isDirectLogin=hash==='#login'||hash==='login'||hash.includes('login')||hash.includes('pocket');if(isDirectLogin){return <Login onLogin={(t:string,mode?:'POCKET'|'DESKTOP')=>{if(mode)setViewMode(mode);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onBack={()=>{window.location.hash='';setHash('');}}/>;}return <LandingPage onLogin={(t:string)=>{const m=localStorage.getItem('fixme_view_mode') as 'POCKET'|'DESKTOP';if(m)setViewMode(m);localStorage.token=t;setToken(t);window.location.hash='';setHash('');}} onOpenDirectLogin={()=>{window.location.hash='#login';setHash('#login');}}/>;}
 if(viewMode==='POCKET'&&!isSaasOwner){
   return (
     <PocketMobileView
@@ -124,7 +141,7 @@ if(viewMode==='POCKET'&&!isSaasOwner){
       notify={setToast}
     />
   );
-}function go(k:string){setPage(k);setMenuOpen(false)}const visible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><Sidebar page={page} go={go} role={role} isSaasOwner={isSaasOwner} companyInfo={companyInfo} visiblePages={visible} theme={theme} setTheme={setTheme} onLogout={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home');}} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} mobileMenuOpen={menuOpen} onCloseMobileMenu={()=>setMenuOpen(false)} orderCounts={shellOrderCounts}/><main>
+}function go(k:string){setPage(k);setMenuOpen(false)}const rawVisible=isSaasOwner?saasNav.map(n=>n[0]):(userPerms.length>0?userPerms:(allowed[role]||['home']));const visible=isSaasOwner?rawVisible:rawVisible.filter(p=>p==='home'||p==='administration'||enabled(moduleKey(p)));const item=(key:string)=>isSaasOwner?saasNav.find(n=>n[0]===key):nav.find(n=>n[0]===key);return <div className="shell"><button className="mobile-menu" aria-label="Abrir menú" onClick={()=>setMenuOpen(!menuOpen)}>☰</button><Sidebar page={page} go={go} role={role} isSaasOwner={isSaasOwner} companyInfo={companyInfo} visiblePages={visible} theme={theme} setTheme={setTheme} onLogout={()=>{localStorage.clear();tenantId='00000000-0000-0000-0000-000000000001';branchId='00000000-0000-0000-0000-000000000010';setToken('');setPage('home');}} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} mobileMenuOpen={menuOpen} onCloseMobileMenu={()=>setMenuOpen(false)} orderCounts={shellOrderCounts}/><main>
 {!isSaasOwner&&trialInfo?.isTrial&&(
   <div className="trial-top-banner">
     <div className="trial-banner-info">
@@ -148,33 +165,70 @@ if(viewMode==='POCKET'&&!isSaasOwner){
     </div>
   </div>
 )}
-<header className="app-header" style={{ marginBottom: 18, alignItems: 'center' }}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
-    <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+<header className="app-header" style={{ marginBottom: 14, alignItems: 'center' }}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden' }}>
+    <span style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
       {isSaasOwner ? 'Fixme SaaS' : (companyInfo.name || 'Fixme Tiendas')}
     </span>
-    <span>/</span>
-    <span style={{ color: 'var(--primary)', fontWeight: 500 }}>
+    <span style={{ color: 'var(--text-subtle)' }}>/</span>
+    <span style={{ color: 'var(--primary)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
       {item(page)?.[1] || 'Panel'}
     </span>
   </div>
   <div className="header-actions">
-    <button type="button" className="header-icon" onClick={()=>setTheme((t:string)=>t==='dark'?'light':'dark')} title={theme==='dark'?'Cambiar a Modo Claro':'Cambiar a Modo Oscuro'}>{theme==='dark'?'☀️':'🌙'}</button>
-    <div style={{position:'relative'}}>
-      <button type="button" className="header-icon" onClick={()=>setShowQuickAccess(!showQuickAccess)} title="Accesos Rápidos y Enlaces Públicos" style={{background:'var(--primary-soft)',color:'var(--primary)',fontWeight:600,fontSize:'12px',padding:'6px 12px',borderRadius:'8px',border:'1px solid var(--border)',display:'inline-flex',alignItems:'center',gap:'6px',cursor:'pointer',whiteSpace:'nowrap'}}>
-        <span>⚡ Accesos</span>
-        <span style={{fontSize:'9px'}}>▼</span>
+    <button
+      type="button"
+      className="icon-btn"
+      onClick={() => setTheme((t: string) => t === 'dark' ? 'light' : 'dark')}
+      title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+      style={{ fontSize: 16, border: '1px solid var(--border)' }}
+    >
+      {theme === 'dark' ? '☀' : '☽'}
+    </button>
+    <div className="header-quick-access-wrap" style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="secondary-action"
+        onClick={() => setShowQuickAccess(!showQuickAccess)}
+        title="Accesos rápidos y enlaces públicos"
+        aria-label="Accesos rápidos"
+        style={{ fontSize: 13, gap: 6 }}
+      >
+        <span>⚡</span>
+        <span>Accesos</span>
+        <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
       </button>
-      {showQuickAccess&&<div style={{position:'absolute',top:'calc(100% + 6px)',right:0,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'12px',boxShadow:'0 12px 30px rgba(0,0,0,0.15)',width:'230px',zIndex:1000,padding:'6px',display:'flex',flexDirection:'column',gap:'4px'}} onClick={()=>setShowQuickAccess(false)}>
-        <button type="button" onClick={()=>{setViewMode('POCKET');localStorage.setItem('fixme_view_mode','POCKET');}} style={{background:'#fef3c7',color:'#92400e',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #fde68a',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>📱</span><div><div>Modo Pocket Móvil</div><small style={{fontSize:'10px',color:'#b45309'}}>Taller y POS para celulares</small></div></button>
-        <button type="button" onClick={()=>setShowCatalogModal(true)} style={{background:'#eff6ff',color:'#1d4ed8',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bfdbfe',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛒</span><div><div>Catálogo Digital</div><small style={{fontSize:'10px',color:'#2563eb'}}>Compartir productos con QR</small></div></button>
-        <button type="button" onClick={()=>{window.location.hash='#solicitar-reparacion';setHash('#solicitar-reparacion');}} style={{background:'#f0fdf4',color:'#166534',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>🛠️</span><div><div>Solicitar Reparación</div><small style={{fontSize:'10px',color:'#15803d'}}>Portal de recepción online</small></div></button>
-        <button type="button" onClick={()=>{window.location.hash='#portal-cliente';setHash('#portal-cliente');}} style={{background:'#f8fafc',color:'#0f172a',fontWeight:700,fontSize:'12px',padding:'8px 10px',borderRadius:'8px',border:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',textAlign:'left',width:'100%'}}><span>👤</span><div><div>Portal de Clientes</div><small style={{fontSize:'10px',color:'#64748b'}}>Consulta por Cédula / Celular</small></div></button>
-      </div>}
+      {showQuickAccess && (
+        <div
+          className="header-quick-access-dropdown"
+          onClick={() => setShowQuickAccess(false)}
+        >
+          <button type="button" className="qa-menu-btn" onClick={() => { setViewMode('POCKET'); localStorage.setItem('fixme_view_mode', 'POCKET'); }}>
+            <span className="qa-icon">📱</span>
+            <div><div className="qa-label">Modo Pocket</div><div className="qa-hint">Taller y POS para celulares</div></div>
+          </button>
+          <button type="button" className="qa-menu-btn" onClick={() => setShowCatalogModal(true)}>
+            <span className="qa-icon">🛒</span>
+            <div><div className="qa-label">Catálogo digital</div><div className="qa-hint">Compartir productos con QR</div></div>
+          </button>
+          <button type="button" className="qa-menu-btn" onClick={() => { window.location.hash = '#solicitar-reparacion'; setHash('#solicitar-reparacion'); }}>
+            <span className="qa-icon">🔧</span>
+            <div><div className="qa-label">Solicitar reparación</div><div className="qa-hint">Portal de recepción online</div></div>
+          </button>
+          <button type="button" className="qa-menu-btn" onClick={() => { window.location.hash = '#portal-cliente'; setHash('#portal-cliente'); }}>
+            <span className="qa-icon">👤</span>
+            <div><div className="qa-label">Portal de clientes</div><div className="qa-hint">Consulta por cédula / celular</div></div>
+          </button>
+        </div>
+      )}
     </div>
-    <div className="header-avatar">{isSaasOwner?'👑':(role.slice(0,1)||'U')}</div>
+    <div className="header-avatar" title={`Sesión activa · ${role || 'Usuario'}`}>
+      {isSaasOwner ? '♛' : (role.slice(0, 1).toUpperCase() || 'U')}
+    </div>
   </div>
-</header>{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+</header>
+{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo} onModulesUpdate={()=>api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods).catch(()=>{})}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='purchases'&&visible.includes('purchases')?<PurchasesModule api={api}/>:page==='imports'&&visible.includes('imports')?<ImportsModule api={api}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -600,43 +654,88 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
 
   return (
     <>
-      <section className="inventory-hero">
-        <div>
-          <span className="eyebrow">CONTROL DE EFECTIVO & FONDOS</span>
-          <h2>Arqueo de Caja y Depósitos</h2>
-          <p>Supervisa el dinero físico en gaveta, ventas en efectivo, gastos menores y destino de depósitos bancarios.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {s && (
-            <button
-              type="button"
-              className="secondary-action"
-              onClick={() => {
-                setCorteZSummary({
-                  openingCash: s.openingCash || s.expected?.OPENING || 0,
-                  salesCash: s.salesCash || (s.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
-                  inflowsCash: s.inflowsCash || 0,
-                  outflowsCash: s.outflowsCash || 0,
-                  depositsCash: s.depositsCash || 0,
-                  cashInDrawer: inDrawer,
-                  counted: inDrawer,
-                  difference: 0,
-                  depositAmount: 0,
-                  depositDestination: 'Banco',
-                  depositReference: 'ARQUEO-PREVIO',
-                  nextDayFund: 50,
-                  paymentsSummary: s.paymentsSummary,
-                  fiscalSummary: s.fiscalSummary
-                });
-              }}
-              title="Previsualizar e imprimir arqueo Corte Z en formato térmico 80mm"
-            >
-              📊 Imprimir Corte Z
-            </button>
-          )}
-          <button className="primary-action" onClick={load}>Actualizar Caja</button>
-        </div>
-      </section>
+      <PageHeader
+        title="Caja y turnos"
+        description="Apertura, arqueo y conciliación de movimientos de efectivo"
+        actions={
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {s && (
+              <>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => {
+                    setCorteZSummary({
+                      openingCash: s.openingCash || s.expected?.OPENING || 0,
+                      salesCash: s.salesCash || (s.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
+                      inflowsCash: s.inflowsCash || 0,
+                      outflowsCash: s.outflowsCash || 0,
+                      depositsCash: s.depositsCash || 0,
+                      cashInDrawer: inDrawer,
+                      counted: inDrawer,
+                      difference: 0,
+                      depositAmount: 0,
+                      depositDestination: 'Banco',
+                      depositReference: 'ARQUEO-PREVIO',
+                      nextDayFund: 50,
+                      paymentsSummary: s.paymentsSummary,
+                      fiscalSummary: s.fiscalSummary
+                    });
+                  }}
+                  title="Imprimir arqueo Corte Z"
+                >
+                  <Printer size={14} /> <span>Imprimir corte Z</span>
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setShowMoveModal(true)}
+                >
+                  <Plus size={14} /> <span>Entrada / Gasto</span>
+                </button>
+                <button
+                  type="button"
+                  className="danger-action"
+                  onClick={() => {
+                    setCloseForm(f => ({ ...f, countedCash: inDrawer.toFixed(2) }));
+                    setShowCloseModal(true);
+                  }}
+                >
+                  <span>Cerrar caja</span>
+                </button>
+              </>
+            )}
+            <IconButton icon={RefreshCw} label="Actualizar caja" onClick={load} />
+          </div>
+        }
+      />
+
+      <KpiStrip
+        items={[
+          {
+            label: 'Estado de caja',
+            value: s ? 'Abierta' : 'Cerrada',
+            hint: s?.openedAt ? `Desde ${new Date(s.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sin turno activo',
+            tone: s ? 'success' : 'default'
+          },
+          {
+            label: 'Fondo de apertura',
+            value: `$${Number(s?.openingCash || 0).toFixed(2)}`,
+            hint: 'Efectivo inicial'
+          },
+          {
+            label: 'Ventas en efectivo',
+            value: `+$${Number(s?.salesCash || 0).toFixed(2)}`,
+            hint: 'Ingresos del turno',
+            tone: Number(s?.salesCash || 0) > 0 ? 'success' : 'default'
+          },
+          {
+            label: 'Saldo en gaveta',
+            value: `$${inDrawer.toFixed(2)}`,
+            hint: 'Efectivo físico esperado'
+          }
+        ]}
+      />
 
       {!s ? (
         <section className="panel" style={{ maxWidth: '520px', margin: '0 auto' }}>
@@ -814,9 +913,9 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
               <div style={{ display: 'flex', gap: '6px' }}>
                 {[
                   ['ALL', `Todos (${history.length})`],
-                  ['DEPOSIT', '🏦 Depósitos'],
-                  ['CASH_IN', '📥 Entradas'],
-                  ['CASH_OUT', '📤 Salidas']
+                  ['DEPOSIT', 'Depósitos'],
+                  ['CASH_IN', 'Entradas'],
+                  ['CASH_OUT', 'Salidas']
                 ].map(([k, label]) => (
                   <button
                     key={k}
@@ -834,12 +933,12 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
               <table>
                 <thead>
                   <tr>
-                    <th>Fecha y Hora</th>
+                    <th>Fecha y hora</th>
                     <th>Tipo</th>
                     <th>Método</th>
-                    <th>Destino / Concepto</th>
-                    <th>Referencia / Comprobante</th>
-                    <th>Monto ($)</th>
+                    <th>Destino / concepto</th>
+                    <th>Referencia</th>
+                    <th className="num">Monto ($)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3920,6 +4019,9 @@ const ALL_MODULES_DEF = [
   { key: 'DELIVERIES', name: 'Logística & Envíos Delivery', icon: '🚚', desc: 'Despachos con motorizados, georreferenciación y tracking en vivo' },
   { key: 'CUSTOMERS', name: 'Directorio de Clientes', icon: '👥', desc: 'Gestión de cartera, RUC/cédula, historial de compras y contactos' },
   { key: 'REPORTS', name: 'Reportes & Analítica', icon: '📊', desc: 'Métricas de ventas, margen de ganancia, rotación y exportación' },
+  { key: 'IMPORTS', name: 'Importaciones y Arribos', icon: '✈️', desc: 'Compras USA/China, cálculo de flete/aduana, pre-compras y avisos WhatsApp' },
+  { key: 'PURCHASES', name: 'Compras & Kardex', icon: '🛍️', desc: 'Órdenes de compra a distribuidores locales y costo ponderado' },
+  { key: 'WARRANTIES', name: 'Garantías y Post-Venta', icon: '🛡️', desc: 'Control de números de serie, resolución técnica y garantías' },
   { key: 'APIS', name: 'Integraciones & Pagos Digitales', icon: '⚡', desc: 'DeUna QR bancario, PayPhone cobro con tarjeta de crédito, webhooks' }
 ];
 
@@ -5986,9 +6088,27 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
             <div className="modal-header">
               <div>
                 <h3 style={{ margin: 0 }}>🏢 {selectedTenant.name}</h3>
-                <small style={{ color: '#64748b' }}>
-                  Plan {selectedTenant.plan} · Tarifa: ${Number(selectedTenant.monthly_fee || 49).toFixed(2)}/mes
-                </small>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                  <small style={{ color: '#64748b' }}>
+                    Plan {selectedTenant.plan} · Tarifa: ${Number(selectedTenant.monthly_fee || 49).toFixed(2)}/mes
+                  </small>
+                  <button
+                    type="button"
+                    onClick={() => { const t = selectedTenant; setSelectedTenant(null); openModulesModal(t); }}
+                    style={{
+                      background: '#eef2ff',
+                      color: '#4f46e5',
+                      border: '1px solid #c7d2fe',
+                      borderRadius: 6,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🧩 Configurar Módulos del Plan
+                  </button>
+                </div>
               </div>
               <button className="close-btn" onClick={() => setSelectedTenant(null)}>✕</button>
             </div>
@@ -6697,8 +6817,131 @@ function PlatformAdministration({api, notify, activeTab, setTab}:{api:(u:string,
   );
 }
 
-function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, onCompanyUpdate?:(c:Any)=>void}){
-  const [tab, setTab] = React.useState<'matrix'|'users'|'profile'|'sri'|'deuna'|'payphone'>('matrix');
+function Administration({api, notify, onCompanyUpdate, onModulesUpdate}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(s:string)=>void, onCompanyUpdate?:(c:Any)=>void, onModulesUpdate?:()=>void}){
+  const [tab, setTab] = React.useState<'modules'|'matrix'|'users'|'profile'|'sri'|'deuna'|'payphone'>('modules');
+  const [tenantModules, setTenantModules] = React.useState<Any[]>([]);
+  const [loadingModules, setLoadingModules] = React.useState(false);
+  const [togglingModule, setTogglingModule] = React.useState<string | null>(null);
+
+  const loadTenantModules = React.useCallback(() => {
+    setLoadingModules(true);
+    api('/api/modules')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) setTenantModules(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingModules(false));
+  }, [api]);
+
+  React.useEffect(() => {
+    loadTenantModules();
+  }, [loadTenantModules]);
+
+  const isModEnabled = (key: string) => {
+    const found = tenantModules.find(m => m.moduleKey === key);
+    return found ? found.enabled : true;
+  };
+
+  const SYSTEM_MODULES = [
+    {
+      key: 'IMPORTS',
+      name: 'Importaciones y Arribos',
+      icon: '✈️',
+      badge: 'Internacional',
+      desc: 'Gestión de envíos desde USA/China (eBay, Amazon), fletes y aduana, pre-compras con adelanto y avisos automáticos por WhatsApp.',
+      color: '#0284c7'
+    },
+    {
+      key: 'PURCHASES',
+      name: 'Compras & Kardex',
+      icon: '🛍️',
+      badge: 'Proveedores',
+      desc: 'Órdenes de compra a distribuidores locales, costeo ponderado y movimientos de stock detallados.',
+      color: '#d97706'
+    },
+    {
+      key: 'POS',
+      name: 'Punto de Venta & Ventas',
+      icon: '💳',
+      badge: 'Comercial',
+      desc: 'Cobros rápidos, carritos de venta, comprobantes de pago, tickets térmicos e historial de transacciones.',
+      color: '#2563eb'
+    },
+    {
+      key: 'CASH_REGISTER',
+      name: 'Control de Caja',
+      icon: '💵',
+      badge: 'Finanzas',
+      desc: 'Aperturas de turno, ingresos/egresos menores, arqueos de efectivo y generación de Corte Z.',
+      color: '#059669'
+    },
+    {
+      key: 'INVENTORY',
+      name: 'Inventario de Productos',
+      icon: '📦',
+      badge: 'Almacén',
+      desc: 'Catálogo de existencias, código de barras, SKU, precios de mayoreo/público y alertas de stock crítico.',
+      color: '#7c3aed'
+    },
+    {
+      key: 'WORK_ORDERS',
+      name: 'Taller y Servicio Técnico',
+      icon: '🛠️',
+      badge: 'Técnico',
+      desc: 'Órdenes de trabajo, diagnósticos, asignación a técnicos, SLA con semáforos, bolsa de reparaciones y tracking online.',
+      color: '#ea580c'
+    },
+    {
+      key: 'QUOTES',
+      name: 'Cotizaciones Web & Clientes',
+      icon: '📝',
+      badge: 'Ventas',
+      desc: 'Presupuestos para clientes, enlaces públicos con aceptación/rechazo y conversión directa a importación.',
+      color: '#0891b2'
+    },
+    {
+      key: 'DELIVERIES',
+      name: 'Entregas a Domicilio',
+      icon: '🚚',
+      badge: 'Logística',
+      desc: 'Despachos de pedidos con motorizados, georreferenciación y estados de entrega.',
+      color: '#475569'
+    },
+    {
+      key: 'WARRANTIES',
+      name: 'Garantías y Devoluciones',
+      icon: '🛡️',
+      badge: 'Post-Venta',
+      desc: 'Validación de números de serie, reclamos de garantía y notas de crédito de cambio de producto.',
+      color: '#dc2626'
+    },
+    {
+      key: 'CUSTOMERS',
+      name: 'Gestión de Clientes',
+      icon: '👥',
+      badge: 'Clientes',
+      desc: 'Base de datos de clientes, historial de servicios, cuentas por cobrar y portal de autogestión.',
+      color: '#4f46e5'
+    },
+    {
+      key: 'REPORTS',
+      name: 'Reportes & Analítica',
+      icon: '📊',
+      badge: 'Gerencial',
+      desc: 'Informes de utilidad bruta y neta, ventas por vendedor, rotación de inventario y estado financiero.',
+      color: '#9333ea'
+    },
+    {
+      key: 'APIS',
+      name: 'Pasarelas & Pagos Digitales',
+      icon: '⚡',
+      badge: 'Integraciones',
+      desc: 'Cobros QR con DeUna (Banco Pichincha), cobros con tarjeta de crédito vía Payphone y webhooks.',
+      color: '#0d9488'
+    }
+  ];
+
   const [profile, setProfile] = React.useState<Any>({});
   const [profileForm, setProfileForm] = React.useState<Any>({
     name: '',
@@ -6917,19 +7160,30 @@ function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:Request
   const [userMsg, setUserMsg] = React.useState('');
 
   const MODULES = [
-    { key: 'home', label: 'Resumen (Dashboard)', group: 'Principal', desc: 'Vista global y métricas' },
+    { key: 'home', label: 'Resumen (Dashboard)', group: 'Principal', desc: 'Vista global y métricas del negocio' },
+    { key: 'pos', label: 'Punto de Venta (POS)', group: 'Ventas', desc: 'Facturación directa, tickets y carritos de venta' },
+    { key: 'sales', label: 'Registro de Ventas', group: 'Ventas', desc: 'Historial de ventas y comprobantes emitidos' },
+    { key: 'cash', label: 'Control de Caja', group: 'Ventas', desc: 'Aperturas de turno, movimientos y arqueos Corte Z' },
+    { key: 'quotes', label: 'Cotizaciones Web', group: 'Ventas', desc: 'Presupuestos públicos y solicitudes de clientes' },
+    { key: 'deliveries', label: 'Entregas a Domicilio', group: 'Ventas', desc: 'Despachos con motorizados y tracking de pedidos' },
     { key: 'my-work', label: 'Mi Trabajo Asignado', group: 'Taller', desc: 'Órdenes de servicio asignadas al técnico con SLA' },
-    { key: 'work-orders', label: 'Órdenes de Servicio', group: 'Taller', desc: 'Ingreso de equipos, presupuestos y entregas' },
-    { key: 'warranties', label: 'Garantías', group: 'Taller', desc: 'Validación y gestión de tickets de garantía' },
-    { key: 'pos', label: 'Punto de Venta (POS)', group: 'Ventas', desc: 'Facturación directa, tickets y ventas' },
-    { key: 'sales', label: 'Registro de Ventas', group: 'Ventas', desc: 'Historial de transacciones y comprobantes' },
-    { key: 'cash', label: 'Control de Caja', group: 'Ventas', desc: 'Apertura de caja, movimientos y arqueos' },
-    { key: 'deliveries', label: 'Entregas a Domicilio', group: 'Ventas', desc: 'Despachos con motorizados y apps' },
-    { key: 'products', label: 'Inventario de Productos', group: 'Inventario', desc: 'Catálogo de existencias y alertas de stock' },
-    { key: 'customers', label: 'Gestión de Clientes', group: 'Operación', desc: 'Ficha de clientes y cartera comercial' },
-    { key: 'reports', label: 'Reportes Financieros', group: 'Gestión', desc: 'COGS, utilidades y balance general' },
-    { key: 'administration', label: 'Empresa y Permisos', group: 'Gestión', desc: 'Usuarios y matriz de roles de la empresa' }
+    { key: 'work-orders', label: 'Órdenes de Servicio', group: 'Taller', desc: 'Ingreso de equipos, repuestos y entregas' },
+    { key: 'marketplace', label: 'Bolsa de Reparaciones', group: 'Taller', desc: 'Bolsa de trabajo colaborativa entre técnicos' },
+    { key: 'warranties', label: 'Garantías y Devoluciones', group: 'Taller', desc: 'Validación de tickets y control de números de serie' },
+    { key: 'products', label: 'Inventario de Productos', group: 'Inventario', desc: 'Catálogo de existencias, códigos de barra y alertas' },
+    { key: 'purchases', label: 'Compras & Kardex', group: 'Inventario', desc: 'Órdenes de compra a distribuidores y costo ponderado' },
+    { key: 'imports', label: 'Importaciones y Arribos', group: 'Inventario', desc: 'Compras internacionales (eBay/USA), aduanas y pre-compras' },
+    { key: 'customers', label: 'Gestión de Clientes', group: 'Operación', desc: 'Directorio de clientes, cartera comercial y portal' },
+    { key: 'reports', label: 'Reportes Financieros', group: 'Gestión', desc: 'COGS, utilidades, margen de ganancia y balance' },
+    { key: 'administration', label: 'Empresa y Permisos', group: 'Gestión', desc: 'Usuarios, perfil y matriz de roles de la tienda' }
   ];
+
+  const isContracted = (k: string) => {
+    if (k === 'home' || k === 'administration') return true;
+    const mk = moduleKey(k);
+    const found = tenantModules.find(m => m.moduleKey === mk);
+    return found ? found.enabled : true;
+  };
 
   const ROLES = [
     { key: 'MANAGER', label: 'Manager / Administrador', icon: '👔', color: '#4f46e5' },
@@ -7127,7 +7381,21 @@ function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:Request
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0', paddingBottom: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => { setTab('modules'); loadTenantModules(); }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 8,
+            border: tab === 'modules' ? '1px solid #7c3aed' : '1px solid #cbd5e1',
+            background: tab === 'modules' ? '#f5f3ff' : '#ffffff',
+            color: tab === 'modules' ? '#6d28d9' : '#475569',
+            fontWeight: 700,
+            cursor: 'pointer'
+          }}
+        >
+          🧩 Módulos Contratados
+        </button>
         <button
           onClick={() => setTab('matrix')}
           style={{
@@ -7214,6 +7482,172 @@ function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:Request
         </button>
       </div>
 
+      {/* TAB 0: CONTRACTED MODULES (MANAGED BY TENANT_ADMIN / SAAS) */}
+      {tab === 'modules' && (
+        <section className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🧩</span> Módulos Contratados de la Empresa
+              </h3>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+                Estos son los paquetes y servicios contratados en el plan de tu tienda con Fixme SaaS. Desde aquí puedes supervisar qué módulos tienes habilitados y asignar los permisos de acceso a tus colaboradores en la pestaña <strong>Matriz de Permisos por Rol</strong>.
+              </p>
+            </div>
+            <div>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={loadTenantModules}
+                disabled={loadingModules}
+                style={{ fontSize: '12px' }}
+              >
+                {loadingModules ? 'Cargando...' : '🔄 Recargar Módulos'}
+              </button>
+            </div>
+          </div>
+
+          {/* SaaS Plan Notice Banner */}
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <strong style={{ color: '#166534', fontSize: '13px' }}>💡 ¿Deseas habilitar un nuevo módulo (ej: Importaciones, Compras o Taller)?</strong>
+              <div style={{ color: '#15803d', fontSize: '12px', marginTop: 2 }}>
+                La activación de nuevos módulos la gestiona la administración de Fixme según el plan contratado. Puedes solicitar ampliaciones en un clic.
+              </div>
+            </div>
+            <a
+              href={`https://wa.me/593991234567?text=${encodeURIComponent(`Hola administración de Fixme! En mi tienda "${localStorage.tenantName || 'Mi Tienda'}" deseamos solicitar la activación de nuevos módulos para nuestro plan.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: '#16a34a', color: '#ffffff', padding: '7px 14px', borderRadius: 8, fontSize: '12px', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              💬 Solicitar Activación / Upgrade
+            </a>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 16 }}>
+            {SYSTEM_MODULES.map(m => {
+              const isEnabled = isModEnabled(m.key);
+              const rolesWithAccess = ROLES.filter(r => {
+                const perms = rolePerms[r.key] || [];
+                return perms.some(p => moduleKey(p) === m.key);
+              });
+
+              return (
+                <div
+                  key={m.key}
+                  style={{
+                    background: isEnabled ? '#ffffff' : '#f8fafc',
+                    borderRadius: 12,
+                    border: isEnabled ? `1.5px solid ${m.color}35` : '1.5px solid #cbd5e1',
+                    boxShadow: isEnabled ? `0 2px 8px ${m.color}15` : 'none',
+                    padding: '16px 18px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: 26, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: `${m.color}15` }}>
+                          {m.icon}
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{m.name}</h4>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: m.color, background: `${m.color}12`, padding: '1px 6px', borderRadius: 4, display: 'inline-block', marginTop: 2 }}>
+                            {m.badge}
+                          </span>
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 12,
+                        background: isEnabled ? '#ecfdf5' : '#f1f5f9',
+                        color: isEnabled ? '#059669' : '#64748b',
+                        border: isEnabled ? '1px solid #a7f3d0' : '1px solid #cbd5e1',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {isEnabled ? '● Contratado' : '🔒 No incluido'}
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: 12.5, color: '#475569', margin: '0 0 12px 0', lineHeight: 1.45 }}>
+                      {m.desc}
+                    </p>
+
+                    {isEnabled ? (
+                      <div style={{ background: '#f8fafc', padding: '6px 10px', borderRadius: 6, fontSize: '11.5px', color: '#334155', marginBottom: 12, border: '1px solid #f1f5f9' }}>
+                        <strong>👥 Roles con acceso:</strong>{' '}
+                        {rolesWithAccess.length > 0
+                          ? rolesWithAccess.map(r => r.label.split(' ')[0]).join(', ')
+                          : <span style={{ color: '#94a3b8' }}>Sin roles asignados</span>}
+                      </div>
+                    ) : (
+                      <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '6px 10px', borderRadius: 6, fontSize: '11px', color: '#92400e', marginBottom: 12 }}>
+                        Requiere activación en el plan de tu tienda para ser asignado a tu equipo.
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+                    <span style={{ fontSize: 11.5, color: isEnabled ? '#059669' : '#94a3b8', fontWeight: 600 }}>
+                      {isEnabled ? '✓ Activo para la tienda' : '⊘ Bloqueado por plan'}
+                    </span>
+                    {isEnabled ? (
+                      <button
+                        type="button"
+                        onClick={() => setTab('matrix')}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          border: '1px solid #c7d2fe',
+                          background: '#eef2ff',
+                          color: '#4338ca',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        🛡️ Asignar Permisos a Roles →
+                      </button>
+                    ) : (
+                      <a
+                        href={`https://wa.me/593991234567?text=${encodeURIComponent(`Hola administración de Fixme! En mi tienda "${localStorage.tenantName || 'Mi Tienda'}" deseamos activar el módulo de ${m.name}. ¿Podrían darnos información?`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          color: '#334155',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        💬 Solicitar Módulo
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* TAB 1: MATRIX */}
       {tab === 'matrix' && (
         <section className="panel">
@@ -7262,30 +7696,63 @@ function Administration({api, notify, onCompanyUpdate}:{api:(u:string,o?:Request
                 </tr>
               </thead>
               <tbody>
-                {MODULES.map(m => (
-                  <tr key={m.key} className="matrix-role-row">
-                    <td>
-                      <strong style={{ color: '#1e293b' }}>{m.label}</strong>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{m.desc}</div>
-                    </td>
-                    {ROLES.map(r => {
-                      const hasPerm = (rolePerms[r.key] || []).includes(m.key);
-                      const isManagerAdmin = r.key === 'MANAGER' && m.key === 'administration';
-                      return (
-                        <td key={r.key} style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            className="matrix-checkbox"
-                            checked={hasPerm || isManagerAdmin}
-                            disabled={isManagerAdmin}
-                            onChange={e => toggleRolePermission(r.key, m.key, e.target.checked)}
-                            title={`${m.label} para ${r.label}`}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {MODULES.map(m => {
+                  const contracted = isContracted(m.key);
+                  return (
+                    <tr
+                      key={m.key}
+                      className="matrix-role-row"
+                      style={{
+                        background: contracted ? 'transparent' : '#f8fafc',
+                        opacity: contracted ? 1 : 0.65
+                      }}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong style={{ color: '#1e293b' }}>{m.label}</strong>
+                          {!contracted ? (
+                            <span style={{ fontSize: '10px', background: '#fee2e2', color: '#991b1b', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                              🔒 No Contratado
+                            </span>
+                          ) : (
+                            m.key !== 'home' && m.key !== 'administration' && (
+                              <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                                ✓ En Plan
+                              </span>
+                            )
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: 2 }}>
+                          {m.desc}
+                          {!contracted && (
+                            <span style={{ color: '#b91c1c', display: 'block', marginTop: 1 }}>
+                              · No contratado en el plan de la tienda. Solicita activación en Fixme para habilitarlo a tus roles.
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      {ROLES.map(r => {
+                        const hasPerm = (rolePerms[r.key] || []).includes(m.key);
+                        const isManagerAdmin = r.key === 'MANAGER' && m.key === 'administration';
+                        const isDisabled = !contracted || isManagerAdmin;
+                        return (
+                          <td key={r.key} style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              className="matrix-checkbox"
+                              checked={contracted && (hasPerm || isManagerAdmin)}
+                              disabled={isDisabled}
+                              onChange={e => toggleRolePermission(r.key, m.key, e.target.checked)}
+                              title={!contracted
+                                ? 'Módulo no contratado por la tienda. Contacta a Fixme para habilitar este paquete.'
+                                : `${m.label} para ${r.label}`}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -8200,11 +8667,11 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
 
   function getSlaBadge(o: Any) {
     if (['COMPLETED', 'ENTREGADO', 'DELIVERED', 'LISTO_ENTREGA', 'PAGADO'].includes(o.status)) {
-      return <span className="sla-badge sla-badge-ok">✓ Culminado</span>;
+      return <span className="badge success">Culminado</span>;
     }
     const deadline = o.sla_deadline || o.estimated_delivery;
     if (!deadline) {
-      return <span className="sla-badge sla-badge-ok">⏱ Meta {o.sla_hours || 48}h</span>;
+      return <span className="badge neutral">Meta {o.sla_hours || 48}h</span>;
     }
     const diffMs = new Date(deadline).getTime() - Date.now();
     const diffHours = diffMs / (1000 * 60 * 60);
@@ -8212,18 +8679,18 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       const passedHours = Math.abs(Math.round(diffHours));
       if (passedHours > 48) {
         const passedDays = Math.round(passedHours / 24);
-        return <span className="sla-badge sla-archived-overdue">Atrasada {passedDays} d</span>;
+        return <span className="badge danger">Atrasada {passedDays} d</span>;
       }
-      return <span className="sla-badge sla-badge-overdue">🚨 Vencida {passedHours}h</span>;
+      return <span className="badge danger">Vencida {passedHours}h</span>;
     }
     if (diffHours <= 12) {
       const leftH = Math.floor(diffHours);
       const leftM = Math.round((diffHours - leftH) * 60);
-      return <span className="sla-badge sla-badge-warning">⚠️ Urgente: {leftH}h {leftM}m</span>;
+      return <span className="badge warning">Urgente: {leftH}h {leftM}m</span>;
     }
     const leftDays = Math.floor(diffHours / 24);
     const leftH = Math.round(diffHours % 24);
-    return <span className="sla-badge sla-badge-ok">⏱ {leftDays > 0 ? `${leftDays}d ` : ''}{leftH}h</span>;
+    return <span className="badge neutral">{leftDays > 0 ? `${leftDays}d ` : ''}{leftH}h</span>;
   }
 
   function getStatusBadge(st: string) {
@@ -8232,20 +8699,15 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
     const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(st);
     const isDelivered = ['ENTREGADO', 'DELIVERED'].includes(st);
 
-    const bg = isRepair ? '#dbeafe' : isWaiting ? '#fef3c7' : isReady ? '#d1fae5' : isDelivered ? '#e0e7ff' : '#f1f5f9';
-    const fg = isRepair ? '#1e40af' : isWaiting ? '#92400e' : isReady ? '#065f46' : isDelivered ? '#3730a3' : '#475569';
-    const label = st === 'EN_REPARACION' ? 'En Reparación' :
-                  st === 'ESPERANDO_REPUESTOS' ? 'Esperando Repuestos' :
-                  st === 'LISTO_ENTREGA' ? 'Listo para Entrega' :
+    const tone = isRepair ? 'brand' : isWaiting ? 'warning' : isReady ? 'success' : isDelivered ? 'neutral' : 'neutral';
+    const label = st === 'EN_REPARACION' ? 'En reparación' :
+                  st === 'ESPERANDO_REPUESTOS' ? 'Esperando repuestos' :
+                  st === 'LISTO_ENTREGA' ? 'Listo para entrega' :
                   st === 'ENTREGADO' ? 'Entregado' :
                   st === 'RECIBIDO' ? 'Recibido' :
-                  st === 'EN_DIAGNOSTICO' ? 'En Diagnóstico' : st;
+                  st === 'EN_DIAGNOSTICO' ? 'En diagnóstico' : st;
 
-    return (
-      <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: bg, color: fg }}>
-        {label}
-      </span>
-    );
+    return <StatusBadge tone={tone}>{label}</StatusBadge>;
   }
 
   const filteredOrders = orders.filter(o => {
@@ -8282,31 +8744,31 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   const kanbanColumns = [
     {
       id: 'COL_DIAG',
-      title: '🔍 Por Diagnosticar',
+      title: 'Por diagnosticar',
       statuses: ['OPEN', 'RECIBIDO', 'EN_DIAGNOSTICO', 'DIAGNOSIS', 'QUOTED'],
       borderColor: '#94a3b8'
     },
     {
       id: 'COL_REPAIR',
-      title: '⚙️ En Reparación',
+      title: 'En reparación',
       statuses: ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'],
       borderColor: '#2563eb'
     },
     {
       id: 'COL_PARTS',
-      title: '⏳ Esperando Repuestos',
+      title: 'Esperando repuestos',
       statuses: ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'],
       borderColor: '#d97706'
     },
     {
       id: 'COL_READY',
-      title: '✅ Listo para Entrega',
+      title: 'Listo para entrega',
       statuses: ['LISTO_ENTREGA', 'COMPLETED'],
       borderColor: '#059669'
     },
     {
       id: 'COL_DELIVERED',
-      title: '🤝 Entregado al Cliente',
+      title: 'Entregado al cliente',
       statuses: ['ENTREGADO', 'DELIVERED'],
       borderColor: '#64748b'
     }
@@ -8314,33 +8776,30 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
 
   return (
     <>
-      {/* 1. Page Header (Section 6) */}
+      {/* 1. Page Header (Section 6.2) */}
       <PageHeader
-        title="Mi Trabajo"
+        title="Mi trabajo"
         description="Banco técnico de órdenes asignadas, avance de diagnósticos y repuestos"
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               type="button"
-              className="secondary-action"
+              className="primary-action"
               onClick={() => { if (go) go('marketplace'); }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              🎯 Tomar de la Bolsa
+              <Inbox size={15} />
+              <span>Tomar de la bolsa</span>
             </button>
-            <button
-              type="button"
-              className="secondary-action"
+            <IconButton
+              icon={RefreshCw}
+              label="Recargar órdenes"
               onClick={load}
-              title="Recargar órdenes"
-            >
-              🔄 Refrescar
-            </button>
+            />
           </div>
         }
       />
 
-      {/* 2. KPI Strip (Section 4) */}
+      {/* 2. KPI Strip (5 celdas limpias) */}
       <KpiStrip
         items={[
           {
@@ -8382,123 +8841,62 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         ]}
       />
 
-      {/* 3. Botonsitos Táctiles de Filtro */}
-      <div className="filter-pills-container">
-        {[
-          { id: 'ALL', label: 'Todas las asignadas', icon: '📌', count: orders.length, color: '#2563eb', colId: 'all' },
-          { id: 'ACTIVE', label: 'Activas en taller', icon: '⚡', count: stats.active || 0, color: '#0284c7', colId: 'all' },
-          { id: 'IN_REPAIR', label: 'En Reparación', icon: '⚙️', count: stats.in_repair || 0, color: '#2563eb', colId: 'COL_REPAIR' },
-          { id: 'WAITING_PARTS', label: 'Esperando Repuestos', icon: '⏳', count: stats.waiting_parts || 0, color: '#d97706', colId: 'COL_PARTS' },
-          { id: 'READY', label: 'Listas para Retiro', icon: '✅', count: stats.ready || 0, color: '#059669', colId: 'COL_READY' },
-          { id: 'URGENT', label: 'SLA Crítico (<12h)', icon: '🚨', count: stats.urgent_sla || 0, color: '#dc2626', colId: 'all' }
-        ].map(btn => {
-          const isActive = filter === btn.id;
-          return (
-            <button
-              key={btn.id}
-              type="button"
-              className={`pill-btn ${isActive ? 'active' : ''}`}
-              style={{
-                borderColor: isActive ? btn.color : undefined,
-                background: isActive ? `${btn.color}15` : undefined,
-                color: isActive ? btn.color : undefined
-              }}
-              onClick={() => {
-                setFilter(btn.id);
-                setMobileKanbanCol(btn.colId);
-              }}
-            >
-              <span>{btn.icon}</span>
-              <span>{btn.label}</span>
-              <span
-                className="pill-badge"
-                style={{
-                  background: isActive ? btn.color : undefined,
-                  color: isActive ? '#ffffff' : undefined
-                }}
-              >
-                {btn.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* 3. Toolbar con FilterTabs único subrayado y controles a la derecha */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <FilterTabs
+          tabs={[
+            { id: 'ALL', label: 'Todas', count: orders.length },
+            { id: 'ACTIVE', label: 'Activas', count: stats.active || 0 },
+            { id: 'WAITING_PARTS', label: 'Esperando repuestos', count: stats.waiting_parts || 0 },
+            { id: 'READY', label: 'Terminadas', count: stats.ready || 0 }
+          ]}
+          activeTab={filter}
+          onChange={id => {
+            setFilter(id);
+            if (id === 'ALL' || id === 'ACTIVE') setMobileKanbanCol('all');
+            else if (id === 'WAITING_PARTS') setMobileKanbanCol('COL_PARTS');
+            else if (id === 'READY') setMobileKanbanCol('COL_READY');
+          }}
+        />
 
-      {/* 4. Barra Secundaria: Búsqueda, Selector de Vista y Flechas de Navegación */}
-      <div className="secondary-controls-bar">
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="search-box-modern">
-            <span>🔍</span>
+          <div className="search-box" style={{ width: 260 }}>
+            <Search size={14} />
             <input
-              placeholder="Buscar por orden, cliente, serie, modelo o falla..."
+              placeholder="Buscar orden, cliente, serie..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button type="button" onClick={() => setSearch('')} className="search-clear-btn" title="Limpiar búsqueda">✕</button>
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}
+                title="Limpiar"
+              >
+                ✕
+              </button>
             )}
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div className="view-mode-pill-toggle">
             <button
               type="button"
               className={`view-mode-item ${viewMode === 'KANBAN' ? 'active' : ''}`}
               onClick={() => setViewMode('KANBAN')}
             >
-              📊 Tablero
+              Tablero
             </button>
             <button
               type="button"
               className={`view-mode-item ${viewMode === 'TABLE' ? 'active' : ''}`}
               onClick={() => setViewMode('TABLE')}
             >
-              📋 Tabla
+              Tabla
             </button>
           </div>
-
-          {viewMode === 'KANBAN' && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                type="button"
-                className="board-arrow-btn"
-                title="Desplazar tablero a la izquierda"
-                onClick={() => {
-                  const b = document.getElementById('mywork-kanban-canvas');
-                  if (b) b.scrollBy({ left: -340, behavior: 'smooth' });
-                }}
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                className="board-arrow-btn"
-                title="Desplazar tablero a la derecha"
-                onClick={() => {
-                  const b = document.getElementById('mywork-kanban-canvas');
-                  if (b) b.scrollBy({ left: 340, behavior: 'smooth' });
-                }}
-              >
-                ▶
-              </button>
-            </div>
-          )}
         </div>
       </div>
-
-      {viewMode === 'KANBAN' && mobileKanbanCol !== 'all' && (
-        <div style={{ margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            type="button"
-            className="secondary-action"
-            onClick={() => { setMobileKanbanCol('all'); setFilter('ALL'); }}
-            style={{ fontSize: 12, padding: '5px 14px', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-          >
-            ← Ver todas las columnas del taller
-          </button>
-        </div>
-      )}
 
       {/* Main Content Area */}
       {loading ? (
@@ -8563,58 +8961,65 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                 <div>{getSlaBadge(o)}</div>
                               </div>
 
-                              <div className="card-device">
-                                📱 {o.device_brand} {o.device_model}
+                              <div className="card-device" style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--text)' }}>
+                                <Smartphone size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                <span>{o.device_brand} {o.device_model}</span>
                               </div>
                               {o.serial_number && (
-                                <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
                                   S/N: <code>{o.serial_number}</code>
                                 </div>
                               )}
 
-                              <div className="card-fault">
+                              <div className="card-fault" style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0' }}>
                                 <strong>Falla:</strong> "{o.reported_fault || 'Sin reporte inicial'}"
                               </div>
 
                               {o.diagnosis && (
-                                <div style={{ fontSize: '11px', color: '#166534', background: '#f0fdf4', padding: '5px 8px', borderRadius: 4, border: '1px solid #bbf7d0', marginBottom: 6 }}>
+                                <div style={{ fontSize: '11px', color: 'var(--success-dark)', background: 'var(--success-light)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--success-border)', marginBottom: 6 }}>
                                   <strong>Diagnóstico:</strong> {o.diagnosis}
                                 </div>
                               )}
 
-                              <div className="card-customer">
-                                <span title={o.customer_name}>👤 {o.customer_name || 'Cliente'}</span>
-                                {o.customer_phone && <span style={{ color: 'var(--accent)' }}>📞 {o.customer_phone}</span>}
+                              <div className="card-customer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                <span title={o.customer_name} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <User size={12} /> {o.customer_name || 'Cliente'}
+                                </span>
+                                {o.customer_phone && (
+                                  <span style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <Phone size={11} /> {o.customer_phone}
+                                  </span>
+                                )}
                               </div>
 
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 8px' }}>
                                 {itemsCount > 0 ? (
-                                  <span className="kanban-items-pill">
-                                    📦 {itemsCount} ítems (${quoteVal.toFixed(2)})
+                                  <span className="kanban-items-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <Package size={12} /> {itemsCount} ítems (${quoteVal.toFixed(2)})
                                   </span>
                                 ) : quoteVal > 0 ? (
-                                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#0f172a' }}>
+                                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text)' }}>
                                     Cotiz: ${quoteVal.toFixed(2)}
                                   </span>
                                 ) : (
-                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin cotización</span>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>Sin cotización</span>
                                 )}
                               </div>
 
                               {/* Primary Action Button + Secondary Context Menu */}
                               <div
-                                style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f1f5f9' }}
+                                style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border)' }}
                                 onClick={e => e.stopPropagation()}
                               >
                                 {col.id === 'COL_DIAG' && (
                                   <button
                                     type="button"
                                     className="primary-action"
-                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
                                     disabled={updating}
                                     onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Técnico inició reparación')}
                                   >
-                                    ⚙️ Iniciar Reparación
+                                    <Wrench size={13} /> Iniciar reparación
                                   </button>
                                 )}
 
@@ -8622,11 +9027,11 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                   <button
                                     type="button"
                                     className="primary-action"
-                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#059669', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', background: 'var(--success)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
                                     disabled={updating}
                                     onClick={() => updateStatus(o.id, 'LISTO_ENTREGA', 'Reparación culminada por técnico')}
                                   >
-                                    ✅ Marcar Listo
+                                    <Check size={13} /> Marcar listo
                                   </button>
                                 )}
 
@@ -8634,23 +9039,23 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                   <button
                                     type="button"
                                     className="primary-action"
-                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#2563eb', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
                                     disabled={updating}
                                     onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Repuestos disponibles, reanudando')}
                                   >
-                                    ▶ Reanudar Reparación
+                                    <Wrench size={13} /> Reanudar reparación
                                   </button>
                                 )}
 
                                 {col.id === 'COL_READY' && (
                                   <button
                                     type="button"
-                                    className="primary-action"
-                                    style={{ flex: 1, padding: '7px 10px', fontSize: '11.5px', borderRadius: '7px', background: '#475569', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    className="secondary-action"
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
                                     disabled={updating}
                                     onClick={() => updateStatus(o.id, 'DELIVERED', 'Equipo entregado al cliente')}
                                   >
-                                    🤝 Entregar al Cliente
+                                    Entregar al cliente
                                   </button>
                                 )}
 
@@ -8989,16 +9394,22 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
 }
 function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,go:(p:string)=>void,role:string}){
   const [data, setData] = React.useState<Any>({});
+  const [adminDash, setAdminDash] = React.useState<any>(null);
+  const [adminPeriod, setAdminPeriod] = React.useState<'month' | 'last30' | 'all'>('last30');
   const [orderCounts, setOrderCounts] = React.useState<Any>({});
   const global = role === 'TENANT_ADMIN' || role === 'SUPER_ADMIN';
   const financial = ['MANAGER', 'ACCOUNTANT', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(role);
 
   React.useEffect(() => {
     if (financial) {
+      api(`/api/reports/dashboard-admin?period=${adminPeriod}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setAdminDash(d); })
+        .catch(() => {});
       api('/api/reports/summary').then(r => r.ok ? r.json() : {}).then(setData);
     }
     api('/api/orders/counts').then(r => r.ok ? r.json() : {}).then(setOrderCounts).catch(() => {});
-  }, [api, financial]);
+  }, [api, financial, adminPeriod]);
 
   const navigateToOrders = (params: string) => {
     window.location.hash = `#work-orders?${params}`;
@@ -9020,64 +9431,497 @@ function Dashboard({api,go,role}:{api:(u:string,o?:RequestInit)=>Promise<Respons
   return (
     <>
       <PageHeader
-        title={title}
+        title="Resumen operativo"
         description={global ? 'Supervisión en tiempo real de empresas y rentabilidad' : `Fixme Tiendas · Sesión activa (${role.replace('_', ' ')})`}
         actions={
           !global && ['MANAGER', 'TENANT_ADMIN', 'SUPER_ADMIN'].includes(role) ? (
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button type="button" className="primary-action" onClick={() => go('pos')}>
-                🛒 Nueva Venta
+                <ShoppingCart size={15} /> <span>Nueva venta</span>
               </button>
               <button type="button" className="secondary-action" onClick={() => go('products')}>
-                ＋ Producto
+                <Plus size={15} /> <span>Producto</span>
               </button>
             </div>
           ) : undefined
         }
       />
 
-      {financial && (
-        <div className="finance-grid">
-          <div className="finance-card">
-            <small>Ingresos Totales</small>
-            <strong className="text-revenue">${Number(data.revenue || 0).toFixed(2)}</strong>
-            <span>{data.sales || 0} transacciones cobradas</span>
+      {/* 1. BANNER DEL PLAN CONTRATADO Y DÍAS RESTANTES (ADMINISTRATIVO) */}
+      {financial && adminDash?.subscription && (
+        <div className="admin-plan-banner">
+          <div className="admin-plan-info">
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.3px' }}>
+                  🏢 {adminDash.subscription.name || 'Mi Empresa'}
+                </span>
+                <span className="admin-plan-badge">
+                  ⭐ Plan {adminDash.subscription.plan || 'STARTER'}
+                </span>
+                {adminDash.subscription.is_trial && (
+                  <span style={{ background: '#3b82f6', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>
+                    MODO PRUEBA
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <span>🔄 Facturación: <strong>{adminDash.subscription.billing_cycle || 'Mensual'}</strong></span>
+                <span>📅 Próximo corte: <strong>{adminDash.subscription.next_billing_date || adminDash.subscription.trial_ends_at || 'Al día'}</strong></span>
+                <span>💵 Cuota: <strong>${Number(adminDash.subscription.monthly_fee || 0).toFixed(2)}/mes</strong></span>
+              </div>
+            </div>
           </div>
-          <div className="finance-card">
-            <small>Costo de Ventas (COGS)</small>
-            <strong className="text-cogs">${Number(data.cogs || 0).toFixed(2)}</strong>
-            <span>Inversión en mercadería vendida</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {adminDash.subscription.isExpired ? (
+              <span className="admin-days-pill expired">
+                🚨 ¡Plan Caducado! ({adminDash.subscription.daysRemaining} días)
+              </span>
+            ) : adminDash.subscription.isExpiringSoon ? (
+              <span className="admin-days-pill warning">
+                ⚠️ Por caducar: {adminDash.subscription.daysRemaining} días restantes
+              </span>
+            ) : (
+              <span className="admin-days-pill healthy">
+                🛡️ Suscripción activa · {adminDash.subscription.daysRemaining} días restantes
+              </span>
+            )}
+
+            {global && (
+              <button
+                type="button"
+                onClick={() => go('administration')}
+                style={{
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  color: '#fff',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Gestionar Plan ↗
+              </button>
+            )}
           </div>
-          <div className="finance-card">
-            <small>Ganancia Bruta Real</small>
-            <strong className="text-profit">+${Number(data.grossProfit || 0).toFixed(2)}</strong>
-            <span style={{ fontWeight: 700, color: '#10b981' }}>{Number(data.grossMarginPercent || 0).toFixed(1)}% margen comercial</span>
+        </div>
+      )}
+
+      {/* KPI STRIP UNIFICADO */}
+      <KpiStrip
+        items={[
+          {
+            label: 'Ingresos ventas',
+            value: `$${Number((adminDash?.financials?.salesRevenue !== undefined ? adminDash.financials.salesRevenue : data.revenue) || 0).toFixed(2)}`,
+            hint: `${(adminDash?.financials?.salesCount !== undefined ? adminDash.financials.salesCount : data.sales) || 0} transacciones cobradas`
+          },
+          {
+            label: 'Ganancia bruta',
+            value: `+$${Number((adminDash?.financials?.grossProfit !== undefined ? adminDash.financials.grossProfit : data.grossProfit) || 0).toFixed(2)}`,
+            hint: `${Number(data.grossMarginPercent || 0).toFixed(1)}% margen comercial`,
+            tone: 'success'
+          },
+          {
+            label: 'Reparaciones activas',
+            value: Number(orderCounts.totalActive || ((orderCounts.open || 0) + (orderCounts.diagnosis || 0) + (orderCounts.quoted || 0) + (orderCounts.waiting_parts || 0) + (orderCounts.repair || 0) + (orderCounts.ready || 0))),
+            hint: 'En proceso técnico',
+            onClick: () => navigateToOrders('view=kanban')
+          },
+          {
+            label: 'SLA en riesgo / vencidas',
+            value: (orderCounts.slaOverdue || 0) + (orderCounts.slaCritical || 0),
+            hint: 'Atención prioritaria',
+            tone: ((orderCounts.slaOverdue || 0) + (orderCounts.slaCritical || 0)) > 0 ? 'danger' : 'default',
+            onClick: () => navigateToOrders('view=table&status=ALL')
+          },
+          {
+            label: 'Entregas pendientes',
+            value: data.deliveriesSummary?.PENDING || 0,
+            hint: 'Envíos por despachar',
+            tone: (data.deliveriesSummary?.PENDING || 0) > 0 ? 'warning' : 'default',
+            onClick: () => go('deliveries')
+          }
+        ]}
+      />
+
+      {/* 2. FLUJO FINANCIERO Y ADMINISTRATIVO DETALLADO (INGRESOS, GASTOS, VENTAS, UTILIDAD) */}
+      {financial && adminDash?.financials && (
+        <div style={{ marginTop: 20 }}>
+          <div className="admin-period-bar">
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text-main)' }}>
+                💼 Flujo Financiero & Balance Administrativo
+              </h3>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {adminPeriod === 'month' ? 'Resumen del mes actual en curso' : adminPeriod === 'last30' ? 'Últimos 30 días de operación continua' : 'Consolidado histórico de la tienda'}
+              </span>
+            </div>
+
+            <div className="view-mode-pill-toggle">
+              <button
+                type="button"
+                className={`view-mode-item ${adminPeriod === 'month' ? 'active' : ''}`}
+                onClick={() => setAdminPeriod('month')}
+              >
+                📅 Este Mes
+              </button>
+              <button
+                type="button"
+                className={`view-mode-item ${adminPeriod === 'last30' ? 'active' : ''}`}
+                onClick={() => setAdminPeriod('last30')}
+              >
+                ⚡ Últimos 30 Días
+              </button>
+              <button
+                type="button"
+                className={`view-mode-item ${adminPeriod === 'all' ? 'active' : ''}`}
+                onClick={() => setAdminPeriod('all')}
+              >
+                🌐 Histórico Total
+              </button>
+            </div>
           </div>
-          <div className="finance-card">
-            <small>Inversión en Stock</small>
-            <strong>${Number(data.inventoryCostValue || 0).toFixed(2)}</strong>
-            <span>{data.totalStockUnits || 0} unidades valorizadas</span>
+
+          <div className="admin-fin-grid">
+            <div className="admin-fin-card income">
+              <div className="admin-fin-header">
+                <span>Ingresos Totales</span>
+                <span style={{ fontSize: 16 }}>💰</span>
+              </div>
+              <div className="admin-fin-value" style={{ color: '#2563eb' }}>
+                ${Number(adminDash.financials.totalRevenue || 0).toFixed(2)}
+              </div>
+              <div className="admin-fin-breakdown">
+                <div className="admin-breakdown-row">
+                  <span>🛒 Ventas Mostrador:</span>
+                  <strong>${Number(adminDash.financials.salesRevenue || 0).toFixed(2)} ({adminDash.financials.salesCount || 0} vts)</strong>
+                </div>
+                <div className="admin-breakdown-row">
+                  <span>🛠️ Servicio Técnico:</span>
+                  <strong>${Number(adminDash.financials.workshopRevenue || 0).toFixed(2)} ({adminDash.financials.completedWorkshopOrders || 0} rep)</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-fin-card expenses">
+              <div className="admin-fin-header">
+                <span>Egresos & Compras</span>
+                <span style={{ fontSize: 16 }}>📉</span>
+              </div>
+              <div className="admin-fin-value" style={{ color: '#ea580c' }}>
+                ${(Number(adminDash.financials.operatingExpenses || 0) + Number(adminDash.financials.purchasesTotal || 0) + Number(adminDash.financials.techCommissions || 0)).toFixed(2)}
+              </div>
+              <div className="admin-fin-breakdown">
+                <div className="admin-breakdown-row">
+                  <span>💵 Gastos de Caja (Out):</span>
+                  <strong>${Number(adminDash.financials.operatingExpenses || 0).toFixed(2)}</strong>
+                </div>
+                <div className="admin-breakdown-row">
+                  <span>📦 Compras Proveedores:</span>
+                  <strong>${Number(adminDash.financials.purchasesTotal || 0).toFixed(2)}</strong>
+                </div>
+                <div className="admin-breakdown-row">
+                  <span>🤝 Comisiones Técnicas:</span>
+                  <strong>${Number(adminDash.financials.techCommissions || 0).toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-fin-card cogs">
+              <div className="admin-fin-header">
+                <span>Costo Mercadería (COGS)</span>
+                <span style={{ fontSize: 16 }}>🏷️</span>
+              </div>
+              <div className="admin-fin-value" style={{ color: '#475569' }}>
+                ${Number(adminDash.financials.salesCogs || 0).toFixed(2)}
+              </div>
+              <div className="admin-fin-breakdown">
+                <div className="admin-breakdown-row">
+                  <span>Margen Bruto ($):</span>
+                  <strong style={{ color: '#16a34a' }}>+${Number(adminDash.financials.grossProfit || 0).toFixed(2)}</strong>
+                </div>
+                <div className="admin-breakdown-row">
+                  <span>Margen Comercial:</span>
+                  <strong>{Number(data.grossMarginPercent || 0).toFixed(1)}%</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-fin-card profit">
+              <div className="admin-fin-header">
+                <span>Utilidad Neta Real</span>
+                <span style={{ fontSize: 16 }}>📈</span>
+              </div>
+              <div className="admin-fin-value" style={{ color: Number(adminDash.financials.netProfit || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                {Number(adminDash.financials.netProfit || 0) >= 0 ? '+' : ''}${Number(adminDash.financials.netProfit || 0).toFixed(2)}
+              </div>
+              <div className="admin-fin-breakdown">
+                <div className="admin-breakdown-row">
+                  <span>Margen Neto Real:</span>
+                  <strong style={{ color: Number(adminDash.financials.netProfit || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                    {Number(adminDash.financials.netMarginPercent || 0).toFixed(1)}%
+                  </strong>
+                </div>
+                <div className="admin-breakdown-row">
+                  <span>Balance:</span>
+                  <span style={{ fontSize: 10.5 }}>Ingresos - COGS - Gastos</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="finance-card">
-            <small>Entregas Pendientes</small>
-            <strong style={{ color: Number(data.deliveriesSummary?.PENDING || 0) > 0 ? '#f59e0b' : '#64748b' }}>
-              {data.deliveriesSummary?.PENDING || 0}
-            </strong>
-            <span>🛵 Envíos por despachar</span>
+        </div>
+      )}
+
+      {/* 3. TRABAJOS REALIZADOS POR PERSONA (TÉCNICOS Y VENDEDORES) */}
+      {financial && adminDash && (
+        <div className="admin-sections-grid">
+          {/* TRABAJOS DE TÉCNICOS */}
+          <div className="admin-panel-card">
+            <div className="admin-panel-title">
+              <span>🛠️ Trabajos Realizados por Técnico</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
+                {adminDash.technicians?.length || 0} técnicos
+              </span>
+            </div>
+            {(!adminDash.technicians || adminDash.technicians.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>
+                Sin órdenes registradas para técnicos en este período
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Técnico</th>
+                    <th style={{ textAlign: 'center' }}>Completadas</th>
+                    <th style={{ textAlign: 'center' }}>En Curso</th>
+                    <th style={{ textAlign: 'right' }}>Mano de Obra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminDash.technicians.map((t: Any, idx: number) => (
+                    <tr key={t.technician_id || idx}>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.email}</div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: Number(t.completed_orders || 0) > 0 ? '#dcfce7' : '#f1f5f9',
+                          color: Number(t.completed_orders || 0) > 0 ? '#15803d' : '#64748b'
+                        }}>
+                          {t.completed_orders || 0}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: Number(t.active_orders || 0) > 0 ? '#ede9fe' : '#f1f5f9',
+                          color: Number(t.active_orders || 0) > 0 ? '#7c3aed' : '#64748b'
+                        }}>
+                          {t.active_orders || 0}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                        ${Number(t.labor_revenue || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-          <div className="finance-card">
-            <small>Stock Bajo Crítico</small>
-            <strong className={Number(data.lowStock || 0) > 0 ? 'text-cogs' : ''}>{data.lowStock || 0}</strong>
-            <span>Productos con ≤ 5 unidades</span>
+
+          {/* VENTAS POR COLABORADOR */}
+          <div className="admin-panel-card">
+            <div className="admin-panel-title">
+              <span>🛒 Ventas por Vendedor / Colaborador</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
+                {adminDash.sellers?.length || 0} vendedores
+              </span>
+            </div>
+            {(!adminDash.sellers || adminDash.sellers.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>
+                Sin ventas registradas en este período
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Colaborador</th>
+                    <th style={{ textAlign: 'center' }}>Ventas</th>
+                    <th style={{ textAlign: 'right' }}>Ticket Prom.</th>
+                    <th style={{ textAlign: 'right' }}>Total Facturado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminDash.sellers.map((s: Any, idx: number) => (
+                    <tr key={s.user_id || idx}>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{s.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.role} · {s.email}</div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: '#e0f2fe',
+                          color: '#0284c7'
+                        }}>
+                          {s.sales_count || 0}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                        ${Number(s.avg_ticket || 0).toFixed(2)}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                        ${Number(s.total_sold || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. TOP CATEGORÍAS Y PRODUCTOS MÁS VENDIDOS */}
+      {financial && adminDash && (
+        <div className="admin-sections-grid">
+          {/* CATEGORÍAS MÁS VENDIDAS */}
+          <div className="admin-panel-card">
+            <div className="admin-panel-title">
+              <span>📊 Categorías Más Vendidas</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Top 5</span>
+            </div>
+            {(!adminDash.topCategories || adminDash.topCategories.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>
+                Sin datos de categorías en este período
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}>#</th>
+                    <th>Categoría</th>
+                    <th style={{ textAlign: 'center' }}>Unidades</th>
+                    <th style={{ textAlign: 'right' }}>Total Facturado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminDash.topCategories.map((c: Any, idx: number) => (
+                    <tr key={idx}>
+                      <td>
+                        <span className={`admin-rank-badge ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{c.category_name}</div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: '#f1f5f9',
+                          color: '#475569'
+                        }}>
+                          {c.units_sold} uds
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#2563eb' }}>
+                        ${Number(c.total_revenue || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* PRODUCTOS MÁS VENDIDOS */}
+          <div className="admin-panel-card">
+            <div className="admin-panel-title">
+              <span>⭐ Productos Estrella (Top Rotación)</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Top 5</span>
+            </div>
+            {(!adminDash.topProducts || adminDash.topProducts.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>
+                Sin datos de productos en este período
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}>#</th>
+                    <th>Producto</th>
+                    <th style={{ textAlign: 'center' }}>Vendidos</th>
+                    <th style={{ textAlign: 'right' }}>Total Facturado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminDash.topProducts.map((p: Any, idx: number) => (
+                    <tr key={p.id || idx}>
+                      <td>
+                        <span className={`admin-rank-badge ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          SKU: {p.sku || 'N/A'} · {p.category_name}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 12,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          background: '#fef3c7',
+                          color: '#b45309'
+                        }}>
+                          {p.units_sold} uds
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#16a34a' }}>
+                        ${Number(p.total_revenue || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
 
       {/* Workshop Command Center & Operational Actionable Alerts */}
-      <div className="workshop-command-center">
+      <div className="workshop-command-center" style={{ marginTop: 16 }}>
         <div className="workshop-command-header">
-          <h3>⚡ Alertas Operativas del Taller Fixme</h3>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>
+          <h3>Alertas operativas del taller</h3>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Activas en taller: <strong>{Number(orderCounts.totalActive || ((orderCounts.open || 0) + (orderCounts.diagnosis || 0) + (orderCounts.quoted || 0) + (orderCounts.waiting_parts || 0) + (orderCounts.repair || 0) + (orderCounts.ready || 0)))}</strong> órdenes en curso
           </span>
         </div>
@@ -9218,7 +10062,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
     price: '0',
     extraCost: '0',
     marginPercent: '30',
-    categoryId: ''
+    categoryId: '',
+    imageUrl: ''
   });
 
   const canManage = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'].includes(role);
@@ -9272,13 +10117,14 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
         price: Number(form.price),
         purchasePrice: Number(form.purchasePrice),
         extraCost: Number(form.extraCost),
-        marginPercent: Number(form.marginPercent)
+        marginPercent: Number(form.marginPercent),
+        imageUrl: form.imageUrl?.trim() || null
       })
     });
     setBusy(false);
     if (r.ok) {
       setMsg('Producto registrado exitosamente');
-      setForm({ sku: '', name: '', barcode: '', minStock: '5', stock: '10', purchasePrice: '0', price: '0', extraCost: '0', marginPercent: '30', categoryId: '' });
+      setForm({ sku: '', name: '', barcode: '', minStock: '5', stock: '10', purchasePrice: '0', price: '0', extraCost: '0', marginPercent: '30', categoryId: '', imageUrl: '' });
       setShowForm(false);
       load();
     } else {
@@ -9303,7 +10149,8 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
         purchasePrice: Number(editItem.purchase_price ?? editItem.purchasePrice ?? 0),
         marginPercent: Number(editItem.margin_percent ?? editItem.marginPercent ?? 0),
         extraCost: Number(editItem.extra_cost ?? editItem.extraCost ?? 0),
-        categoryId: editItem.category_id || editItem.categoryId || null
+        categoryId: editItem.category_id || editItem.categoryId || null,
+        imageUrl: (editItem.imageUrl || editItem.image_url || '').trim() || null
       })
     });
     setBusy(false);
@@ -9376,65 +10223,59 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
 
   return (
     <>
-      <section className="inventory-hero">
-        <div>
-          <span className="eyebrow">INVENTARIO, VALORIZACIÓN Y MÁRGENES</span>
-          <h2>Control de Existencias y Rentabilidad</h2>
-          <p>Conoce la inversión total en mercadería, valorización proyectada a PVP y calcula márgenes al instante.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button type="button" className="secondary-action" onClick={exportCsv} title="Descargar inventario completo en formato CSV">
-            📥 Exportar CSV
-          </button>
-          {canManage && (
-            <>
-              <button type="button" className="secondary-action" onClick={() => setShowCsvImport(true)} title="Importar masivamente productos desde archivo CSV">
-                📤 Importar CSV
-              </button>
-              <button type="button" className="secondary-action" onClick={() => setShowBarcodes(true)} title="Generar e imprimir etiquetas de código de barras">
-                🏷️ Etiquetas Barcode
-              </button>
-              <button className="primary-action" onClick={() => { setShowForm(!showForm); setMsg(''); }}>
-                {showForm ? '✕ Cancelar' : '＋ Nuevo Producto'}
-              </button>
-            </>
-          )}
-        </div>
-      </section>
+      <PageHeader
+        title="Inventario"
+        description="Catálogo de productos, control de existencias y valorización"
+        actions={
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" className="secondary-action" onClick={exportCsv} title="Descargar inventario completo en formato CSV">
+              <Download size={14} /> <span>Exportar CSV</span>
+            </button>
+            {canManage && (
+              <>
+                <button type="button" className="secondary-action" onClick={() => setShowCsvImport(true)} title="Importar masivamente productos desde archivo CSV">
+                  <Upload size={14} /> <span>Importar CSV</span>
+                </button>
+                <button type="button" className="secondary-action" onClick={() => setShowBarcodes(true)} title="Generar e imprimir etiquetas de código de barras">
+                  <Tag size={14} /> <span>Etiquetas</span>
+                </button>
+                <button className="primary-action" onClick={() => { setShowForm(!showForm); setMsg(''); }}>
+                  <Plus size={16} /> <span>{showForm ? 'Cancelar' : 'Nuevo producto'}</span>
+                </button>
+              </>
+            )}
+          </div>
+        }
+      />
 
       {/* FINANCIAL INVENTORY VALUATION KPIS */}
-      <div className="finance-grid">
-        <div className="finance-card">
-          <small>Inversión en Stock (Costo)</small>
-          <strong className="text-revenue">${totalCostValue.toFixed(2)}</strong>
-          <span>Capital total invertido en inventario</span>
-        </div>
-        <div className="finance-card">
-          <small>Valorización Comercial (PVP)</small>
-          <strong>${totalRetailValue.toFixed(2)}</strong>
-          <span>Ingresos proyectados si se vende todo</span>
-        </div>
-        <div className="finance-card">
-          <small>Ganancia Bruta Potencial</small>
-          <strong className="text-profit">+${potentialProfit.toFixed(2)}</strong>
-          <span style={{ fontWeight: 700, color: '#10b981' }}>{projectedMargin.toFixed(1)}% margen global</span>
-        </div>
-        <div className="finance-card">
-          <small>Unidades Totales</small>
-          <strong>{totalUnits}</strong>
-          <span>{rows.length} productos en catálogo</span>
-        </div>
-        <div className="finance-card">
-          <small>Stock Crítico</small>
-          <strong className={lowStockCount > 0 ? 'text-cogs' : ''}>{lowStockCount}</strong>
-          <span>Productos con ≤ 5 unidades</span>
-        </div>
-        <div className="finance-card">
-          <small>Agotados</small>
-          <strong className={outOfStockCount > 0 ? 'text-cogs' : ''}>{outOfStockCount}</strong>
-          <span>Sin existencias disponibles</span>
-        </div>
-      </div>
+      <KpiStrip
+        items={[
+          {
+            label: 'Total productos',
+            value: rows.length,
+            hint: `${totalUnits} unidades en stock`,
+            active: stockFilter === 'ALL',
+            onClick: () => setStockFilter('ALL')
+          },
+          {
+            label: 'Inversión en stock',
+            value: `$${totalCostValue.toFixed(2)}`,
+            hint: 'Capital en costo'
+          },
+          {
+            label: 'Valor comercial (PVP)',
+            value: `$${totalRetailValue.toFixed(2)}`,
+            hint: 'PVP proyectado'
+          },
+          {
+            label: 'Margen promedio',
+            value: `${projectedMargin.toFixed(1)}%`,
+            hint: `+$${potentialProfit.toFixed(2)} ganancia`,
+            tone: projectedMargin > 20 ? 'success' : 'default'
+          }
+        ]}
+      />
 
       {/* PRODUCT CREATION FORM WITH LIVE CALCULATOR */}
       {showForm && canManage && (
@@ -9500,6 +10341,72 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                     required
                   />
                 </label>
+                <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Foto del Producto (Visible en Catálogo Digital y Punto de Venta)
+                  </label>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {form.imageUrl ? (
+                      <div style={{ position: 'relative', width: 90, height: 90, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0 }}>
+                        <img src={form.imageUrl} alt="Vista previa" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                          title="Eliminar foto"
+                          style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <label style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 120,
+                        height: 90,
+                        borderRadius: 10,
+                        border: '2px dashed var(--border)',
+                        background: 'var(--surface-2)',
+                        cursor: 'pointer',
+                        padding: 8,
+                        textAlign: 'center',
+                        gap: 4
+                      }}>
+                        <Camera size={20} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Subir foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const b64 = await compressImageFile(file, 800, 800, 0.75);
+                                setForm(f => ({ ...f, imageUrl: b64 }));
+                              } catch {
+                                alert('Error al cargar la imagen');
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <input
+                        placeholder="O pega aquí una URL de imagen (https://...)"
+                        value={form.imageUrl}
+                        onChange={e => setForm({ ...form, imageUrl: e.target.value })}
+                        style={{ fontSize: 12, padding: '7px 10px', width: '100%' }}
+                      />
+                      <small style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)', fontSize: 11 }}>
+                        Sube una foto desde tu equipo o pega una URL directa. Se optimiza automáticamente para carga rápida en el catálogo.
+                      </small>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -9680,6 +10587,73 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                   </select>
                 </label>
 
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Foto del Producto (Visible en Catálogo Digital)
+                  </label>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(editItem.imageUrl || editItem.image_url) ? (
+                      <div style={{ position: 'relative', width: 80, height: 80, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0 }}>
+                        <img src={editItem.imageUrl || editItem.image_url} alt="Vista previa" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button
+                          type="button"
+                          onClick={() => setEditItem({ ...editItem, imageUrl: '', image_url: '' })}
+                          title="Eliminar foto"
+                          style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.65)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <label style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 100,
+                        height: 80,
+                        borderRadius: 10,
+                        border: '2px dashed var(--border)',
+                        background: 'var(--surface-2)',
+                        cursor: 'pointer',
+                        padding: 6,
+                        textAlign: 'center',
+                        gap: 3
+                      }}>
+                        <Camera size={18} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Subir foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const b64 = await compressImageFile(file, 800, 800, 0.75);
+                                setEditItem({ ...editItem, imageUrl: b64, image_url: b64 });
+                              } catch {
+                                alert('Error al cargar la imagen');
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div style={{ flex: 1, minWidth: 180 }}>
+                      <input
+                        placeholder="O URL de imagen (https://...)"
+                        value={editItem.imageUrl || editItem.image_url || ''}
+                        onChange={e => setEditItem({ ...editItem, imageUrl: e.target.value, image_url: e.target.value })}
+                        style={{ fontSize: 12, padding: '7px 10px', width: '100%' }}
+                      />
+                      <small style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)', fontSize: 11 }}>
+                        Sube una foto o pega una URL para el catálogo en línea.
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
                 {/* EDIT PRICE & COST CALCULATOR */}
                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -9737,45 +10711,55 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
       )}
 
       {/* CATALOG TOOLBAR & FILTERS */}
-      <section className="panel catalog-panel">
-        <div className="catalog-toolbar">
-          <div>
-            <h3>Catálogo de Productos</h3>
-            <p>{filtered.length} artículos encontrados · Sincronizado</p>
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+            <div className="search-box" style={{ width: 320 }}>
+              <Search size={14} />
+              <input
+                placeholder="Buscar por nombre, SKU o código..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}
+                  title="Limpiar"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              style={{ width: 200 }}
+            >
+              <option value="">Todas las categorías ({cats.length})</option>
+              {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
 
-          <div className="search-box">
-            <span>🔍</span>
-            <input
-              placeholder="Buscar por nombre, SKU o modelo..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
+          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+            {filtered.length} artículos encontrados
           </div>
-
-          <select className="filter-select" value={category} onChange={e => setCategory(e.target.value)}>
-            <option value="">Todas las categorías ({cats.length})</option>
-            {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
         </div>
 
-        {/* STOCK STATUS PILLS */}
-        <div style={{ display: 'flex', gap: '8px', margin: '0 0 16px', overflowX: 'auto' }}>
-          {[
-            ['ALL', `Todos (${rows.length})`],
-            ['IN_STOCK', `Disponibles (${rows.filter(r => Number(r.stock) > 5).length})`],
-            ['LOW_STOCK', `Stock Bajo (${lowStockCount})`],
-            ['OUT_OF_STOCK', `Agotados (${outOfStockCount})`]
-          ].map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              className={`filter-pill ${stockFilter === k ? 'active' : ''}`}
-              onClick={() => setStockFilter(k as any)}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Stock FilterTabs */}
+        <div style={{ marginBottom: 16 }}>
+          <FilterTabs
+            tabs={[
+              { id: 'ALL', label: 'Todos', count: rows.length },
+              { id: 'IN_STOCK', label: 'Disponibles', count: rows.filter(r => Number(r.stock) > 5).length },
+              { id: 'LOW_STOCK', label: 'Stock bajo', count: lowStockCount },
+              { id: 'OUT_OF_STOCK', label: 'Agotados', count: outOfStockCount }
+            ]}
+            activeTab={stockFilter}
+            onChange={k => setStockFilter(k as any)}
+          />
         </div>
 
         {filtered.length ? (
@@ -9789,14 +10773,25 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
 
               return (
                 <article className="product-card" key={r.id}>
-                  <div className="product-thumb">📦</div>
+                  <div className="product-thumb" style={{ background: 'var(--surface-subtle)', position: 'relative', overflow: 'hidden' }}>
+                    {r.image_url || r.imageUrl ? (
+                      <img
+                        src={r.image_url || r.imageUrl}
+                        alt={r.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Package size={26} style={{ color: 'var(--primary)' }} />
+                    )}
+                  </div>
                   <div className="product-card-body">
                     <div className="product-card-top">
                       <div>
                         <span className="sku-label">{r.sku}</span>
                         {r.barcode && (
-                          <small style={{ display: 'block', fontSize: '9.5px', color: '#64748b' }}>
-                            🏷️ {r.barcode}
+                          <small style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)' }}>
+                            {r.barcode}
                           </small>
                         )}
                       </div>
@@ -9805,46 +10800,44 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                         const isOut = stock <= 0;
                         const isLow = stock > 0 && stock <= minS;
                         return (
-                          <span
-                            className={!isOut && !isLow ? 'stock-badge' : isLow ? 'stock-badge' : 'stock-badge empty-stock'}
-                            style={{
-                              background: !isOut && !isLow ? '#dcfce7' : isLow ? '#fef3c7' : '#fee2e2',
-                              color: !isOut && !isLow ? '#166534' : isLow ? '#92400e' : '#991b1b',
-                              fontWeight: 700
-                            }}
-                            title={`Stock actual: ${stock} unidades · Alerta mínima configurada: ${minS}`}
-                          >
-                            {!isOut && !isLow ? `🟢 ${stock} en stock` : isLow ? `🟡 Bajo (${stock}/${minS})` : '🔴 Agotado'}
-                          </span>
+                          <div>
+                            {!isOut && !isLow ? (
+                              <StatusBadge tone="success">{stock} en stock</StatusBadge>
+                            ) : isLow ? (
+                              <StatusBadge tone="warning">Bajo ({stock}/{minS})</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="danger">Agotado</StatusBadge>
+                            )}
+                          </div>
                         );
                       })()}
                     </div>
 
-                    <h4>{r.name}</h4>
+                    <h4 style={{ margin: '8px 0', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{r.name}</h4>
 
-                    <div className="product-card-footer" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                    <div className="product-card-footer" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>
                       <div>
-                        <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>PVP VENTA</small>
-                        <strong style={{ fontSize: '18px', color: '#3157d5' }}>${pvp.toFixed(2)}</strong>
+                        <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>PVP venta</small>
+                        <strong style={{ fontSize: '18px', color: 'var(--primary)' }}>${pvp.toFixed(2)}</strong>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <small style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>COSTO</small>
-                        <span style={{ fontWeight: 600, color: '#475569' }}>${cost.toFixed(2)}</span>
+                        <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Costo</small>
+                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>${cost.toFixed(2)}</span>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <small style={{ color: '#059669', fontWeight: 700 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <small style={{ color: 'var(--success-dark)', fontWeight: 600 }}>
                         +${unitProfit.toFixed(2)} ({margin.toFixed(0)}% mgn)
                       </small>
                       {canManage && (
                         <button
                           type="button"
-                          className="edit-product"
+                          className="secondary-action btn-sm"
                           onClick={() => setEditItem(r)}
-                          style={{ fontSize: '11px', padding: '3px 8px' }}
+                          style={{ height: 26, padding: '0 8px', fontSize: 11 }}
                         >
-                          ✏️ Editar
+                          Editar
                         </button>
                       )}
                     </div>
@@ -9854,13 +10847,15 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
             })}
           </div>
         ) : (
-          <div className="empty">
-            <b>📦</b>
-            <p>No se encontraron productos con estos criterios.</p>
-            <small>Ajusta los filtros o crea un nuevo producto.</small>
+          <div className="panel" style={{ textAlign: 'center', padding: '40px 20px', border: '1px dashed var(--border-strong)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, color: 'var(--text-subtle)' }}>
+              <Package size={32} />
+            </div>
+            <h3 style={{ margin: '0 0 4px', color: 'var(--text)' }}>No hay productos que coincidan</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>Prueba ajustando el término de búsqueda o la categoría seleccionada.</p>
           </div>
         )}
-      </section>
+      </div>
 
       {showBarcodes && (
         <BarcodeTagsModal
@@ -10081,115 +11076,91 @@ function Customers({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Res
   return (
     <div className="customers-page">
       {/* Header & Primary Actions */}
-      <section className="panel" style={{marginBottom: 16}}>
-        <div className="panel-head" style={{flexWrap: 'wrap', gap: 12}}>
-          <div>
-            <h2 style={{fontSize: 20, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8}}>
-              👥 Directorio y CRM de Clientes 360°
-            </h2>
-            <p style={{margin: 0, fontSize: 13, color: '#64748b'}}>
-              Gestión comercial integral de clientes, identificación fiscal, historial de ventas, taller y garantías.
-            </p>
-          </div>
-          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-            <button className="secondary" onClick={() => exportCSV()} title="Exportar a Excel/CSV" style={{display: 'flex', alignItems: 'center', gap: 5}}>
-              📥 Exportar CSV
+      <PageHeader
+        title="Clientes"
+        description="Directorio comercial, identificación fiscal, historial de ventas y taller"
+        actions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button type="button" className="secondary-action" onClick={() => exportCSV()} title="Exportar a Excel/CSV">
+              <Download size={14} /> <span>Exportar CSV</span>
             </button>
-            <button className="secondary" onClick={() => loadData()} title="Recargar lista" style={{display: 'flex', alignItems: 'center', gap: 5}}>
-              🔄 Refrescar
-            </button>
-            <button onClick={openCreate} style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
-              ➕ Registrar Cliente
+            <IconButton icon={RefreshCw} label="Recargar lista" onClick={() => loadData()} />
+            <button type="button" className="primary-action" onClick={openCreate}>
+              <Plus size={16} /> <span>Registrar cliente</span>
             </button>
           </div>
-        </div>
+        }
+      />
 
-        {/* CRM KPI Cards */}
-        <div className="crm-kpi-grid" style={{marginTop: 16}}>
-          <div
-            className={`crm-kpi-card ${tagFilter === 'ALL' ? 'active-filter' : ''}`}
-            onClick={() => setTagFilter('ALL')}
-          >
-            <span className="kpi-label">👥 Total Clientes</span>
-            <span className="kpi-value">{stats.totalCustomers}</span>
-          </div>
-          <div
-            className={`crm-kpi-card kpi-vip ${tagFilter === 'VIP' ? 'active-filter' : ''}`}
-            onClick={() => setTagFilter('VIP')}
-          >
-            <span className="kpi-label">⭐ Clientes VIP</span>
-            <span className="kpi-value">{stats.vipCustomers}</span>
-          </div>
-          <div
-            className={`crm-kpi-card kpi-money ${tagFilter === 'WITH_SALES' ? 'active-filter' : ''}`}
-            onClick={() => setTagFilter('WITH_SALES')}
-          >
-            <span className="kpi-label">💰 Facturación Clientes</span>
-            <span className="kpi-value">${Number(stats.totalSalesVolume || 0).toFixed(2)}</span>
-          </div>
-          <div
-            className={`crm-kpi-card kpi-repair ${tagFilter === 'ACTIVE_WORK_ORDERS' ? 'active-filter' : ''}`}
-            onClick={() => setTagFilter('ACTIVE_WORK_ORDERS')}
-          >
-            <span className="kpi-label">🛠️ En Taller Activo</span>
-            <span className="kpi-value">{stats.activeRepairCustomers}</span>
-          </div>
-        </div>
+      {/* CRM KPI Cards */}
+      <KpiStrip
+        items={[
+          {
+            label: 'Total clientes',
+            value: stats.totalCustomers || rows.length,
+            active: tagFilter === 'ALL',
+            onClick: () => setTagFilter('ALL')
+          },
+          {
+            label: 'Clientes VIP',
+            value: stats.vipCustomers || 0,
+            active: tagFilter === 'VIP',
+            tone: 'warning',
+            onClick: () => setTagFilter('VIP')
+          },
+          {
+            label: 'Facturación clientes',
+            value: `$${Number(stats.totalSalesVolume || 0).toFixed(2)}`,
+            active: tagFilter === 'WITH_SALES',
+            tone: 'success',
+            onClick: () => setTagFilter('WITH_SALES')
+          },
+          {
+            label: 'En taller activo',
+            value: stats.activeRepairCustomers || 0,
+            active: tagFilter === 'ACTIVE_WORK_ORDERS',
+            tone: 'default',
+            onClick: () => setTagFilter('ACTIVE_WORK_ORDERS')
+          }
+        ]}
+      />
 
-        {/* Toolbar: Search and Filter Pills */}
-        <div className="warranty-controls">
-          <div className="warranty-search-wrap">
-            <span className="warranty-search-icon">🔍</span>
-            <input
-              type="text"
-              className="warranty-search-input"
-              placeholder="Buscar por nombre, cédula / RUC, teléfono, correo o ciudad..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  padding: '2px 6px'
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          <div className="warranty-filter-pills">
-            {[
-              ['ALL', 'Todos'],
-              ['VIP', '⭐ VIP'],
-              ['FREQUENT', '🔄 Frecuentes'],
-              ['WITH_SALES', '🛍️ Con Compras'],
-              ['ACTIVE_WORK_ORDERS', '🛠️ En Taller'],
-              ['NEW', '🆕 Nuevos']
-            ].map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                className={`warranty-pill ${tagFilter === k ? 'active' : ''}`}
-                onClick={() => setTagFilter(k)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      {/* Toolbar: Search and Filter Pills */}
+      <div style={{ marginTop: 16, marginBottom: 16 }}>
+        <div className="search-box" style={{ width: '100%', maxWidth: 420 }}>
+          <Search size={14} />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, cédula / RUC, teléfono, correo..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}
+              title="Limpiar"
+            >
+              ✕
+            </button>
+          )}
         </div>
-      </section>
+        <div style={{ marginTop: 12 }}>
+          <FilterTabs
+            tabs={[
+              { id: 'ALL', label: 'Todos', count: rows.length },
+              { id: 'VIP', label: 'VIP', count: stats.vipCustomers || 0 },
+              { id: 'FREQUENT', label: 'Frecuentes' },
+              { id: 'WITH_SALES', label: 'Con compras' },
+              { id: 'ACTIVE_WORK_ORDERS', label: 'En taller', count: stats.activeRepairCustomers || 0 },
+              { id: 'NEW', label: 'Nuevos' }
+            ]}
+            activeTab={tagFilter}
+            onChange={k => setTagFilter(k)}
+          />
+        </div>
+      </div>
 
       {/* Customer Directory Table */}
       <section className="panel table-panel">
@@ -12138,23 +13109,61 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
   });
 
   return <>
-    <section className="inventory-hero">
-      <div>
-        <span className="eyebrow">SERVICIO TÉCNICO Y TALLER ESPECIALIZADO</span>
-        <h2>Órdenes de Trabajo & SLA</h2>
-        <p>Asigna técnicos especializados, controla tiempos de entrega (SLA 24/48/72h) y desglose de mano de obra.</p>
-      </div>
-      <button className="primary-action" onClick={()=>setShowCreate(!showCreate)}>
-        {showCreate?'✕ Cancelar':'＋ Nueva orden de servicio'}
-      </button>
-    </section>
+    <PageHeader
+      title="Órdenes de servicio"
+      description="Taller, diagnósticos técnicos y control de SLA"
+      actions={
+        <button
+          type="button"
+          className="primary-action"
+          onClick={() => setShowCreate(!showCreate)}
+        >
+          <Plus size={16} />
+          <span>Nueva orden</span>
+        </button>
+      }
+    />
 
-    <div className="inventory-stats">
-      <div><span>En Diagnóstico</span><strong>{diagCount}</strong><small>Por evaluar</small></div>
-      <div><span>Cotizadas</span><strong>{quotedCount}</strong><small>Esperando cliente</small></div>
-      <div><span>En Reparación</span><strong>{inProgCount}</strong><small>En proceso activo</small></div>
-      <div><span>Listas para Entrega</span><strong style={{color:'#10b981'}}>{readyCount}</strong><small>Retiro en tienda</small></div>
-    </div>
+    <KpiStrip
+      items={[
+        {
+          label: 'Total órdenes',
+          value: orderCounts.total || r.length,
+          hint: 'En flujo de taller',
+          active: filterStatus === 'ALL',
+          onClick: () => { setFilterStatus('ALL'); setMobileKanbanCol('all'); }
+        },
+        {
+          label: 'En diagnóstico',
+          value: (orderCounts.diagnosis || 0) + (orderCounts.open || 0),
+          hint: 'Por evaluar',
+          active: filterStatus === 'DIAGNOSIS',
+          onClick: () => { setFilterStatus('DIAGNOSIS'); setMobileKanbanCol('diag'); }
+        },
+        {
+          label: 'En reparación',
+          value: (orderCounts.repair || 0) + (orderCounts.testing || 0),
+          hint: 'En proceso activo',
+          active: filterStatus === 'IN_PROGRESS',
+          onClick: () => { setFilterStatus('IN_PROGRESS'); setMobileKanbanCol('in_progress'); }
+        },
+        {
+          label: 'Listas para entrega',
+          value: orderCounts.ready || 0,
+          hint: 'Retiro en tienda',
+          tone: (orderCounts.ready || 0) > 0 ? 'success' : 'default',
+          active: filterStatus === 'LISTO_ENTREGA',
+          onClick: () => { setFilterStatus('LISTO_ENTREGA'); setMobileKanbanCol('ready'); }
+        },
+        {
+          label: 'Entregadas',
+          value: orderCounts.delivered || 0,
+          hint: 'Servicio completado',
+          active: filterStatus === 'DELIVERED',
+          onClick: () => { setFilterStatus('DELIVERED'); setMobileKanbanCol('delivered'); }
+        }
+      ]}
+    />
 
     {showCreate&&<section className="panel product-editor">
       <div className="editor-heading">
@@ -12491,153 +13500,82 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
       </form>
     </section>}
 
-    <PageHeader
-      title="Órdenes de Servicio"
-      description="Recepción, presupuestos, flujo técnico y entregas de taller"
-      actions={
-        <button
-          type="button"
-          className="primary-action"
-          onClick={() => setShowCreate(!showCreate)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          ＋ Nueva Orden
-        </button>
-      }
-    />
+    <div style={{ marginTop: 16 }}>
+      {/* 1. FilterTabs único */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <FilterTabs
+          tabs={[
+            { id: 'ALL', label: 'Todas', count: orderCounts.total || r.length },
+            { id: 'DIAGNOSIS', label: 'Por diagnosticar', count: (orderCounts.diagnosis || 0) + (orderCounts.open || 0) },
+            { id: 'IN_PROGRESS', label: 'En reparación', count: (orderCounts.repair || 0) + (orderCounts.testing || 0) },
+            { id: 'LISTO_ENTREGA', label: 'Listas', count: orderCounts.ready || 0 },
+            { id: 'DELIVERED', label: 'Entregadas', count: orderCounts.delivered || 0 }
+          ]}
+          activeTab={filterStatus}
+          onChange={id => {
+            setFilterStatus(id);
+            const colMap: Record<string, string> = {
+              ALL: 'all',
+              DIAGNOSIS: 'diag',
+              IN_PROGRESS: 'in_progress',
+              LISTO_ENTREGA: 'ready',
+              DELIVERED: 'delivered'
+            };
+            if (colMap[id]) setMobileKanbanCol(colMap[id]);
+          }}
+        />
 
-    <section className="panel" style={{ padding: '18px 20px', marginTop: 12 }}>
-      {/* 1. Botonsitos Principales de Filtro y Estado */}
-      <div className="filter-pills-container">
-        {[
-          { id: 'ALL', label: 'Todas las órdenes', icon: '📋', count: orderCounts.total || r.length, color: '#2563eb' },
-          { id: 'DIAGNOSIS', label: '1. Diagnóstico', icon: '🔍', count: (orderCounts.diagnosis || 0) + (orderCounts.open || 0), color: '#2563eb' },
-          { id: 'QUOTED', label: '2. Cotizadas', icon: '💰', count: orderCounts.quoted || 0, color: '#d97706' },
-          { id: 'WAITING_PARTS', label: '3. Repuestos', icon: '⏳', count: orderCounts.waiting_parts || 0, color: '#ea580c' },
-          { id: 'IN_PROGRESS', label: '4. En Reparación', icon: '⚙️', count: (orderCounts.repair || 0) + (orderCounts.testing || 0), color: '#7c3aed' },
-          { id: 'LISTO_ENTREGA', label: '5. Listas Retiro', icon: '✅', count: orderCounts.ready || 0, color: '#059669' },
-          { id: 'DELIVERED', label: '6. Pagadas / Retiradas', icon: '🤝', count: orderCounts.delivered || 0, color: '#475569' }
-        ].map(btn => {
-          const isActive = filterStatus === btn.id;
-          return (
-            <button
-              key={btn.id}
-              type="button"
-              className={`pill-btn ${isActive ? 'active' : ''}`}
-              onClick={() => {
-                setFilterStatus(btn.id);
-                if (btn.id === 'ALL') {
-                  setMobileKanbanCol('all');
-                } else {
-                  const colMap: Record<string, string> = {
-                    DIAGNOSIS: 'diag',
-                    QUOTED: 'quoted',
-                    WAITING_PARTS: 'parts',
-                    IN_PROGRESS: 'in_progress',
-                    LISTO_ENTREGA: 'ready',
-                    DELIVERED: 'delivered'
-                  };
-                  if (colMap[btn.id]) {
-                    setMobileKanbanCol(colMap[btn.id]);
-                  }
-                }
-              }}
-              style={{
-                borderColor: isActive ? btn.color : undefined,
-                background: isActive ? `${btn.color}15` : undefined,
-                color: isActive ? btn.color : undefined
-              }}
-            >
-              <span>{btn.icon}</span>
-              <span>{btn.label}</span>
-              <span
-                className="pill-badge"
-                style={{
-                  background: isActive ? btn.color : undefined,
-                  color: isActive ? '#fff' : undefined
-                }}
-              >
-                {btn.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 2. Barra de Búsqueda, Filtro de Técnico y Selector de Vista */}
-      <div className="secondary-controls-bar">
+        {/* 2. Barra de Búsqueda, Filtro de Técnico y Selector de Vista */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <select
             value={filterTech}
             onChange={e => setFilterTech(e.target.value)}
-            className="filter-select-modern"
+            style={{ width: 190 }}
           >
-            <option value="ALL">👨‍🔧 Todos los técnicos ({r.length})</option>
+            <option value="ALL">Todos los técnicos ({r.length})</option>
             {techs.map(t => (
               <option key={t.id} value={t.id}>
-                👨‍🔧 {t.fullName} ({r.filter(o => o.assigned_technician_id === t.id).length})
+                {t.fullName} ({r.filter(o => o.assigned_technician_id === t.id).length})
               </option>
             ))}
             <option value="UNASSIGNED">Sin técnico asignado ({r.filter(o => !o.assigned_technician_id).length})</option>
           </select>
 
-          <div className="search-box-modern">
-            <span>🔍</span>
+          <div className="search-box" style={{ width: 260 }}>
+            <Search size={14} />
             <input
-              placeholder="Buscar orden, cliente, serie, modelo..."
+              placeholder="Buscar orden, cliente, modelo..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button type="button" onClick={() => setSearch('')} className="search-clear-btn" title="Limpiar búsqueda">✕</button>
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}
+                title="Limpiar"
+              >
+                ✕
+              </button>
             )}
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div className="view-mode-pill-toggle">
             <button
               type="button"
               className={`view-mode-item ${viewMode === 'kanban' ? 'active' : ''}`}
               onClick={() => setViewMode('kanban')}
             >
-              📊 Tablero
+              Tablero
             </button>
             <button
               type="button"
               className={`view-mode-item ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => setViewMode('list')}
             >
-              📋 Lista
+              Lista
             </button>
           </div>
-
-          {viewMode === 'kanban' && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                type="button"
-                className="board-arrow-btn"
-                title="Desplazar tablero a la izquierda"
-                onClick={() => {
-                  const b = document.querySelector('.kanban-board-canvas');
-                  if (b) b.scrollBy({ left: -340, behavior: 'smooth' });
-                }}
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                className="board-arrow-btn"
-                title="Desplazar tablero a la derecha"
-                onClick={() => {
-                  const b = document.querySelector('.kanban-board-canvas');
-                  if (b) b.scrollBy({ left: 340, behavior: 'smooth' });
-                }}
-              >
-                ▶
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -12663,7 +13601,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
             {[
               {
                 id: 'diag',
-                title: '🔍 1. En Diagnóstico',
+                title: 'En diagnóstico',
                 color: '#2563eb',
                 subtitle: 'Evaluación y presupuesto preliminar',
                 items: filtered.filter(o => ['OPEN', 'DIAGNOSIS', 'RECIBIDO', 'EN_DIAGNOSTICO'].includes(o.status)),
@@ -12671,7 +13609,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               },
               {
                 id: 'quoted',
-                title: '💰 2. Cotizadas (Requiere Aprobación)',
+                title: 'Cotizadas',
                 color: '#d97706',
                 subtitle: 'Esperando autorización del cliente',
                 items: filtered.filter(o => ['QUOTED', 'COTIZADO'].includes(o.status)),
@@ -12679,7 +13617,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               },
               {
                 id: 'parts',
-                title: '⏳ 3. Esperando Repuestos',
+                title: 'Esperando repuestos',
                 color: '#ea580c',
                 subtitle: 'Aprobado, esperando repuestos',
                 items: filtered.filter(o => ['WAITING_PARTS', 'ESPERANDO_REPUESTOS'].includes(o.status)),
@@ -12687,7 +13625,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               },
               {
                 id: 'in_progress',
-                title: '⚙️ 4. En Reparación & Pruebas',
+                title: 'En reparación y pruebas',
                 color: '#7c3aed',
                 subtitle: 'Trabajo activo en banco técnico',
                 items: filtered.filter(o => ['APPROVED', 'APROBADO', 'IN_PROGRESS', 'EN_REPARACION', 'TESTING', 'EN_PRUEBAS', 'PRUEBAS'].includes(o.status)),
@@ -12695,15 +13633,15 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               },
               {
                 id: 'ready',
-                title: '✅ 5. Listas para Entrega',
+                title: 'Listas para entrega',
                 color: '#059669',
-                subtitle: 'Terminadas o rechazadas (Cobro diag)',
+                subtitle: 'Terminadas o listas para retiro',
                 items: filtered.filter(o => ['COMPLETED', 'LISTO_ENTREGA', 'REJECTED', 'RECHAZADO'].includes(o.status)),
                 emptyText: 'No hay equipos listos'
               },
               {
                 id: 'delivered',
-                title: '🤝 6. Pagadas / Retiradas',
+                title: 'Pagadas / Retiradas',
                 color: '#475569',
                 subtitle: 'Cobro y garantía registrados',
                 items: filtered.filter(o => ['DELIVERED', 'PAGADO', 'ENTREGADO'].includes(o.status)),
@@ -12773,7 +13711,14 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
                         title="Clic para abrir Banco de Trabajo"
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span className="card-folio">{o.order_number || 'OT'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="card-folio">{o.order_number || 'OT'}</span>
+                            {o.is_warranty_return && (
+                              <span style={{ fontSize: '9.5px', background: '#fee2e2', color: '#dc2626', fontWeight: 800, padding: '1px 5px', borderRadius: 4 }}>
+                                🔄 GARANTÍA
+                              </span>
+                            )}
+                          </div>
                           <span className={`sla-badge ${sla.cls}`} style={{ fontSize: '10px', padding: '2px 6px' }}>{sla.label}</span>
                         </div>
 
@@ -13236,7 +14181,7 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
           </div>
         )
       )}
-    </section>
+    </div>
 
     {/* MODAL QR Y ENLACE DE CLIENTE */}
     {qrModal&&<div className="modal-overlay" onClick={()=>setQrModal(null)}>
@@ -13416,6 +14361,44 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
               </select>
             </label>
           </div>
+
+          {['ENTREGADO', 'DELIVERED', 'PAGADO'].includes(editModal.status) && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 12, margin: '14px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <div>
+                <strong style={{ color: '#991b1b', fontSize: 13, display: 'block' }}>¿Equipo reingresado por falla de reparación?</strong>
+                <span style={{ fontSize: 11.5, color: '#b91c1c' }}>
+                  Abre una orden de garantía oficial a costo $0.00 vinculando la orden original.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ background: '#ffffff', color: '#dc2626', borderColor: '#f87171', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}
+                onClick={async () => {
+                  const reason = prompt('Describe la falla técnica reportada por el cliente bajo garantía:');
+                  if (!reason || !reason.trim()) return;
+                  try {
+                    setBusy(true);
+                    const res = await api(`/api/work-orders/${editModal.id}/warranty-return`, {
+                      method: 'POST',
+                      body: JSON.stringify({ reason: reason.trim() })
+                    });
+                    if (!res.ok) throw new Error('Error al procesar reingreso de garantía');
+                    const newOrder = await res.json();
+                    setEditModal(null);
+                    setMsg(`¡Reingreso de garantía creado con éxito! Nueva orden #${newOrder.order_number}`);
+                    load();
+                  } catch (err: any) {
+                    alert(err.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                🔄 Reingreso por Garantía (RMA)
+              </button>
+            </div>
+          )}
 
           <div className="editor-footer" style={{marginTop:'18px'}}>
             <button type="button" className="secondary-action" onClick={()=>setEditModal(null)}>Cancelar</button>
@@ -13744,6 +14727,10 @@ function Orders({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respo
 function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
   const [r, setR] = React.useState<Any>({});
   const [loading, setLoading] = React.useState(true);
+  const [reportTab, setReportTab] = React.useState<'summary' | 'commissions' | 'pnl'>('summary');
+  const [dateRange, setDateRange] = React.useState({ start: '', end: '' });
+  const [commissionsData, setCommissionsData] = React.useState<Any | null>(null);
+  const [pnlData, setPnlData] = React.useState<Any | null>(null);
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -13752,7 +14739,30 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
       .then(data => { setR(data); setLoading(false); });
   }, [api]);
 
+  const loadCommissions = React.useCallback(() => {
+    let q = '';
+    if (dateRange.start) q += `startDate=${dateRange.start}&`;
+    if (dateRange.end) q += `endDate=${dateRange.end}&`;
+    api(`/api/reports/technician-commissions?${q}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(d => setCommissionsData(d));
+  }, [api, dateRange]);
+
+  const loadPnl = React.useCallback(() => {
+    let q = '';
+    if (dateRange.start) q += `startDate=${dateRange.start}&`;
+    if (dateRange.end) q += `endDate=${dateRange.end}&`;
+    api(`/api/reports/financial-pnl?${q}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(d => setPnlData(d));
+  }, [api, dateRange]);
+
   React.useEffect(() => { load(); }, [load]);
+
+  React.useEffect(() => {
+    if (reportTab === 'commissions') loadCommissions();
+    if (reportTab === 'pnl') loadPnl();
+  }, [reportTab, loadCommissions, loadPnl]);
 
   const dailyTrend: Any[] = r.dailyTrend || [];
   const topProducts: Any[] = r.topProducts || [];
@@ -13801,12 +14811,66 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="secondary-action" onClick={() => printTicketElement('printable-financial-report')}>🖨️ Imprimir Reporte</button>
-          <button className="primary-action" onClick={load}>Actualizar</button>
+          <button className="primary-action" onClick={() => { if(reportTab==='summary') load(); if(reportTab==='commissions') loadCommissions(); if(reportTab==='pnl') loadPnl(); }}>Actualizar</button>
         </div>
       </section>
 
-      {/* TOP FINANCIAL KPIS */}
-      <div className="finance-grid">
+      {/* REPORT NAVIGATION TABS */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', margin: '14px 0 20px' }}>
+        <button
+          type="button"
+          onClick={() => setReportTab('summary')}
+          style={{
+            padding: '10px 18px',
+            border: 'none',
+            background: 'none',
+            fontWeight: reportTab === 'summary' ? 700 : 500,
+            borderBottom: reportTab === 'summary' ? '3px solid var(--primary)' : '3px solid transparent',
+            color: reportTab === 'summary' ? 'var(--primary)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          📊 Resumen General & Ventas
+        </button>
+        <button
+          type="button"
+          onClick={() => setReportTab('commissions')}
+          style={{
+            padding: '10px 18px',
+            border: 'none',
+            background: 'none',
+            fontWeight: reportTab === 'commissions' ? 700 : 500,
+            borderBottom: reportTab === 'commissions' ? '3px solid var(--primary)' : '3px solid transparent',
+            color: reportTab === 'commissions' ? 'var(--primary)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          👨‍🔧 Comisiones de Técnicos
+        </button>
+        <button
+          type="button"
+          onClick={() => setReportTab('pnl')}
+          style={{
+            padding: '10px 18px',
+            border: 'none',
+            background: 'none',
+            fontWeight: reportTab === 'pnl' ? 700 : 500,
+            borderBottom: reportTab === 'pnl' ? '3px solid var(--primary)' : '3px solid transparent',
+            color: reportTab === 'pnl' ? 'var(--primary)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          💰 Estado de Resultados (Utilidad Neta Real)
+        </button>
+      </div>
+
+      {reportTab === 'summary' && (
+        <>
+          {/* TOP FINANCIAL KPIS */}
+          <div className="finance-grid">
         <div className="finance-card">
           <small>Ingresos Totales (Ventas)</small>
           <strong className="text-revenue">${Number(r.revenue || 0).toFixed(2)}</strong>
@@ -14050,8 +15114,145 @@ function Reports({api}:{api:(u:string,o?:RequestInit)=>Promise<Response>}){
           )}
         </div>
       </section>
-    </div>
-  );
+      </>
+    )}
+
+    {reportTab === 'commissions' && (
+      <div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, background: 'var(--surface)', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span>Desde:</span>
+            <input type="date" value={dateRange.start} onChange={e => setDateRange({ ...dateRange, start: e.target.value })} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span>Hasta:</span>
+            <input type="date" value={dateRange.end} onChange={e => setDateRange({ ...dateRange, end: e.target.value })} />
+          </label>
+          <button type="button" className="primary-action" onClick={loadCommissions} style={{ padding: '6px 14px', fontSize: 13 }}>
+            Filtrar Comisiones
+          </button>
+        </div>
+
+        {/* TECHNICIANS SUMMARY */}
+        <section className="panel table-panel">
+          <div className="panel-head">
+            <div>
+              <h3>Liquidación de Comisiones por Técnico</h3>
+              <p className="catalog-toolbar-p">Mano de obra producida y comisiones acumuladas por cada técnico del taller.</p>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Técnico</th>
+                  <th>Correo</th>
+                  <th>Órdenes Asignadas</th>
+                  <th>Completadas</th>
+                  <th>Mano de Obra ($)</th>
+                  <th>Comisión a Liquidar ($)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(commissionsData?.technicians || []).map((t: Any) => (
+                  <tr key={t.technician_id}>
+                    <td><b>👨‍🔧 {t.technician_name}</b></td>
+                    <td>{t.technician_email}</td>
+                    <td>{t.total_orders}</td>
+                    <td><span className="status-badge status-approved">{t.completed_orders}</span></td>
+                    <td style={{ fontWeight: 700 }}>${Number(t.total_labor_revenue || 0).toFixed(2)}</td>
+                    <td style={{ fontWeight: 800, color: 'var(--primary)', fontSize: 14 }}>
+                      ${Number(t.total_commission_amount || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(!commissionsData?.technicians || commissionsData.technicians.length === 0) && (
+              <div className="empty">
+                <b>👨‍🔧</b>
+                <p>No se encontraron técnicos con órdenes en el período seleccionado.</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    )}
+
+    {reportTab === 'pnl' && (
+      <div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, background: 'var(--surface)', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span>Desde:</span>
+            <input type="date" value={dateRange.start} onChange={e => setDateRange({ ...dateRange, start: e.target.value })} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <span>Hasta:</span>
+            <input type="date" value={dateRange.end} onChange={e => setDateRange({ ...dateRange, end: e.target.value })} />
+          </label>
+          <button type="button" className="primary-action" onClick={loadPnl} style={{ padding: '6px 14px', fontSize: 13 }}>
+            Calcular Estado de Resultados
+          </button>
+        </div>
+
+        {pnlData && (
+          <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', padding: 24, maxWidth: 700, margin: '0 auto' }}>
+            <h3 style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, margin: '0 0 16px' }}>
+              📊 Estado de Resultados Integral (P&L)
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>(+) Ventas Mostrador (POS):</span>
+                <strong>${Number(pnlData.posGrossSales || 0).toFixed(2)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>(+) Servicios de Taller / Mano de Obra:</span>
+                <strong>${Number(pnlData.workshopRevenue || 0).toFixed(2)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 8, color: 'var(--primary)' }}>
+                <span>(=) Total Ingresos Operativos:</span>
+                <span>${Number(pnlData.totalRevenue || 0).toFixed(2)}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', marginTop: 6 }}>
+                <span>(-) Costo de Mercadería Vendida (COGS):</span>
+                <span>-${Number(pnlData.posCogs || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
+                <span>(=) Utilidad Bruta:</span>
+                <span>${Number(pnlData.grossProfit || 0).toFixed(2)}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ea580c', marginTop: 6 }}>
+                <span>(-) Comisiones Pagadas a Técnicos:</span>
+                <span>-${Number(pnlData.technicianCommissions || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                <span>(-) Egresos / Gastos Operativos de Caja:</span>
+                <span>-${Number(pnlData.operatingExpenses || 0).toFixed(2)}</span>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontWeight: 900,
+                fontSize: 18,
+                borderTop: '2px solid var(--primary)',
+                paddingTop: 12,
+                marginTop: 8,
+                color: Number(pnlData.netProfit || 0) >= 0 ? '#10b981' : '#dc2626'
+              }}>
+                <span>(=) UTILIDAD NETA OPERATIVA:</span>
+                <span>{Number(pnlData.netProfit || 0) >= 0 ? '+' : ''}${Number(pnlData.netProfit || 0).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+);
 }
 function Warranties({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Response>, notify?:(msg:string)=>void, go?:(page:string)=>void}){
   const [rows, setRows] = React.useState<Any[]>([]);

@@ -75,17 +75,45 @@ public class PublicCatalogAndDeliveryController {
 
     // 4. Fetch available products with active stock
     List<Map<String, Object>> products = db.queryForList("""
-        SELECT p.id, p.name, p.sku, p.price, p.category_id,
+        SELECT p.id, p.name, p.sku, p.price, p.category_id, p.image_url,
                c.name as category_name,
-               coalesce(sum(ps.stock), 0) as stock
+               GREATEST(coalesce(sum(ps.stock), 0), coalesce(max(p.stock), 0)) as stock
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN product_stock ps ON ps.product_id = p.id
         WHERE p.tenant_id = ?
-        GROUP BY p.id, p.name, p.sku, p.price, p.category_id, c.name
-        HAVING coalesce(sum(ps.stock), 0) > 0
+        GROUP BY p.id, p.name, p.sku, p.price, p.category_id, p.image_url, c.name
+        HAVING (coalesce(sum(ps.stock), 0) > 0 OR coalesce(max(p.stock), 0) > 0)
         ORDER BY p.name ASC
         """, tenantId);
+
+    // 5. Fetch arriving products for pre-order (imports in transit or customs)
+    List<Map<String, Object>> arrivingProducts = List.of();
+    try {
+      arrivingProducts = db.queryForList("""
+          SELECT
+            ii.id, ii.product_name AS name, ii.sku,
+            COALESCE(NULLIF(ii.preorder_price, 0), ii.regular_price, 0) AS price,
+            ii.regular_price, ii.image_url,
+            (ii.quantity - ii.reserved_quantity) AS stock,
+            s.stage, s.courier_name, s.estimated_arrival_date,
+            'Próximos Arribos' AS category_name,
+            true AS is_preorder
+          FROM import_items ii
+          JOIN international_shipments s ON s.id = ii.shipment_id
+          WHERE ii.tenant_id = ?
+            AND ii.is_public_catalog = true
+            AND s.stage IN ('IN_TRANSIT', 'CUSTOMS')
+            AND (ii.quantity - ii.reserved_quantity) > 0
+          ORDER BY s.estimated_arrival_date ASC NULLS LAST, ii.created_at DESC
+          """, tenantId);
+    } catch (Exception ignored) {}
+
+    if (!arrivingProducts.isEmpty()) {
+      List<Map<String, Object>> enrichedCats = new ArrayList<>(categories);
+      enrichedCats.add(Map.of("id", "ARRIBOS", "name", "🚢 Próximos Arribos"));
+      categories = enrichedCats;
+    }
 
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("tenantId", tenantId);
@@ -98,6 +126,7 @@ public class PublicCatalogAndDeliveryController {
     response.put("branch", branch);
     response.put("categories", categories);
     response.put("products", products);
+    response.put("arrivingProducts", arrivingProducts);
     response.put("totalProducts", products.size());
 
     return response;
@@ -202,7 +231,17 @@ public class PublicCatalogAndDeliveryController {
       int qty = Integer.parseInt(String.valueOf(it.get("quantity")));
       if (qty <= 0) continue;
 
-      BigDecimal price = db.queryForObject("SELECT price FROM products WHERE id = ? AND tenant_id = ?", BigDecimal.class, pId, tenantId);
+      BigDecimal price = BigDecimal.ZERO;
+      try {
+        price = db.queryForObject("SELECT price FROM products WHERE id = ? AND tenant_id = ?", BigDecimal.class, pId, tenantId);
+      } catch (Exception notInProducts) {
+        try {
+          price = db.queryForObject(
+              "SELECT COALESCE(NULLIF(preorder_price, 0), regular_price, 0) FROM import_items WHERE id = ? AND tenant_id = ?",
+              BigDecimal.class, pId, tenantId
+          );
+        } catch (Exception ignored) {}
+      }
       calculatedSubtotal = calculatedSubtotal.add(price.multiply(BigDecimal.valueOf(qty)));
       saleItems.add(new SalePort.Item(pId, qty));
     }

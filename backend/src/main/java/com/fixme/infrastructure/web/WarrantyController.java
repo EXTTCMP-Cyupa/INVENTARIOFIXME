@@ -458,4 +458,82 @@ public class WarrantyController {
     }
     return ResponseEntity.ok(res.get(0));
   }
+
+  public record WarrantyReturnInput(
+      String reason,
+      String technicianNotes
+  ) {}
+
+  @PostMapping("/api/work-orders/{id}/warranty-return")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_TECHNICIAN','SCOPE_SELLER','SCOPE_SUPER_ADMIN')")
+  public ResponseEntity<Map<String, Object>> reenterWarrantyWorkOrder(
+      @PathVariable UUID id,
+      @AuthenticationPrincipal Jwt j,
+      @RequestBody(required = false) WarrantyReturnInput in
+  ) {
+    UUID t = tenant(j);
+    modules.require(t, "POS");
+    ctx(t);
+
+    Map<String, Object> parent;
+    try {
+      parent = db.queryForMap("SELECT * FROM work_orders WHERE id=? AND tenant_id=?", id, t);
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Orden de trabajo no encontrada: " + id);
+    }
+
+    UUID custId = (UUID) parent.get("customer_id");
+    UUID brId = (UUID) parent.get("branch_id");
+    String brand = (String) parent.get("device_brand");
+    String model = (String) parent.get("device_model");
+    String serial = (String) parent.get("serial_number");
+    String parentNum = (String) parent.get("order_number");
+    UUID assignedTech = (UUID) parent.get("assigned_technician_id");
+
+    String reason = (in != null && in.reason() != null && !in.reason().isBlank())
+        ? in.reason().trim()
+        : ("Reingreso por garantía técnica sobre orden #" + parentNum);
+
+    String techNotes = (in != null && in.technicianNotes() != null)
+        ? in.technicianNotes().trim()
+        : ("Garantía válida. Ref. Orden original #" + parentNum);
+
+    List<WorkOrderService.OrderItemInput> items = List.of(
+        new WorkOrderService.OrderItemInput("SERVICE", "Servicio Técnico por Garantía ($0.00)", BigDecimal.ONE, BigDecimal.ZERO)
+    );
+
+    WorkOrderService.CreateOrderCommand cmd = new WorkOrderService.CreateOrderCommand(
+        custId,
+        brId,
+        brand != null ? brand : "Garantía",
+        model != null ? model : "Equipo",
+        serial != null ? serial : "S/N",
+        reason,
+        "Reingreso de equipo por garantía de reparación",
+        "Reingreso Garantía - Orden #" + parentNum,
+        techNotes,
+        BigDecimal.ZERO,
+        OffsetDateTime.now().plusDays(2),
+        assignedTech,
+        24,
+        items
+    );
+
+    var createdOrder = workOrderService.createOrder(t, cmd);
+    UUID newOrderId = createdOrder.getId();
+
+    // Mark as warranty return linked to parent
+    db.update("""
+        UPDATE work_orders
+        SET parent_work_order_id = ?,
+            is_warranty_return = true,
+            warranty_return_reason = ?
+        WHERE id = ? AND tenant_id = ?
+        """,
+        id, reason, newOrderId, t);
+
+    Map<String, Object> newOrder = db.queryForMap("SELECT * FROM work_orders WHERE id = ? AND tenant_id = ?", newOrderId, t);
+    return ResponseEntity.status(HttpStatus.CREATED).body(newOrder);
+  }
 }
+

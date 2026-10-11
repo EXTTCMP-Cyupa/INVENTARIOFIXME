@@ -31,7 +31,8 @@ public class ProductController {
       BigDecimal marginPercent,
       UUID categoryId,
       Integer minStock,
-      String barcode
+      String barcode,
+      String imageUrl
   ) {}
 
   public record MovementInput(String type, Integer quantity, String reason) {}
@@ -125,7 +126,8 @@ public class ProductController {
             .divide(i.price(), 2, java.math.RoundingMode.HALF_UP)) : i.marginPercent();
     int minStock = i.minStock() != null && i.minStock() >= 0 ? i.minStock() : 5;
     String barcode = i.barcode() != null && !i.barcode().isBlank() ? i.barcode().trim() : i.sku().trim();
-    return new Product(id, tenant, i.sku().trim(), i.name().trim(), i.stock(), i.price(), cost, extra, margin, i.categoryId(), minStock, barcode);
+    String imageUrl = i.imageUrl() != null && !i.imageUrl().isBlank() ? i.imageUrl().trim() : null;
+    return new Product(id, tenant, i.sku().trim(), i.name().trim(), i.stock(), i.price(), cost, extra, margin, i.categoryId(), minStock, barcode, imageUrl);
   }
 
   private UUID tenant(Jwt jwt) {

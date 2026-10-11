@@ -14,7 +14,8 @@ public class SubscriptionPlanService {
 
   private final JdbcTemplate db;
   public static final Set<String> ALL_AVAILABLE_MODULES = Set.of(
-      "INVENTORY", "POS", "CASH_REGISTER", "QUOTES", "WORK_ORDERS", "DELIVERIES", "CUSTOMERS", "REPORTS", "APIS"
+      "INVENTORY", "POS", "CASH_REGISTER", "QUOTES", "WORK_ORDERS", "DELIVERIES", "CUSTOMERS", "REPORTS", "APIS",
+      "IMPORTS", "PURCHASES", "WARRANTIES"
   );
 
   public SubscriptionPlanService(JdbcTemplate db) {

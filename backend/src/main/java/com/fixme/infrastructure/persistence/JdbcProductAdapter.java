@@ -21,7 +21,7 @@ public class JdbcProductAdapter implements ProductPort {
     return jdbc.query("""
         select p.id, p.tenant_id, p.sku, p.name, coalesce(ps.stock, 0), p.price,
                p.purchase_price, p.extra_cost, p.margin_percent, p.category_id,
-               coalesce(p.min_stock, 5), coalesce(p.barcode, p.sku)
+               coalesce(p.min_stock, 5), coalesce(p.barcode, p.sku), p.image_url
         from products p
         left join product_stock ps on ps.product_id = p.id and ps.branch_id = ?
         where p.tenant_id = ?
@@ -39,7 +39,8 @@ public class JdbcProductAdapter implements ProductPort {
             r.getBigDecimal(9),
             r.getObject(10, UUID.class),
             r.getInt(11),
-            r.getString(12)
+            r.getString(12),
+            r.getString(13)
         ),
         branchId, tenantId);
   }
@@ -49,12 +50,12 @@ public class JdbcProductAdapter implements ProductPort {
     setTenant(p.tenantId());
     UUID id = Optional.ofNullable(p.id()).orElse(UUID.randomUUID());
     jdbc.update("""
-        insert into products(id, tenant_id, sku, name, stock, price, purchase_price, extra_cost, margin_percent, category_id, min_stock, barcode)
-        values(?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+        insert into products(id, tenant_id, sku, name, stock, price, purchase_price, extra_cost, margin_percent, category_id, min_stock, barcode, image_url)
+        values(?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        id, p.tenantId(), p.sku(), p.name(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode());
+        id, p.tenantId(), p.sku(), p.name(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode(), p.imageUrl());
     jdbc.update("insert into product_stock(product_id, branch_id, stock) values(?, ?, ?)", id, branchId, p.stock());
-    return new Product(id, p.tenantId(), p.sku(), p.name(), p.stock(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode());
+    return new Product(id, p.tenantId(), p.sku(), p.name(), p.stock(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode(), p.imageUrl());
   }
 
   @Transactional
@@ -62,10 +63,10 @@ public class JdbcProductAdapter implements ProductPort {
     setTenant(p.tenantId());
     int count = jdbc.update("""
         update products set sku = ?, name = ?, price = ?, purchase_price = ?, extra_cost = ?,
-               margin_percent = ?, category_id = ?, min_stock = ?, barcode = ?
+               margin_percent = ?, category_id = ?, min_stock = ?, barcode = ?, image_url = ?
         where id = ? and tenant_id = ?
         """,
-        p.sku(), p.name(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode(), p.id(), p.tenantId());
+        p.sku(), p.name(), p.price(), p.purchasePrice(), p.extraCost(), p.marginPercent(), p.categoryId(), p.minStock(), p.barcode(), p.imageUrl(), p.id(), p.tenantId());
     if (count == 0) throw new IllegalArgumentException("Producto no encontrado");
     jdbc.update("insert into product_stock(product_id, branch_id, stock) values(?, ?, ?) on conflict(product_id, branch_id) do update set stock = excluded.stock", p.id(), branchId, p.stock());
     return p;

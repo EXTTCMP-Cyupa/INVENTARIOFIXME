@@ -11,9 +11,21 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
   const [error, setError] = React.useState('');
   const [search, setSearch] = React.useState('');
   const [selectedCat, setSelectedCat] = React.useState('ALL');
-  const [cart, setCart] = React.useState<Array<{ id: string; name: string; sku: string; price: number; stock: number; quantity: number }>>([]);
+  const [cart, setCart] = React.useState<Array<{ id: string; name: string; sku: string; price: number; stock: number; quantity: number; imageUrl?: string }>>([]);
   const [showCheckout, setShowCheckout] = React.useState(false);
   const [orderPlaced, setOrderPlaced] = React.useState<Any | null>(null);
+
+  const [showImportQuoteModal, setShowImportQuoteModal] = React.useState(false);
+  const [importQuoteSubmitted, setImportQuoteSubmitted] = React.useState(false);
+  const [submittingQuote, setSubmittingQuote] = React.useState(false);
+  const [importQuoteForm, setImportQuoteForm] = React.useState({
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    productDescription: '',
+    productUrl: '',
+    quantity: 1
+  });
 
   const [form, setForm] = React.useState({
     customerName: '',
@@ -56,7 +68,7 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
         if (exist.quantity >= Number(p.stock)) return prev;
         return prev.map(i => i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { id: p.id, name: p.name, sku: p.sku, price: Number(p.price), stock: Number(p.stock), quantity: 1 }];
+      return [...prev, { id: p.id, name: p.name, sku: p.sku, price: Number(p.price), stock: Number(p.stock), quantity: 1, imageUrl: p.image_url || p.imageUrl }];
     });
   };
 
@@ -153,9 +165,21 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
   const cleanPhone = (d.catalogWhatsapp || d.storePhone || '').replace(/[^0-9]/g, '');
   const waHelpMsg = encodeURIComponent(`Hola ${d.storeName}, estoy viendo su catálogo digital y tengo una consulta sobre sus productos.`);
 
-  const filteredProducts = (d.products || []).filter((p: Any) => {
+  const regularProds = (d.products || []);
+  const arrivingProds = (d.arrivingProducts || []).map((ap: Any) => ({
+    ...ap,
+    category_id: 'ARRIBOS'
+  }));
+
+  const allAvailable = selectedCat === 'ARRIBOS'
+    ? arrivingProds
+    : selectedCat === 'ALL'
+    ? [...regularProds, ...arrivingProds]
+    : regularProds;
+
+  const filteredProducts = allAvailable.filter((p: Any) => {
     const matchSearch = !search || `${p.name} ${p.sku} ${p.category_name}`.toLowerCase().includes(search.toLowerCase());
-    const matchCat = selectedCat === 'ALL' || p.category_id === selectedCat;
+    const matchCat = selectedCat === 'ALL' || p.category_id === selectedCat || (selectedCat === 'ARRIBOS' && p.is_preorder);
     return matchSearch && matchCat;
   });
 
@@ -175,6 +199,28 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
           </div>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setImportQuoteSubmitted(false);
+                setShowImportQuoteModal(true);
+              }}
+              style={{
+                background: '#f59e0b',
+                color: '#ffffff',
+                border: 'none',
+                padding: '7px 14px',
+                borderRadius: 8,
+                fontWeight: 700,
+                fontSize: 12.5,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              🛍️ Cotizar Encargo / Importación
+            </button>
             {cleanPhone && (
               <a
                 href={`https://wa.me/${cleanPhone}?text=${waHelpMsg}`}
@@ -265,12 +311,36 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
               return (
                 <div key={p.id} className="catalog-card">
                   <div>
-                    <div className="catalog-card-icon">
-                      {p.category_name?.toLowerCase().includes('pantalla') ? '📱' :
-                       p.category_name?.toLowerCase().includes('bater') ? '🔋' :
-                       p.category_name?.toLowerCase().includes('cargador') ? '🔌' :
-                       p.category_name?.toLowerCase().includes('accesorio') ? '🎧' : '📦'}
-                    </div>
+                    {(p.image_url || p.imageUrl) ? (
+                      <div className="catalog-card-img-wrap">
+                        <img
+                          src={p.image_url || p.imageUrl}
+                          alt={p.name}
+                          className="catalog-card-img"
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              parent.className = 'catalog-card-icon';
+                              parent.innerHTML = '📦';
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="catalog-card-icon">
+                        {p.category_name?.toLowerCase().includes('pantalla') ? '📱' :
+                         p.category_name?.toLowerCase().includes('bater') ? '🔋' :
+                         p.category_name?.toLowerCase().includes('cargador') ? '🔌' :
+                         p.category_name?.toLowerCase().includes('accesorio') ? '🎧' : '📦'}
+                      </div>
+                    )}
+                    {p.is_preorder && (
+                      <div style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', fontWeight: 800, padding: '2px 6px', borderRadius: 4, display: 'inline-block', marginBottom: 4 }}>
+                        ✈️ PRÓXIMO ARRIBO ({p.stage === 'CUSTOMS' ? 'En Aduana' : 'En Tránsito'})
+                      </div>
+                    )}
                     {p.category_name && (
                       <div style={{ fontSize: 10.5, textTransform: 'uppercase', color: '#64748b', fontWeight: 700, marginBottom: 4 }}>
                         {p.category_name}
@@ -288,11 +358,36 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <span className="catalog-card-price">${Number(p.price || 0).toFixed(2)}</span>
                       <span className={`catalog-stock-chip ${Number(p.stock) <= 3 ? 'stock-low' : 'stock-in'}`}>
-                        {isAvailable ? `En stock: ${p.stock}` : 'Agotado'}
+                        {p.is_preorder ? `Disponibles: ${p.stock}` : isAvailable ? `En stock: ${p.stock}` : 'Agotado'}
                       </span>
                     </div>
 
-                    {inCart ? (
+                    {p.is_preorder ? (
+                      <a
+                        href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                          `¡Hola ${d.storeName}! Deseo separar / pre-comprar el producto en arribo: *${p.name}* (${p.stage === 'CUSTOMS' ? 'En Aduana' : 'En Tránsito'}) por $${Number(p.price || 0).toFixed(2)}. ¿Cómo puedo reservarlo?`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          textDecoration: 'none',
+                          borderRadius: 8,
+                          padding: '9px 12px',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          width: '100%',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        ✈️ Separar / Pre-Comprar
+                      </a>
+                    ) : inCart ? (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', borderRadius: 8, padding: '4px 8px', border: '1px solid #e2e8f0' }}>
                         <button
                           type="button"
@@ -362,14 +457,29 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
             </div>
 
             {/* ORDER ITEMS REVIEW */}
-            <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 14, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+            <div style={{ maxHeight: 190, overflowY: 'auto', marginBottom: 14, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
               {cart.map(it => (
-                <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', fontSize: 13 }}>
-                  <div style={{ flex: 1 }}>
-                    <strong>{it.quantity}x</strong> {it.name}
-                    <div style={{ fontSize: 11, color: '#64748b' }}>${it.price.toFixed(2)} c/u</div>
+                <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', fontSize: 13, gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                    {it.imageUrl ? (
+                      <img
+                        src={it.imageUrl}
+                        alt={it.name}
+                        style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid #e2e8f0' }}
+                      />
+                    ) : (
+                      <div style={{ width: 38, height: 38, borderRadius: 6, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+                        📦
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <strong>{it.quantity}x</strong> {it.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>${it.price.toFixed(2)} c/u</div>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <strong style={{ color: '#0f172a' }}>${(it.price * it.quantity).toFixed(2)}</strong>
                     <button
                       type="button"
@@ -578,6 +688,127 @@ export function PublicCatalog({ tenantId, onBack, isLogged }: { tenantId: string
             >
               Seguir explorando el catálogo
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* IMPORT QUOTE REQUEST MODAL */}
+      {showImportQuoteModal && (
+        <div className="modal-overlay" onClick={() => setShowImportQuoteModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-head">
+              <h3>🛍️ Cotizar Encargo / Importación Especial</h3>
+              <button className="close-button" onClick={() => setShowImportQuoteModal(false)}>✕</button>
+            </div>
+
+            {importQuoteSubmitted ? (
+              <div style={{ textAlign: 'center', padding: '24px 10px' }}>
+                <div style={{ fontSize: 44, marginBottom: 10 }}>🎉</div>
+                <h3 style={{ color: '#16a34a', margin: '0 0 6px' }}>¡Solicitud Recibida!</h3>
+                <p style={{ color: '#64748b', fontSize: 13, marginBottom: 18 }}>
+                  Revisaremos los costos de compra en origen, flete courier y aduana. Te enviaremos el presupuesto formal con entrega estimada a tu WhatsApp <strong>{importQuoteForm.customerPhone}</strong>.
+                </p>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => setShowImportQuoteModal(false)}
+                >
+                  Entendido, volver al catálogo
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setSubmittingQuote(true);
+                try {
+                  const res = await fetch('/api/public/imports/quotes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...importQuoteForm, tenantId })
+                  });
+                  if (!res.ok) throw new Error('Error al enviar solicitud');
+                  setImportQuoteSubmitted(true);
+                } catch (err: any) {
+                  alert(err.message);
+                } finally {
+                  setSubmittingQuote(false);
+                }
+              }}>
+                <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 14px' }}>
+                  ¿Buscas un repuesto, accesorio o equipo específico de eBay, Amazon o el exterior? Cuéntanos qué necesitas y te calculamos el valor puesto en tienda.
+                </p>
+
+                <label>
+                  <span>¿Qué producto o repuesto deseas importar? *</span>
+                  <input
+                    required
+                    placeholder="Ej. Pantalla OLED iPhone 15 Pro Max / Batería Dell XPS 15"
+                    value={importQuoteForm.productDescription}
+                    onChange={e => setImportQuoteForm({ ...importQuoteForm, productDescription: e.target.value })}
+                  />
+                </label>
+
+                <label>
+                  <span>Enlace de referencia (eBay, Amazon, etc.) opcional:</span>
+                  <input
+                    placeholder="https://www.ebay.com/itm/..."
+                    value={importQuoteForm.productUrl}
+                    onChange={e => setImportQuoteForm({ ...importQuoteForm, productUrl: e.target.value })}
+                  />
+                </label>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <label>
+                    <span>Tu Nombre y Apellido *:</span>
+                    <input
+                      required
+                      placeholder="Ej. Juan Pérez"
+                      value={importQuoteForm.customerName}
+                      onChange={e => setImportQuoteForm({ ...importQuoteForm, customerName: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Tu WhatsApp de Contacto *:</span>
+                    <input
+                      required
+                      placeholder="Ej. 0991234567"
+                      value={importQuoteForm.customerPhone}
+                      onChange={e => setImportQuoteForm({ ...importQuoteForm, customerPhone: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <label>
+                    <span>Correo electrónico:</span>
+                    <input
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      value={importQuoteForm.customerEmail}
+                      onChange={e => setImportQuoteForm({ ...importQuoteForm, customerEmail: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Cantidad deseada:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={importQuoteForm.quantity}
+                      onChange={e => setImportQuoteForm({ ...importQuoteForm, quantity: Number(e.target.value) || 1 })}
+                    />
+                  </label>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: 14 }}>
+                  <button type="button" className="secondary-action" onClick={() => setShowImportQuoteModal(false)}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="primary-action" disabled={submittingQuote}>
+                    {submittingQuote ? 'Enviando...' : '✉️ Solicitar Cotización de Importación'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

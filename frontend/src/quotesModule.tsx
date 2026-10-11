@@ -2,6 +2,8 @@ import React from 'react';
 import { DeUnaModal } from './deunaModal';
 import { PayphoneModal } from './payphoneModal';
 import { printTicketElement } from './ticketPrinter';
+import { PageHeader, KpiStrip, StatusBadge, IconButton } from './sharedLayout';
+import { Plus, Search, Copy, MessageCircle, Printer, Edit2, ShoppingCart, FileText } from 'lucide-react';
 
 type Any = Record<string, any>;
 
@@ -126,234 +128,231 @@ export function QuotesPage({
   const totalAmountSum = quotes.reduce((acc, q) => acc + Number(q.total || 0), 0);
 
   return (
-    <div className="orders-page" style={{ padding: '4px' }}>
-      {/* KPI STATS */}
-      <div className="summary-grid" style={{ marginBottom: '16px' }}>
-        <div className="summary-card">
-          <div className="summary-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📋</div>
-          <div>
-            <span className="summary-title">Total Cotizaciones</span>
-            <strong className="summary-value">{totalCount}</strong>
-            <small style={{ color: '#64748b' }}>${totalAmountSum.toFixed(2)} cotizados</small>
-          </div>
-        </div>
+    <div className="orders-page" style={{ padding: '0 2px' }}>
+      {/* 1. PageHeader */}
+      <PageHeader
+        title="Cotizaciones"
+        description="Proformas, aprobaciones y facturación comercial"
+        actions={
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => { setQuoteToEdit(null); setShowFormModal(true); }}
+          >
+            <Plus size={16} />
+            <span>Nueva cotización</span>
+          </button>
+        }
+      />
 
-        <div className="summary-card">
-          <div className="summary-icon" style={{ background: '#fef3c7', color: '#d97706' }}>⏳</div>
-          <div>
-            <span className="summary-title">Por Aprobar</span>
-            <strong className="summary-value">{pendingCount}</strong>
-            <small style={{ color: '#b45309' }}>Esperando cliente</small>
-          </div>
-        </div>
+      {/* 2. KpiStrip */}
+      <KpiStrip
+        items={[
+          {
+            label: 'Total cotizaciones',
+            value: totalCount,
+            hint: `$${totalAmountSum.toFixed(2)} cotizados`,
+            active: statusFilter === 'ALL',
+            onClick: () => setStatusFilter('ALL')
+          },
+          {
+            label: 'Por aprobar',
+            value: pendingCount,
+            hint: 'Esperando cliente',
+            tone: pendingCount > 0 ? 'warning' : 'default',
+            active: statusFilter === 'PENDING',
+            onClick: () => setStatusFilter('PENDING')
+          },
+          {
+            label: 'Aprobadas',
+            value: approvedCount,
+            hint: 'Listas para facturar',
+            tone: approvedCount > 0 ? 'success' : 'default',
+            active: statusFilter === 'APPROVED',
+            onClick: () => setStatusFilter('APPROVED')
+          },
+          {
+            label: 'Facturadas en POS',
+            value: convertedCount,
+            hint: 'Venta cerrada',
+            active: statusFilter === 'CONVERTED',
+            onClick: () => setStatusFilter('CONVERTED')
+          }
+        ]}
+      />
 
-        <div className="summary-card">
-          <div className="summary-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>👍</div>
-          <div>
-            <span className="summary-title">Aprobadas</span>
-            <strong className="summary-value">{approvedCount}</strong>
-            <small style={{ color: '#15803d' }}>Listas para facturar</small>
-          </div>
-        </div>
-
-        <div className="summary-card">
-          <div className="summary-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}>🛒</div>
-          <div>
-            <span className="summary-title">Facturadas en POS</span>
-            <strong className="summary-value">{convertedCount}</strong>
-            <small style={{ color: '#7e22ce' }}>Venta cerrada</small>
-          </div>
-        </div>
-      </div>
-
-      {/* CONTROLS */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ flex: 1, minWidth: '220px' }}>
+      {/* 3. Toolbar */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div className="search-box" style={{ width: '320px' }}>
+          <Search size={15} />
           <input
             type="text"
-            className="input-field"
-            placeholder="🔍 Buscar por N° cotización, cliente o C.I./RUC..."
+            placeholder="Buscar por n.º, cliente o CI/RUC..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px' }}
           />
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <select
-            className="input-field"
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: '9px 12px' }}
+            style={{ width: '180px' }}
           >
-            <option value="ALL">Todos los Estados</option>
-            <option value="PENDING">⏳ Pendientes</option>
-            <option value="APPROVED">👍 Aprobadas</option>
-            <option value="CONVERTED">🛒 Facturadas a Venta</option>
-            <option value="REJECTED">❌ Rechazadas</option>
-            <option value="EXPIRED">⚠️ Vencidas</option>
+            <option value="ALL">Todos los estados</option>
+            <option value="PENDING">Por aprobar</option>
+            <option value="APPROVED">Aprobadas</option>
+            <option value="CONVERTED">Facturadas a venta</option>
+            <option value="REJECTED">Rechazadas</option>
+            <option value="EXPIRED">Vencidas</option>
           </select>
-
-          <button
-            type="button"
-            className="primary-action"
-            onClick={() => { setQuoteToEdit(null); setShowFormModal(true); }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
-          >
-            <span>+</span> Nueva Cotización
-          </button>
         </div>
       </div>
 
-      {/* TABLE */}
+      {/* 4. Table */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Cargando proformas...</div>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Cargando proformas...</div>
       ) : quotes.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '50px 20px', background: '#fff', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>📄</div>
-          <h3 style={{ margin: '0 0 6px', color: '#334155' }}>No hay cotizaciones registradas</h3>
-          <p style={{ color: '#94a3b8', fontSize: 13, margin: '0 0 16px' }}>
-            Crea una proforma para tus clientes con precios, descuentos e IVA del 15%.
+        <div className="panel" style={{ textAlign: 'center', padding: '50px 20px', border: '1px dashed var(--border-strong)' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, color: 'var(--text-subtle)' }}>
+            <FileText size={36} />
+          </div>
+          <h3 style={{ margin: '0 0 6px', color: 'var(--text)' }}>No hay cotizaciones registradas</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 16px' }}>
+            Crea una proforma para tus clientes con precios, descuentos e IVA.
           </p>
           <button type="button" className="primary-action" onClick={() => { setQuoteToEdit(null); setShowFormModal(true); }}>
-            + Crear Primera Cotización
+            <Plus size={16} /> Crear primera cotización
           </button>
         </div>
       ) : (
-        <div className="table-responsive" style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <table className="data-table" style={{ width: '100%', margin: 0 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-                <th style={{ padding: '12px 14px' }}>N° Proforma</th>
-                <th style={{ padding: '12px 14px' }}>Cliente</th>
-                <th style={{ padding: '12px 14px' }}>Fecha Emisión</th>
-                <th style={{ padding: '12px 14px' }}>Vigencia</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Subtotal</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>IVA 15%</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right' }}>Total</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center' }}>Estado</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center' }}>Acciones y Enlace</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quotes.map(q => {
-                const isConv = q.status === 'CONVERTED';
-                const isAppr = q.status === 'APPROVED';
-                const isPend = q.status === 'PENDING' || q.status === 'DRAFT';
-                const token = q.public_token || q.publicToken || q.id;
-                const publicUrl = `${window.location.origin}/#quote/${token}`;
-                const rawPhone = (q.customer_phone || q.customerPhone || '').replace(/[^0-9]/g, '');
-                const waText = encodeURIComponent(`Hola ${q.customer_name || q.customerName || 'Estimado cliente'}, le adjuntamos la cotización oficial #${q.quote_number || q.quoteNumber} por un total de $${Number(q.total).toFixed(2)}. Puede revisarla y aprobarla en línea directamente aquí: ${publicUrl}`);
-                const waHref = rawPhone ? `https://wa.me/${rawPhone}?text=${waText}` : `https://wa.me/?text=${waText}`;
+        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>N.º proforma</th>
+                  <th>Cliente</th>
+                  <th>Emisión</th>
+                  <th>Vigencia</th>
+                  <th className="num">Subtotal</th>
+                  <th className="num">IVA 15 %</th>
+                  <th className="num">Total</th>
+                  <th style={{ textAlign: 'center' }}>Estado</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map(q => {
+                  const isConv = q.status === 'CONVERTED';
+                  const isAppr = q.status === 'APPROVED';
+                  const isPend = q.status === 'PENDING' || q.status === 'DRAFT';
+                  const token = q.public_token || q.publicToken || q.id;
+                  const publicUrl = `${window.location.origin}/#quote/${token}`;
+                  const rawPhone = (q.customer_phone || q.customerPhone || '').replace(/[^0-9]/g, '');
+                  const waText = encodeURIComponent(`Hola ${q.customer_name || q.customerName || 'Estimado cliente'}, le adjuntamos la cotización oficial #${q.quote_number || q.quoteNumber} por un total de $${Number(q.total).toFixed(2)}. Puede revisarla y aprobarla en línea directamente aquí: ${publicUrl}`);
+                  const waHref = rawPhone ? `https://wa.me/${rawPhone}?text=${waText}` : `https://wa.me/?text=${waText}`;
 
-                return (
-                  <tr key={q.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#2563eb' }}>
-                      {q.quote_number || q.quoteNumber}
-                    </td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{q.customer_name || q.customerName || 'Consumidor'}</div>
-                      <small style={{ color: '#64748b' }}>
-                        {q.customer_id_number || q.customerIdNumber ? `CI: ${q.customer_id_number || q.customerIdNumber} ` : ''}
-                        {q.customer_phone || q.customerPhone ? `· Tel: ${q.customer_phone || q.customerPhone}` : ''}
-                      </small>
-                    </td>
-                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#64748b' }}>
-                      {new Date(q.created_at || q.createdAt).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#64748b' }}>
-                      {q.valid_until ? new Date(q.valid_until).toLocaleDateString() : '15 días'}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 13 }}>
-                      ${Number(q.subtotal || 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontSize: 13, color: '#64748b' }}>
-                      ${Number(q.tax || 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
-                      ${Number(q.total || 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '3px 8px',
-                        borderRadius: 12,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: isConv ? '#f3e8ff' : isAppr ? '#dcfce7' : isPend ? '#fef3c7' : '#fee2e2',
-                        color: isConv ? '#7e22ce' : isAppr ? '#15803d' : isPend ? '#b45309' : '#b91c1c'
-                      }}>
-                        {isConv ? '🛒 FACTURADA' : isAppr ? '👍 APROBADA' : isPend ? '⏳ PENDIENTE' : q.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        {/* Copy public link */}
-                        <button
-                          type="button"
-                          className="table-action-btn"
-                          title="Copiar enlace para el cliente"
-                          onClick={() => copyPublicLink(q)}
-                          style={{ padding: '4px 8px', fontSize: 12, background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}
-                        >
-                          📋 Link
-                        </button>
-
-                        {/* WhatsApp */}
-                        <a
-                          href={waHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="table-action-btn"
-                          title="Enviar por WhatsApp"
-                          style={{ padding: '4px 8px', fontSize: 12, textDecoration: 'none', background: '#ecfdf5', color: '#15803d', border: '1px solid #a7f3d0' }}
-                        >
-                          💬 WA
-                        </a>
-
-                        {/* Edit (only if pending/draft) */}
-                        {isPend && (
-                          <button
-                            type="button"
-                            className="table-action-btn"
-                            title="Editar Precios y Detalles de Cotización"
-                            onClick={() => { setQuoteToEdit(q); setShowFormModal(true); }}
-                            style={{ padding: '4px 8px', fontSize: 12, background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}
-                          >
-                            ✏️ Editar
-                          </button>
+                  return (
+                    <tr key={q.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                        {q.quote_number || q.quoteNumber}
+                      </td>
+                      <td style={{ maxWidth: 220 }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {q.customer_name || q.customerName || 'Consumidor'}
+                        </div>
+                        <small style={{ color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {q.customer_id_number || q.customerIdNumber ? `CI: ${q.customer_id_number || q.customerIdNumber} ` : ''}
+                          {q.customer_phone || q.customerPhone ? `· ${q.customer_phone || q.customerPhone}` : ''}
+                        </small>
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {new Date(q.created_at || q.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {q.valid_until ? new Date(q.valid_until).toLocaleDateString() : '15 días'}
+                      </td>
+                      <td className="num">
+                        ${Number(q.subtotal || 0).toFixed(2)}
+                      </td>
+                      <td className="num" style={{ color: 'var(--text-muted)' }}>
+                        ${Number(q.tax || 0).toFixed(2)}
+                      </td>
+                      <td className="num" style={{ fontWeight: 700, color: 'var(--text)' }}>
+                        ${Number(q.total || 0).toFixed(2)}
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {isConv ? (
+                          <StatusBadge tone="brand">Facturada</StatusBadge>
+                        ) : isAppr ? (
+                          <StatusBadge tone="success">Aprobada</StatusBadge>
+                        ) : isPend ? (
+                          <StatusBadge tone="warning">Por aprobar</StatusBadge>
+                        ) : q.status === 'REJECTED' ? (
+                          <StatusBadge tone="danger">Rechazada</StatusBadge>
+                        ) : (
+                          <StatusBadge tone="neutral">{q.status}</StatusBadge>
                         )}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end', minWidth: 168 }}>
+                          {/* Facturar en POS button if not already converted */}
+                          {!isConv && (
+                            <button
+                              type="button"
+                              className="secondary-action btn-sm"
+                              title="Facturar en POS (Convertir a venta)"
+                              onClick={() => { setSelectedQuote(q); setShowConvertModal(true); }}
+                              style={{ height: 28, padding: '0 8px', fontSize: 11, fontWeight: 600 }}
+                            >
+                              Facturar
+                            </button>
+                          )}
 
-                        {/* Print / View */}
-                        <button
-                          type="button"
-                          className="table-action-btn"
-                          title="Ver e Imprimir Proforma A4"
-                          onClick={() => { setSelectedQuote(q); setShowPrintModal(true); }}
-                          style={{ padding: '4px 8px', fontSize: 12 }}
-                        >
-                          🖨️ A4
-                        </button>
+                          {/* Copy public link */}
+                          <IconButton
+                            icon={Copy}
+                            label="Copiar enlace para el cliente"
+                            onClick={() => copyPublicLink(q)}
+                          />
 
-                        {/* Convert to Sale */}
-                        {!isConv && (
-                          <button
-                            type="button"
-                            className="table-action-btn"
-                            title="Facturar en POS (Convertir a Venta)"
-                            onClick={() => { setSelectedQuote(q); setShowConvertModal(true); }}
-                            style={{ padding: '4px 8px', fontSize: 12, background: '#eff6ff', color: '#2563eb', fontWeight: 700, border: '1px solid #bfdbfe' }}
+                          {/* WhatsApp */}
+                          <a
+                            href={waHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="icon-btn"
+                            title="Enviar por WhatsApp"
+                            aria-label="Enviar por WhatsApp"
+                            style={{ textDecoration: 'none' }}
                           >
-                            🛒 Facturar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                            <MessageCircle size={15} style={{ color: 'var(--wa-green)' }} />
+                          </a>
+
+                          {/* Print / View A4 */}
+                          <IconButton
+                            icon={Printer}
+                            label="Ver e imprimir proforma A4"
+                            onClick={() => { setSelectedQuote(q); setShowPrintModal(true); }}
+                          />
+
+                          {/* Edit (only if pending/draft) */}
+                          {isPend && (
+                            <IconButton
+                              icon={Edit2}
+                              label="Editar cotización"
+                              onClick={() => { setQuoteToEdit(q); setShowFormModal(true); }}
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

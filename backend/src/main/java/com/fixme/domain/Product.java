@@ -15,22 +15,28 @@ public record Product(
     BigDecimal marginPercent,
     UUID categoryId,
     int minStock,
-    String barcode
+    String barcode,
+    String imageUrl
 ) {
   public Product(UUID id, UUID tenantId, String sku, String name, int stock, BigDecimal price,
                  BigDecimal purchasePrice, BigDecimal extraCost, BigDecimal marginPercent, UUID categoryId) {
-    this(id, tenantId, sku, name, stock, price, purchasePrice, extraCost, marginPercent, categoryId, 5, sku);
+    this(id, tenantId, sku, name, stock, price, purchasePrice, extraCost, marginPercent, categoryId, 5, sku, null);
   }
 
   public Product(UUID id, UUID tenantId, String sku, String name, int stock, BigDecimal price, UUID categoryId) {
     this(id, tenantId, sku, name, stock, price, BigDecimal.ZERO, BigDecimal.ZERO,
         price == null || price.signum() == 0 ? BigDecimal.ZERO : price.subtract(BigDecimal.ZERO)
-            .multiply(BigDecimal.valueOf(100)).divide(price, 2, java.math.RoundingMode.HALF_UP), categoryId, 5, sku);
+            .multiply(BigDecimal.valueOf(100)).divide(price, 2, java.math.RoundingMode.HALF_UP), categoryId, 5, sku, null);
   }
 
   public Product(UUID id, UUID tenantId, String sku, String name, int stock, BigDecimal price,
                  BigDecimal purchasePrice, BigDecimal marginPercent, UUID categoryId) {
-    this(id, tenantId, sku, name, stock, price, purchasePrice, BigDecimal.ZERO, marginPercent, categoryId, 5, sku);
+    this(id, tenantId, sku, name, stock, price, purchasePrice, BigDecimal.ZERO, marginPercent, categoryId, 5, sku, null);
+  }
+
+  public Product(UUID id, UUID tenantId, String sku, String name, int stock, BigDecimal price,
+                 BigDecimal purchasePrice, BigDecimal extraCost, BigDecimal marginPercent, UUID categoryId, int minStock, String barcode) {
+    this(id, tenantId, sku, name, stock, price, purchasePrice, extraCost, marginPercent, categoryId, minStock, barcode, null);
   }
 
   public Product {
