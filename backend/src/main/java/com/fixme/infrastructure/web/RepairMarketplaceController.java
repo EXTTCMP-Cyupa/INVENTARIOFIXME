@@ -686,6 +686,30 @@ public class RepairMarketplaceController {
         warrantyId, techNotes, orderId, t
     );
 
+    // 3. Si el pago fue en EFECTIVO (CASH) y hay monto cobrado, registrar en la caja abierta de la sucursal
+    if ("CASH".equalsIgnoreCase(paymentMethod) && paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+      try {
+        UUID branchId = (UUID) order.get("branch_id");
+        if (branchId != null) {
+          List<Map<String, Object>> openSessions = db.queryForList(
+              "SELECT id FROM cash_sessions WHERE tenant_id = ? AND branch_id = ? AND status = 'OPEN' ORDER BY opened_at DESC LIMIT 1",
+              t, branchId
+          );
+          if (!openSessions.isEmpty()) {
+            UUID sessionId = (UUID) openSessions.get(0).get("id");
+            UUID userId = user(t, jwt.getSubject());
+            db.update(
+                "INSERT INTO cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, created_by, reference) " +
+                "VALUES(?, ?, ?, 'SALE_CASH', 'CASH', ?, ?, ?, ?)",
+                t, sessionId, branchId, paymentAmount, "Cobro Orden de Servicio #" + orderNum + " (" + serviceDesc + ")", userId, "OT-" + orderNum
+            );
+          }
+        }
+      } catch (Exception ex) {
+        // Log or silent fallback to not block checkout delivery
+      }
+    }
+
     Map<String, Object> resp = new LinkedHashMap<>();
     resp.put("success", true);
     resp.put("message", "¡Trabajo cobrado, garantía emitida y orden finalizada!");

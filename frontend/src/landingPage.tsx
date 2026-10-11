@@ -252,886 +252,489 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
     }
   }
 
+
+  const [openFaqIdx, setOpenFaqIdx] = React.useState<number|null>(null);
+  const [headerScrolled, setHeaderScrolled] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleScroll = () => setHeaderScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const PLAN_DISPLAY_NAMES: Record<string, string> = {
+    'STARTER': 'Inicial',
+    'PRO': 'Comercial',
+    'WORKSHOP': 'Taller',
+    'ENTERPRISE': 'Enterprise'
+  };
+
+  const MODULE_LABELS_CLEAN: Record<string, string> = {
+    INVENTORY: 'Inventario',
+    POS: 'Punto de Venta',
+    CASH_REGISTER: 'Caja & Corte Z',
+    QUOTES: 'Cotizaciones',
+    WORK_ORDERS: 'Taller & Órdenes',
+    DELIVERIES: 'Entregas',
+    CUSTOMERS: 'Clientes & CRM',
+    REPORTS: 'Reportes',
+    APIS: 'APIs & Pasarelas'
+  };
+
+  const CheckIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  );
+
   return (
     <div className="landing-shell">
-      {/* 1. TOP NAVBAR */}
-      <header className="landing-nav">
-        <div className="landing-nav-container">
+      {/* 1. HEADER */}
+      <header className={`lp-header ${headerScrolled ? 'scrolled' : ''}`}>
+        <div className="lp-nav">
           <div className="landing-brand">
             <span className="landing-logo-badge">FX</span>
             <span className="landing-logo-text">Fixme<span>Tiendas</span></span>
             <span className="landing-country-badge">🇪🇨 Ecuador</span>
           </div>
-
-          <nav className="landing-nav-links">
-            <a href="#marketplace-service" style={{ color: '#059669', fontWeight: 800 }}>🛠️ Red de Talleres</a>
-            <a href="#features">Funcionalidades</a>
-            <a href="#modules">Módulos</a>
-            <a href="#pricing">Planes & Tarifas</a>
-            <a href="#payments">Pagos Digitales</a>
-            <a href="#faq">Preguntas Frecuentes</a>
+          <nav className="lp-nav-links">
+            <a href="#features">Funciones</a>
+            <a href="#como-funciona">Cómo funciona</a>
+            <a href="#pricing">Planes</a>
+            <a href="#faq">Preguntas</a>
           </nav>
+          <div className="lp-nav-actions">
+            <button className="discrete-link" style={{ background: 'none', border: 'none' }} onClick={() => navigateTo('#portal-cliente')}>¿Eres cliente?</button>
+            <button className="lp-btn-secondary" onClick={() => {
+              if (onOpenDirectLogin) onOpenDirectLogin();
+              else setShowLoginModal(true);
+            }}>Iniciar sesión</button>
+            <button className="lp-btn-primary" onClick={() => handleChoosePlan('PRO')}>Probar gratis</button>
+          </div>
+          <button
+            type="button"
+            className="lp-mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Menú"
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+        </div>
 
-          <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Mobile Slide-down Drawer */}
+        <div className={`lp-mobile-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Funciones & Módulos</a>
+          <a href="#como-funciona" onClick={() => setMobileMenuOpen(false)}>Cómo funciona</a>
+          <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>Planes & Precios</a>
+          <a href="#faq" onClick={() => setMobileMenuOpen(false)}>Preguntas Frecuentes</a>
+          <a href="#portal-cliente" onClick={() => { setMobileMenuOpen(false); navigateTo('#portal-cliente'); }} style={{ color: 'var(--lp-primary)' }}>
+            Portal del Cliente (Rastreo) →
+          </a>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
-              type="button"
-              onClick={() => navigateTo('#portal-cliente')}
-              style={{
-                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 4px rgba(37,99,235,0.25)',
-                whiteSpace: 'nowrap'
-              }}
-              title="Acceso seguro con Celular y Cédula a tus reparaciones activas, autorizaciones, facturas y garantías"
-            >
-              <span>👤 Portal Clientes</span>
-            </button>
-
-            <button
-              type="button"
-              className="landing-btn-secondary"
+              className="lp-btn-secondary"
+              style={{ flex: 1, height: 42, fontSize: 13 }}
               onClick={() => {
+                setMobileMenuOpen(false);
                 if (onOpenDirectLogin) onOpenDirectLogin();
                 else setShowLoginModal(true);
               }}
             >
-              Iniciar Sesión
+              Iniciar sesión
             </button>
             <button
-              type="button"
-              className="landing-btn-primary"
-              onClick={() => handleChoosePlan('PRO')}
-            >
-              Crear Tienda Gratis
-            </button>
-
-            <button
-              type="button"
-              className="landing-mobile-menu-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Abrir menú de navegación"
-            >
-              {mobileMenuOpen ? '✕' : '☰'}
-            </button>
-          </div>
-        </div>
-
-        {/* MOBILE SLIDE-DOWN DRAWER */}
-        <div className={`landing-mobile-drawer ${mobileMenuOpen ? 'open' : ''}`}>
-          <a href="#marketplace-service" onClick={() => setMobileMenuOpen(false)}>
-            <span>🛠️ Red de Talleres & Averías</span>
-            <span>→</span>
-          </a>
-          <a href="#features" onClick={() => setMobileMenuOpen(false)}>
-            <span>✨ Funcionalidades Clave</span>
-            <span>→</span>
-          </a>
-          <a href="#modules" onClick={() => setMobileMenuOpen(false)}>
-            <span>📦 Módulos del Sistema</span>
-            <span>→</span>
-          </a>
-          <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>
-            <span>💰 Planes & Tarifas</span>
-            <span>→</span>
-          </a>
-          <a href="#payments" onClick={() => setMobileMenuOpen(false)}>
-            <span>⚡ Pasarelas DeUna & Payphone</span>
-            <span>→</span>
-          </a>
-          <a href="#faq" onClick={() => setMobileMenuOpen(false)}>
-            <span>❓ Preguntas Frecuentes</span>
-            <span>→</span>
-          </a>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            <button
-              type="button"
-              className="landing-btn-hero-primary"
-              style={{ width: '100%', textAlign: 'center', justifyContent: 'center', padding: '12px' }}
+              className="lp-btn-primary"
+              style={{ flex: 1, height: 42, fontSize: 13 }}
               onClick={() => {
                 setMobileMenuOpen(false);
                 handleChoosePlan('PRO');
               }}
             >
-              🚀 Crear Tienda (15 Días Gratis)
-            </button>
-            <button
-              type="button"
-              className="landing-btn-secondary"
-              style={{ width: '100%', textAlign: 'center', justifyContent: 'center', padding: '12px' }}
-              onClick={() => {
-                setMobileMenuOpen(false);
-                if (onOpenDirectLogin) onOpenDirectLogin();
-                else setShowLoginModal(true);
-              }}
-            >
-              🔐 Iniciar Sesión en Mi Tienda
+              Probar gratis
             </button>
           </div>
         </div>
       </header>
 
-      {/* 2. HERO SECTION */}
-      <section className="landing-hero">
-        <div className="landing-hero-content">
-          <div className="landing-hero-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <span>🔥 Red de Talleres & Marketplace:</span> Cotiza reparaciones gratis o capta clientes para tu taller
+      {/* 2. HERO */}
+      <section className="lp-hero">
+        <div className="lp-hero-left">
+          <div className="eyebrow">Sistema de gestión para Ecuador</div>
+          <h1>Vende, factura al SRI y gestiona tus reparaciones en un solo sistema.</h1>
+          <p>POS, inventario, caja y órdenes de servicio para tiendas y talleres de Ecuador. Tus clientes siguen su reparación con solo su celular y cédula.</p>
+          <div className="lp-hero-buttons">
+            <button className="lp-btn-primary" onClick={() => handleChoosePlan('PRO')}>Probar 15 días gratis</button>
+            <a href="#como-funciona" className="lp-btn-secondary">Ver cómo funciona</a>
           </div>
-          <h1 className="landing-hero-title">
-            El Software POS, Facturación SRI y <span style={{ color: '#2563eb' }}>Gestión de Reparaciones</span> más potente de Ecuador
-          </h1>
-          <p className="landing-hero-subtitle">
-            La plataforma integral que conecta a talleres técnicos y tiendas comerciales de Ecuador con sus clientes. <b>Para negocios:</b> Punto de Venta POS, Facturación Electrónica SRI, inventario y gestión de órdenes técnicas. <b>Para clientes:</b> Portal unificado de seguimiento en tiempo real, aprobación de presupuestos, facturas y garantías con Celular y Cédula.
-          </p>
-
-          <div className="landing-hero-cta" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="landing-btn-hero-primary"
-              onClick={() => handleChoosePlan('PRO')}
-            >
-              🚀 Registrar Tienda o Taller (15 Días Gratis)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigateTo('#portal-cliente')}
-              style={{
-                background: '#ffffff',
-                color: '#2563eb',
-                border: '2px solid #2563eb',
-                padding: '12px 20px',
-                borderRadius: '10px',
-                fontWeight: 800,
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 6px -1px rgba(37,99,235,0.1)'
-              }}
-            >
-              👤 Portal Clientes: Mis Reparaciones & Facturas →
-            </button>
-
-            <a href="#pricing" className="landing-btn-hero-secondary">
-              Ver Planes & Módulos
-            </a>
-          </div>
-
-          {/* BANNER EXPLICATIVO PARA CLIENTES FINALES */}
-          <div style={{
-            background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
-            border: '1.5px solid #bfdbfe',
-            borderRadius: 14,
-            padding: '16px 20px',
-            marginTop: 20,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 14,
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 280 }}>
-              <span style={{ fontSize: 32 }}>📱🪪</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: '#1e3a8a' }}>
-                  ¿Dejaste un equipo en un taller o compraste en una tienda Fixme?
-                </div>
-                <div style={{ fontSize: 12.5, color: '#475569', marginTop: 3, lineHeight: 1.4 }}>
-                  Ingresa con tu <b>Número de Celular y Cédula</b>: no necesitas crear contraseñas. Podrás ver el estado en vivo de tu reparación, autorizar presupuestos de repuestos en 1 clic, descargar tus facturas electrónicas y consultar garantías oficiales.
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigateTo('#portal-cliente')}
-              style={{
-                background: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px',
-                borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
-              }}
-            >
-              <span>Acceder al Portal del Cliente</span>
-              <span>→</span>
-            </button>
-          </div>
-
-          <div className="landing-hero-badges">
-            <div className="landing-badge-item">
-              <span className="badge-icon">🎯</span>
-              <span>Bolsa de Reparaciones</span>
-            </div>
-            <div className="landing-badge-item">
-              <span className="badge-icon">🏛️</span>
-              <span>Facturación SRI Lista</span>
-            </div>
-            <div className="landing-badge-item">
-              <span className="badge-icon">📱</span>
-              <span>DeUna QR Pichincha</span>
-            </div>
-            <div className="landing-badge-item">
-              <span className="badge-icon">💳</span>
-              <span>Tarjetas con Payphone</span>
-            </div>
-            <div className="landing-badge-item">
-              <span className="badge-icon">📶</span>
-              <span>Modo Offline & Cloud</span>
-            </div>
-          </div>
-        </div>
-
-        {/* HERO MOCKUP CARD */}
-        <div className="landing-hero-mockup-wrapper">
-          <div className="landing-mockup-card">
-            <div className="mockup-header">
-              <div className="mockup-dots">
-                <span className="dot red"></span>
-                <span className="dot yellow"></span>
-                <span className="dot green"></span>
-              </div>
-              <div className="mockup-title">FixmeTiendas · Centro Operativo & Bolsa en Vivo</div>
-              <span className="mockup-live-badge">● RED CONECTADA</span>
-            </div>
-
-            <div className="mockup-body">
-              <div className="mockup-stats-row">
-                <div className="mockup-stat">
-                  <small>Solicitudes Abiertas</small>
-                  <strong style={{ color: '#059669' }}>28 en tu ciudad</strong>
-                  <span className="positive">↑ 6 nuevas hoy</span>
-                </div>
-                <div className="mockup-stat">
-                  <small>Ventas Hoy</small>
-                  <strong>$1,420.50</strong>
-                  <span className="positive">↑ +18% vs ayer</span>
-                </div>
-                <div className="mockup-stat">
-                  <small>Órdenes Taller</small>
-                  <strong>14 en curso</strong>
-                  <span className="neutral">8 diagnósticos</span>
-                </div>
-                <div className="mockup-stat">
-                  <small>Facturación SRI</small>
-                  <strong style={{ color: '#2563eb' }}>100% Autorizadas</strong>
-                  <span className="positive">Clave 49 dígitos</span>
-                </div>
-              </div>
-
-              <div className="mockup-pos-preview">
-                {/* Cotización de Reparación Card */}
-                <div style={{ background: '#ffffff', borderRadius: 10, padding: 12, border: '1.5px solid #2563eb', marginBottom: 10, boxShadow: '0 4px 6px -1px rgba(37,99,235,0.1)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 16 }}>📱</span>
-                      <strong style={{ fontSize: 13, color: '#0f172a' }}>iPhone 13 · Cambio de Pantalla OLED</strong>
-                    </div>
-                    <span style={{ background: '#ecfdf5', color: '#059669', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
-                      $75.00 · Aprobado
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#64748b' }}>
-                    Cliente: Juan Pérez · 📍 Quito Norte · Retiro a Domicilio
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <span style={{ background: '#f1f5f9', color: '#334155', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                      ⏱️ 24 Horas
-                    </span>
-                    <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                      🛡️ Garantía 180 Días
-                    </span>
-                    <span style={{ background: '#faf5ff', color: '#7e22ce', fontSize: 10.5, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                      ✨ Pantalla Grado OEM
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mockup-cart-item">
-                  <div className="item-icon">🎧</div>
-                  <div className="item-details">
-                    <b>Auriculares Gamer Pro Hi-Fi RGB</b>
-                    <small>Stock: 8 unidades en Sucursal</small>
-                  </div>
-                  <div className="item-price">$35.00</div>
-                </div>
-
-                <div className="mockup-payment-buttons">
-                  <div className="payment-chip p-cash">💵 Efectivo ($100)</div>
-                  <div className="payment-chip p-deuna">📱 DeUna QR ($100)</div>
-                  <div className="payment-chip p-payphone">💳 Payphone Card ($100)</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2.5 SECTION: MARKETPLACE & RED NACIONAL DE TALLERES */}
-      <section id="marketplace-service" style={{ background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '70px 20px' }}>
-        <div className="landing-container">
-          <div className="section-header" style={{ textAlign: 'center', maxWidth: 840, margin: '0 auto 50px' }}>
-            <span className="section-kicker" style={{ color: '#059669', background: '#ecfdf5', padding: '4px 14px', borderRadius: 20, display: 'inline-block', fontSize: 12, fontWeight: 800 }}>
-              REPARACIONES INTELIGENTES & CAPTACIÓN DE CLIENTES
-            </span>
-            <h2 style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', margin: '14px 0 10px' }}>
-              La Primera Red & Marketplace de Reparaciones de Ecuador
-            </h2>
-            <p style={{ fontSize: 16, color: '#64748b', margin: 0, lineHeight: 1.6 }}>
-              Un ecosistema donde clientes con equipos averiados reciben las mejores propuestas de talleres técnicos certificados, con garantía formal y aprobación de repuestos en 1 solo clic.
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 30 }}>
-            {/* COLUMNA 1: PARA CLIENTES */}
-            <div style={{ background: '#ffffff', borderRadius: 20, padding: 32, border: '1.5px solid #bbf7d0', boxShadow: '0 20px 25px -5px rgba(5,150,105,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                <div style={{ background: '#ecfdf5', color: '#059669', fontSize: 26, width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  👤
-                </div>
-                <div>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Para Usuarios & Clientes</span>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Portal del Cliente Fixme</h3>
-                </div>
-              </div>
-
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
-                El centro unificado para todo lo que ocurre con tus dispositivos y compras. Accede simplemente con tu <b>Número de Celular y Cédula</b> sin recordar contraseñas.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    1
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Seguimiento en Vivo de Reparaciones</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Mira en qué etapa técnica está tu equipo: Ingresado, Diagnosticado, En Reparación o Listo para entrega.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    2
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Autorización Digital de Repuestos con 1 Clic</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Si el taller descubre un repuesto adicional o daño oculto, apruebas o rechazas el presupuesto desde tu pantalla sin sorpresas.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    3
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Garantías Oficiales & Facturación Electrónica</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Pólizas con conteo regresivo de días de vigencia y recibos oficiales de tus compras en locales afiliados.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#f0fdf4', color: '#16a34a', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    4
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Bolsa de Cotizaciones para Nuevos Equipos</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      ¿Otro equipo averiado? Publícalo desde tu panel para que talleres especializados de tu ciudad compitan con sus mejores ofertas.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => navigateTo('#portal-cliente')}
-                  style={{
-                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                    color: '#fff', border: 'none',
-                    padding: '14px 20px', borderRadius: 10, fontSize: 14, fontWeight: 800,
-                    cursor: 'pointer', flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    boxShadow: '0 4px 6px -1px rgba(37,99,235,0.25)'
-                  }}
-                >
-                  👤 Entrar al Portal del Cliente (Reparaciones, Facturas & Garantías) →
-                </button>
-              </div>
-            </div>
-
-            {/* COLUMNA 2: PARA TALLERES Y TIENDAS */}
-            <div style={{ background: '#ffffff', borderRadius: 20, padding: 32, border: '1.5px solid #bfdbfe', boxShadow: '0 20px 25px -5px rgba(37,99,235,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                <div style={{ background: '#eff6ff', color: '#2563eb', fontSize: 26, width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  🏢
-                </div>
-                <div>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Para Talleres & Tiendas</span>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: '#0f172a' }}>Multiplica los trabajos de tu taller</h3>
-                </div>
-              </div>
-
-              <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
-                Conéctate a la Bolsa de Reparaciones y recibe solicitudes reales de clientes en tu ciudad que necesitan arreglar celulares, computadoras o tecnología.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    1
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Bolsa de Leads en Tiempo Real</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Visualiza equipos con fotos y fallas reportadas en tu ciudad y postula en segundos.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    2
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Deduplicación Inteligente de Clientes</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Cuando el cliente acepta tu cotización, el sistema verifica si ya existía en tu base por teléfono o correo para evitar perfiles duplicados.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    3
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Aprobación Digital de Extras</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Agrega repuestos o mano de obra adicional en tu panel y el cliente recibe la alerta para autorizar con 1 solo clic. Cero reclamos.
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#eff6ff', color: '#2563eb', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>
-                    4
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: 14, color: '#1e293b' }}>Cobro Digital & Emisión de Garantías</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                      Cobra con DeUna QR, tarjetas Payphone o efectivo y genera el certificado formal con días de garantía automáticamente.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => handleChoosePlan('WORKSHOP')}
-                  style={{
-                    background: '#2563eb', color: '#fff', border: 'none',
-                    padding: '12px 20px', borderRadius: 10, fontSize: 13.5, fontWeight: 800,
-                    cursor: 'pointer', flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                  }}
-                >
-                  🚀 Activar Mi Taller en la Red (15 Días Gratis)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2.8 SECTION: CÓMO FUNCIONA EL SISTEMA */}
-      <section style={{ background: '#ffffff', padding: '60px 20px', borderBottom: '1px solid #e2e8f0' }}>
-        <div className="landing-container">
-          <div className="section-header" style={{ textAlign: 'center', maxWidth: 840, margin: '0 auto 40px' }}>
-            <span className="section-kicker" style={{ color: '#2563eb', background: '#eff6ff', padding: '4px 14px', borderRadius: 20, display: 'inline-block', fontSize: 12, fontWeight: 800 }}>
-              FLUJO INTELIGENTE & TRANSPARENTE
-            </span>
-            <h2 style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', margin: '12px 0 8px' }}>
-              ¿Cómo funciona el Sistema Fixme?
-            </h2>
-            <p style={{ fontSize: 15, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
-              La tecnología que une la gestión operativa de los talleres técnicos con la tranquilidad y confianza de los clientes finales.
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
-            {/* PASO 1 */}
-            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: 32 }}>📥</span>
-                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
-                  PASO 1
-                </span>
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-                1. Recepción en el Taller
-              </h3>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                El técnico recibe el equipo en el sistema Fixme, registra la falla reportada, fotos de estado físico y asocia el celular y cédula del cliente.
-              </p>
-            </div>
-
-            {/* PASO 2 */}
-            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: 32 }}>📱🪪</span>
-                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
-                  PASO 2
-                </span>
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-                2. Acceso al Portal del Cliente
-              </h3>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                El cliente entra al <b>Portal de Clientes</b> con su Celular y Cédula. No necesita contraseñas complejas y ve el avance en vivo de su orden técnica.
-              </p>
-            </div>
-
-            {/* PASO 3 */}
-            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: 32 }}>✍️</span>
-                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
-                  PASO 3
-                </span>
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-                3. Aprobación Digital en 1 Clic
-              </h3>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                Si el diagnóstico requiere un repuesto adicional, el taller lo carga y el cliente lo aprueba o rechaza digitalmente desde su teléfono sin llamadas molestas.
-              </p>
-            </div>
-
-            {/* PASO 4 */}
-            <div style={{ background: '#f8fafc', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: 32 }}>🛡️🧾</span>
-                <span style={{ background: '#eff6ff', color: '#2563eb', fontWeight: 900, fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>
-                  PASO 4
-                </span>
-              </div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-                4. Factura SRI & Garantía Oficial
-              </h3>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                Al retirar el equipo, la tienda emite la factura electrónica autorizada ante el SRI y la póliza digital de garantía con contador regresivo de días.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. KEY FEATURES SHOWCASE */}
-      <section id="features" className="landing-section">
-        <div className="landing-container">
-          <div className="section-header">
-            <span className="section-kicker">MÓDULOS DE ALTO IMPACTO</span>
-            <h2>Todo lo que tu tienda o taller necesita para operar y crecer</h2>
-            <p>Diseñado específicamente para las exigencias tributarias, operativas y comerciales de Ecuador.</p>
-          </div>
-
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#ecfdf5', color: '#059669' }}>
-                🛒
-              </div>
-              <h3>Punto de Venta (POS) & SRI</h3>
-              <p>
-                Cobra en segundos, genera comprobantes térmicos de 80mm y emite facturas electrónicas autorizadas ante el SRI sin complicaciones técnicas.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Ticket térmico 80mm y RIDE oficial PDF</li>
-                <li>✓ Modos con y sin datos (Consumidor Final)</li>
-                <li>✓ Modo Offline resistente a caídas de internet</li>
-              </ul>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                📦
-              </div>
-              <h3>Inventario Inteligente Multicentro</h3>
-              <p>
-                Controla entradas, salidas, mermas y traslados entre sucursales con kardex valorizado y alertas de stock bajo automáticas.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Lector de código de barras y generación de etiquetas</li>
-                <li>✓ Importación masiva por archivo Excel/CSV</li>
-                <li>✓ Precios al por mayor, costo y margen de ganancia</li>
-              </ul>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#fef3c7', color: '#d97706' }}>
-                🛠️
-              </div>
-              <h3>Taller & Servicio Técnico Especializado</h3>
-              <p>
-                El flujo de trabajo perfecto para recepción de equipos, diagnóstico preliminar, cotización con aprobación web y asignación a técnicos.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Portal de seguimiento para clientes por código QR</li>
-                <li>✓ Aprobación digital de presupuestos con WhatsApp</li>
-                <li>✓ Control de garantías comerciales y números de serie</li>
-              </ul>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#f0fdfa', color: '#0f766e' }}>
-                📱
-              </div>
-              <h3>Pagos Digitales DeUna QR & Payphone</h3>
-              <p>
-                Acepta pagos al instante escaneando código QR de Banco Pichincha o tarjetas de crédito y débito internacionales Visa, Mastercard y Diners.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Conciliación automática con la caja del día</li>
-                <li>✓ Botón de cobro en el POS y en cotizaciones web</li>
-                <li>✓ Modo Sandbox para pruebas sin dinero real</li>
-              </ul>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#faf5ff', color: '#9333ea' }}>
-                📑
-              </div>
-              <h3>Cotizaciones & Proformas Online</h3>
-              <p>
-                Envía cotizaciones con enlace interactivo directo al WhatsApp de tus clientes. El cliente puede revisar el detalle, aprobar y pagar en línea.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Conversión a venta en un solo clic</li>
-                <li>✓ Catálogo digital público para compartir en redes</li>
-                <li>✓ Notificaciones inmediatas de aprobación</li>
-              </ul>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon-wrapper" style={{ background: '#fff1f2', color: '#e11d48' }}>
-                🚚
-              </div>
-              <h3>Entregas & Despachos a Domicilio</h3>
-              <p>
-                Gestiona motorizados, rutas de entrega y seguimiento en vivo para que tus clientes sepan exactamente cuándo llegará su pedido.
-              </p>
-              <ul className="feature-bullets">
-                <li>✓ Registro de costo de envío y comprobante de entrega</li>
-                <li>✓ Seguimiento público con enlace de tracking</li>
-                <li>✓ Estado: En camino, Entregado, Reprogramado</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. PRICING & SUBSCRIPTION PLANS */}
-      <section id="pricing" className="landing-section landing-pricing-bg">
-        <div className="landing-container">
-          <div className="section-header">
-            <span className="section-kicker">PLANES & TARIFAS FLEXIBLES</span>
-            <h2>Elige el paquete de módulos ideal para tu negocio</h2>
-            <p>
-              Planes configurables sin contratos forzosos. Comienza con 15 días gratis y activa solo los módulos que tu tienda realmente necesita.
-            </p>
-          </div>
-
-          <div className="pricing-grid">
-            {plans.map(p => (
-              <div
-                key={p.code}
-                className={`pricing-card ${p.isPopular ? 'popular-card' : ''}`}
-              >
-                {p.isPopular && (
-                  <div className="popular-badge">
-                    ⭐ MÁS POPULAR
-                  </div>
-                )}
-                {p.badge && !p.isPopular && (
-                  <div className="plan-badge">
-                    {p.badge}
-                  </div>
-                )}
-
-                <div className="plan-header">
-                  <h3 className="plan-name">{p.name}</h3>
-                  <p className="plan-desc">{p.description}</p>
-                  <div className="plan-price-wrapper">
-                    <span className="price-currency">$</span>
-                    <span className="price-amount">{Number(p.monthlyPrice).toFixed(0)}</span>
-                    <span className="price-cents">.{Number(p.monthlyPrice).toFixed(2).split('.')[1]}</span>
-                    <span className="price-period">/ mes</span>
-                  </div>
-                </div>
-
-                <div className="plan-modules-box">
-                  <small>MÓDULOS ACTIVOS EN ESTE PAQUETE:</small>
-                  <div className="modules-chips">
-                    {p.includedModules.map(m => {
-                      const info = MODULE_LABELS[m] || { label: m, icon: '✓' };
-                      return (
-                        <span key={m} className="module-chip">
-                          <i>{info.icon}</i> {info.label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="plan-divider"></div>
-
-                <ul className="plan-features-list">
-                  {p.features.map((feat, idx) => (
-                    <li key={idx}>
-                      <span className="check">✓</span>
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  type="button"
-                  className={p.isPopular ? 'btn-plan-popular' : 'btn-plan-normal'}
-                  onClick={() => handleChoosePlan(p.code)}
-                >
-                  Comenzar con {p.name.split('/')[0].trim()}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="pricing-guarantee">
-            <div className="guarantee-icon">🛡️</div>
-            <div>
-              <strong>Garantía de Satisfacción 100%:</strong> Cancela o cambia de plan en cualquier momento desde tu panel de administración. Sin letras pequeñas ni cláusulas de permanencia.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. FAQ SECTION */}
-      <section id="faq" className="landing-section">
-        <div className="landing-container" style={{ maxWidth: 860 }}>
-          <div className="section-header">
-            <span className="section-kicker">DUDAS COMUNES</span>
-            <h2>Preguntas Frecuentes</h2>
-          </div>
-
-          <div className="faq-accordion">
-            <details className="faq-item" open>
-              <summary>¿Qué requisitos necesito para facturar electrónicamente con el SRI?</summary>
-              <p>
-                Solo necesitas tu RUC de Ecuador y tu firma electrónica en formato `.p12` (emitida por el Registro Civil, Security Data, ANF, Uanataca, etc.). Nuestro sistema se encarga de firmar los XML y validar ante el web service oficial del SRI.
-              </p>
-            </details>
-
-            <details className="faq-item">
-              <summary>¿Cómo funcionan los cobros con DeUna QR y Payphone?</summary>
-              <p>
-                Puedes usar el modo Sandbox para probar cobros simulados inmediatamente. Cuando desees cobrar dinero real, ingresas tus credenciales de comercio en la pestaña Empresa y los cobros caerán directamente en tu cuenta bancaria o saldo Payphone.
-              </p>
-            </details>
-
-            <details className="faq-item">
-              <summary>¿Puedo cambiar de plan o activar módulos adicionales después?</summary>
-              <p>
-                Sí, puedes solicitar la activación de módulos específicos (como el módulo de APIs o el taller de servicio técnico) en cualquier momento manteniendo tu información y productos intactos.
-              </p>
-            </details>
-
-            <details className="faq-item">
-              <summary>¿Funciona si se cae el internet en mi local?</summary>
-              <p>
-                ¡Sí! FixmeTiendas cuenta con arquitectura de sincronización offline: puedes seguir registrando ventas y cuando vuelva el internet, el sistema sincroniza automáticamente con la nube y emite las facturas pendientes.
-              </p>
-            </details>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. CALL TO ACTION FOOTER */}
-      <section className="landing-cta-banner">
-        <div className="landing-container">
-          <h2>¿Listo para digitalizar y ordenar tu negocio hoy?</h2>
-          <p>Únete a cientos de dueños de tiendas y talleres que ahorran más de 15 horas a la semana con FixmeTiendas.</p>
-          <button
-            type="button"
-            className="landing-btn-hero-primary"
-            onClick={() => handleChoosePlan('PRO')}
-            style={{ margin: '0 auto', display: 'inline-flex' }}
-          >
-            🚀 Crear Mi Tienda Ahora · Prueba Gratuita
+          <div className="trust-line">Sin contratos forzosos · Facturación electrónica SRI incluida</div>
+          <button className="discrete-link" style={{ background: 'none', border: 'none', padding: 0, marginTop: '8px' }} onClick={() => navigateTo('#portal-cliente')}>
+            ¿Eres cliente? Consulta tu reparación →
           </button>
         </div>
+        <div className="lp-hero-right">
+          <div className="lp-browser-frame">
+            <div className="lp-browser-chrome">
+              <span></span><span></span><span></span>
+              <div style={{ marginLeft: 12, background: '#ffffff', borderRadius: 4, padding: '2px 10px', fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 6, width: '60%' }}>
+                <span style={{ color: '#16a34a' }}>🔒</span> app.fixmetiendas.com/dashboard
+              </div>
+            </div>
+            <div className="lp-browser-content">
+              <div className="lp-mock-dash">
+                {/* Header bar of app */}
+                <div className="lp-mock-topbar">
+                  <div className="lp-mock-store">
+                    <span style={{ background: 'var(--lp-primary)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>FX</span>
+                    <span>ElectroFix Quito · Matriz</span>
+                  </div>
+                  <span className="lp-mock-live">En línea</span>
+                </div>
+
+                {/* 3 KPIs */}
+                <div className="lp-mock-kpi-row">
+                  <div className="lp-mock-kpi">
+                    <span className="lp-mock-kpi-label">Ventas del Día</span>
+                    <span className="lp-mock-kpi-val green">$ 1,420.50</span>
+                    <span className="lp-mock-kpi-sub">↑ +18% vs ayer</span>
+                  </div>
+                  <div className="lp-mock-kpi">
+                    <span className="lp-mock-kpi-label">Órdenes Taller</span>
+                    <span className="lp-mock-kpi-val blue">14 activas</span>
+                    <span className="lp-mock-kpi-sub neutral">8 en diagnóstico</span>
+                  </div>
+                  <div className="lp-mock-kpi">
+                    <span className="lp-mock-kpi-label">Facturas SRI</span>
+                    <span className="lp-mock-kpi-val">100% Aut.</span>
+                    <span className="lp-mock-kpi-sub">Clave 49 dígitos</span>
+                  </div>
+                </div>
+
+                {/* 2 Interactive panels: Work Order tracking & POS sale */}
+                <div className="lp-mock-panels">
+                  {/* Panel 1: Workshop Order Card */}
+                  <div className="lp-mock-card">
+                    <div className="lp-mock-card-head">
+                      <span className="lp-mock-card-title">Orden #1042 · Taller</span>
+                      <span className="lp-mock-card-tag green">Presupuesto Aprobado</span>
+                    </div>
+                    <div className="lp-mock-device">iPhone 13 Pro · Pantalla OLED</div>
+                    <div className="lp-mock-repair-desc">Cliente: Juan Pérez · Cel: 099***421</div>
+                    <div className="lp-mock-chips">
+                      <span className="lp-mock-chip">Técnico: Carlos M.</span>
+                      <span className="lp-mock-chip ok">Garantía 180 días</span>
+                      <span className="lp-mock-chip">Repuesto OEM</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>Aprobado desde celular</span>
+                      <strong style={{ fontSize: 13, color: '#0f172a' }}>$ 85.00</strong>
+                    </div>
+                  </div>
+
+                  {/* Panel 2: Fast POS Ticket */}
+                  <div className="lp-mock-card">
+                    <div className="lp-mock-card-head">
+                      <span className="lp-mock-card-title">Caja / POS Rápido</span>
+                      <span className="lp-mock-card-tag blue">Factura #001-042</span>
+                    </div>
+                    <div className="lp-mock-pos-item">
+                      <span>Cargador Rápido 30W USB-C</span>
+                      <strong>$ 18.00</strong>
+                    </div>
+                    <div className="lp-mock-pos-item">
+                      <span>Mica Cerámica Antiespía</span>
+                      <strong>$ 6.00</strong>
+                    </div>
+                    <div className="lp-mock-pay-chips">
+                      <span className="lp-mock-pay-chip active">DeUna QR</span>
+                      <span className="lp-mock-pay-chip">Payphone</span>
+                      <span className="lp-mock-pay-chip">Efectivo</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* 7. FOOTER */}
-      <footer className="landing-footer">
-        <div className="landing-container footer-flex">
-          <div className="footer-left">
-            <div className="landing-brand">
-              <span className="landing-logo-badge">FX</span>
-              <span className="landing-logo-text">Fixme<span>Tiendas</span></span>
-            </div>
-            <p>Plataforma SaaS integral de Punto de Venta, Inventario, Taller Técnico y Facturación SRI para Ecuador.</p>
-            <small>© {new Date().getFullYear()} FixmeTiendas S.A.S. Todos los derechos reservados.</small>
-          </div>
+      {/* 3. TRUST BAR */}
+      <section className="lp-trust-bar">
+        <div className="lp-trust-items">
+          <div className="lp-trust-item"><CheckIcon /> Facturación electrónica SRI</div>
+          <div className="lp-trust-item"><CheckIcon /> Cobros DeUna QR y Payphone</div>
+          <div className="lp-trust-item"><CheckIcon /> Modo sin internet</div>
+          <div className="lp-trust-item"><CheckIcon /> Garantías digitales</div>
+          <div className="lp-trust-item"><CheckIcon /> Sin contratos forzosos</div>
+        </div>
+      </section>
 
-          <div className="footer-links">
-            <div>
-              <strong>Plataforma</strong>
-              <a href="#marketplace-service">Red de Talleres & Cotizaciones</a>
-              <a href="#features">Punto de Venta POS</a>
-              <a href="#features">Taller & Reparaciones</a>
-              <a href="#features">Inventario & Kardex</a>
-              <a href="#payments">Pagos DeUna & Payphone</a>
+      {/* 4. PARA NEGOCIOS Y CLIENTES */}
+      <section id="para-negocios" className="lp-section">
+        <div className="lp-para-grid">
+          <div className="lp-para-card">
+            <h3>Para talleres y tiendas</h3>
+            <ul>
+              <li><CheckIcon /> Controla tu inventario y evita pérdidas</li>
+              <li><CheckIcon /> Factura electrónicamente en segundos</li>
+              <li><CheckIcon /> Organiza tus órdenes de reparación</li>
+            </ul>
+            <button className="lp-btn-primary" style={{ width: '100%' }} onClick={() => handleChoosePlan('WORKSHOP')}>Activar mi taller gratis</button>
+          </div>
+          <div className="lp-para-card">
+            <h3>Para tus clientes</h3>
+            <ul>
+              <li><CheckIcon /> Consultan el estado de su equipo online</li>
+              <li><CheckIcon /> Aprueban presupuestos desde el celular</li>
+              <li><CheckIcon /> Descargan sus facturas y garantías</li>
+            </ul>
+            <button className="lp-btn-secondary" style={{ width: '100%' }} onClick={() => navigateTo('#portal-cliente')}>Acceder al portal</button>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. CÓMO FUNCIONA */}
+      <section id="como-funciona" className="lp-section bg-alt">
+        <div className="lp-section-inner">
+          <div className="lp-section-header">
+            <div className="lp-section-label">Cómo funciona</div>
+            <h2 className="lp-section-title">Cuatro pasos, cero papeleo</h2>
+          </div>
+          <div className="lp-how-steps">
+            <div className="lp-step">
+              <div className="lp-step-number">1</div>
+              <h4>Recepción</h4>
+              <p>Ingresa el equipo y genera la orden de servicio en el sistema.</p>
+              <div className="lp-step-connector"></div>
             </div>
-            <div>
-              <strong>Clientes & Reparaciones</strong>
-              <button type="button" onClick={() => navigateTo('#portal-cliente')} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer' }}>👤 Portal Clientes (Reparaciones, Facturas & Garantías)</button>
-              <a href="#faq">Preguntas Frecuentes</a>
+            <div className="lp-step">
+              <div className="lp-step-number">2</div>
+              <h4>Portal del cliente</h4>
+              <p>El cliente recibe un enlace para seguir el estado de su reparación.</p>
+              <div className="lp-step-connector"></div>
             </div>
-            <div>
-              <strong>Acceso Comercios</strong>
-              <button type="button" onClick={() => setShowLoginModal(true)}>Iniciar Sesión</button>
-              <button type="button" onClick={() => handleChoosePlan('PRO')}>Registrar Tienda</button>
-              <a href="#pricing">Tarifas Mensuales</a>
+            <div className="lp-step">
+              <div className="lp-step-number">3</div>
+              <h4>Aprobación en 1 clic</h4>
+              <p>Aprueba el presupuesto enviado desde su celular sin ir al local.</p>
+              <div className="lp-step-connector"></div>
             </div>
-            <div>
-              <strong>Soporte</strong>
-              <a href="https://wa.me/593999999999" target="_blank" rel="noreferrer">WhatsApp Oficial</a>
-              <a href="mailto:soporte@fixmetiendas.com">soporte@fixmetiendas.com</a>
-              <span>Quito & Guayaquil, Ecuador</span>
+            <div className="lp-step">
+              <div className="lp-step-number">4</div>
+              <h4>Factura y garantía</h4>
+              <p>Genera la factura electrónica y entrega la garantía digital.</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* 6. MÓDULOS & FUNCIONES */}
+      <section id="features" className="lp-section">
+        <div className="lp-section-header">
+          <div className="lp-section-label">Funcionalidades</div>
+          <h2 className="lp-section-title">Todo lo que necesita tu negocio</h2>
+        </div>
+        <div className="lp-bento-grid">
+          <div className="lp-bento-card lp-bento-large">
+            <div className="lp-bento-icon">1</div>
+            <h3>Punto de Venta (POS) y Caja</h3>
+            <p>Vende rápido con código de barras, abre y cierra caja (Corte Z), acepta múltiples métodos de pago y emite facturas electrónicas al instante.</p>
+          </div>
+          <div className="lp-bento-card">
+            <div className="lp-bento-icon">2</div>
+            <h3>Inventario</h3>
+            <p>Control de stock, kardex de productos, alertas de stock mínimo y gestión multialmacén.</p>
+          </div>
+          <div className="lp-bento-card">
+            <div className="lp-bento-icon">3</div>
+            <h3>Taller y Órdenes</h3>
+            <p>Checklist de recepción, asignación de técnicos, estados de reparación y garantías.</p>
+          </div>
+          <div className="lp-bento-card">
+            <div className="lp-bento-icon">4</div>
+            <h3>Pagos Digitales</h3>
+            <p>Integración directa con DeUna QR y Payphone para cobros seguros y sin contacto.</p>
+          </div>
+          <div className="lp-bento-card">
+            <div className="lp-bento-icon">5</div>
+            <h3>Cotizaciones Web</h3>
+            <p>Envía proformas profesionales por WhatsApp que tus clientes pueden aprobar digitalmente.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. PLANES */}
+      <section id="pricing" className="lp-section bg-alt">
+        <div className="lp-section-inner">
+          <div className="lp-section-header">
+            <div className="lp-section-label">Planes</div>
+            <h2 className="lp-section-title">Elige el plan de tu negocio</h2>
+          </div>
+          <div className="lp-pricing-grid">
+            {plans.map(p => {
+              const displayName = PLAN_DISPLAY_NAMES[p.code] || p.name.split('/')[0].trim();
+              const isPopular = p.isPopular;
+              const badge = p.badge === 'ECONOMICO' ? 'Económico' : p.badge;
+              
+              return (
+                <div key={p.code} className={`lp-pricing-card ${isPopular ? 'popular' : ''}`}>
+                  {isPopular && <div className="lp-pricing-badge">{badge || 'RECOMENDADO'}</div>}
+                  <div className="lp-pricing-header">
+                    <h3>{displayName}</h3>
+                    <div className="lp-pricing-price">$ {p.monthlyPrice.toFixed(2)} <span>/ mes</span></div>
+                    <div className="lp-pricing-note">Precios + IVA</div>
+                  </div>
+                  <p className="lp-pricing-desc">{p.description}</p>
+                  
+                  <div className="lp-pricing-modules">
+                    {p.includedModules.map(mod => (
+                      <span key={mod} className="lp-module-chip">
+                        {MODULE_LABELS_CLEAN[mod] || mod}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  <ul className="lp-pricing-features">
+                    {p.features.map((f, i) => (
+                      <li key={i}><CheckIcon /> {f}</li>
+                    ))}
+                  </ul>
+                  
+                  <button 
+                    className={isPopular ? 'lp-btn-primary' : 'lp-btn-secondary'} 
+                    style={{ width: '100%' }}
+                    onClick={() => handleChoosePlan(p.code)}
+                  >
+                    Probar 15 días gratis
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* 8. FAQ */}
+      <section id="faq" className="lp-section">
+        <div className="lp-section-header">
+          <div className="lp-section-label">Preguntas frecuentes</div>
+          <h2 className="lp-section-title">Preguntas frecuentes</h2>
+        </div>
+        <div className="lp-faq-list">
+          {[
+            {
+              q: '¿Qué necesito para facturar con el SRI?',
+              a: <>Solo necesitas tu RUC activo y tu firma electrónica <code>.p12</code>. Nosotros nos encargamos del resto de la configuración.</>
+            },
+            {
+              q: '¿Cómo funcionan los cobros con DeUna QR y Payphone?',
+              a: <>Los cobros se integran directamente en el POS. El sistema genera un código QR de DeUna o envía una solicitud de pago por Payphone, y la factura se emite automáticamente cuando el cliente paga.</>
+            },
+            {
+              q: '¿Puedo cambiar de plan o activar módulos después?',
+              a: <>Sí, puedes subir o bajar de plan en cualquier momento. Los cambios se aplicarán en tu siguiente ciclo de facturación.</>
+            },
+            {
+              q: '¿Funciona si se cae el internet?',
+              a: <>Sí, el sistema incluye un modo sin internet que te permite seguir registrando ventas y reparaciones. Todo se sincronizará automáticamente cuando vuelva la conexión.</>
+            },
+            {
+              q: '¿Cómo pruebo el sistema? ¿Qué pasa al terminar los 15 días?',
+              a: <>Puedes registrarte y usar todas las funciones gratis por 15 días. Al terminar, podrás elegir un plan y pagar con tarjeta o transferencia para seguir usando tu cuenta sin perder información.</>
+            },
+            {
+              q: '¿Puedo importar mis productos y clientes actuales?',
+              a: <>Sí, contamos con plantillas de Excel para importar todo tu inventario y base de clientes en pocos minutos.</>
+            },
+            {
+              q: '¿Qué impresoras y lectores de código de barras son compatibles?',
+              a: <>Cualquier impresora térmica USB, Bluetooth o WiFi (80mm o 58mm) y cualquier lector de código de barras USB/Bluetooth que funcione como teclado.</>
+            },
+            {
+              q: '¿Cuántos usuarios y sucursales incluye cada plan?',
+              a: <>Cada plan incluye 1 sucursal. Los usuarios varían por plan. El plan Enterprise incluye sucursales y usuarios ilimitados.</>
+            },
+            {
+              q: '¿Mis datos están respaldados y seguros?',
+              a: <>Sí, utilizamos servidores seguros en la nube con copias de seguridad automáticas diarias. Tu información está encriptada y protegida.</>
+            },
+            {
+              q: '¿Cómo puedo cancelar? ¿Hay soporte por WhatsApp?',
+              a: <>No hay contratos forzosos, puedes cancelar tu suscripción en cualquier momento. Ofrecemos soporte por WhatsApp de lunes a viernes en horario laborable para planes Comercial en adelante.</>
+            }
+          ].map((faq, idx) => (
+            <div key={idx} className="lp-faq-item">
+              <button 
+                className="lp-faq-question"
+                aria-expanded={openFaqIdx === idx}
+                onClick={() => setOpenFaqIdx(openFaqIdx === idx ? null : idx)}
+              >
+                {faq.q}
+                <svg className="lp-faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              {openFaqIdx === idx && (
+                <div className="lp-faq-answer">
+                  {faq.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 9. CTA CLOSING BAND */}
+      <section className="lp-cta-band">
+        <h2>Empieza a vender y reparar con orden.</h2>
+        <p>15 días gratis, sin tarjeta de crédito.</p>
+        <button className="lp-btn-primary" onClick={() => handleChoosePlan('PRO')}>Probar 15 días gratis</button>
+      </section>
+
+      {/* 10. FOOTER */}
+      <footer className="lp-footer">
+        <div className="lp-footer-grid">
+          <div>
+            <div className="landing-brand" style={{ marginBottom: '16px' }}>
+              <span className="landing-logo-badge">FX</span>
+              <span className="landing-logo-text" style={{ color: 'white' }}>Fixme<span style={{ color: 'var(--lp-primary)' }}>Tiendas</span></span>
+            </div>
+            <p style={{ fontSize: '0.875rem', marginBottom: '16px' }}>Sistema de gestión para Ecuador.<br/>Vende, factura y repara con orden.</p>
+          </div>
+          <div>
+            <h4>Plataforma</h4>
+            <ul>
+              <li><a href="#features">Funciones</a></li>
+              <li><a href="#como-funciona">Cómo funciona</a></li>
+              <li><a href="#modules">Módulos</a></li>
+              <li><a href="#pricing">Planes</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Para clientes</h4>
+            <ul>
+              <li><a href="#portal-cliente" onClick={(e) => { e.preventDefault(); navigateTo('#portal-cliente'); }}>Portal de clientes</a></li>
+              <li><a href="#faq">Preguntas frecuentes</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Contacto</h4>
+            <ul>
+              <li><a href="https://wa.me/593999999999" target="_blank" rel="noreferrer">WhatsApp: +593 999 999 999</a></li>
+              <li><a href="mailto:soporte@fixmetiendas.com">soporte@fixmetiendas.com</a></li>
+              <li>Quito & Guayaquil, Ecuador</li>
+            </ul>
+          </div>
+        </div>
+        <div className="lp-footer-bottom">
+          &copy; {new Date().getFullYear()} FixmeTiendas Ecuador. Todos los derechos reservados.
         </div>
       </footer>
 
+      {/* 11. FLOATING WHATSAPP BUTTON */}
+      <a href="https://wa.me/593999999999" target="_blank" rel="noreferrer" className="lp-wa-fab" aria-label="Chat en WhatsApp">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+      </a>
+
       {/* --- MODAL 1: REGISTRO DE TIENDA AUTOPROVISIÓN --- */}
       {showRegisterModal && (
-        <div className="modal-backdrop" onClick={() => setShowRegisterModal(false)}>
-          <div className="modal-content modal-register-content" onClick={e => e.stopPropagation()}>
+        <div className="lp-modal-overlay" onClick={() => setShowRegisterModal(false)}>
+          <div className="lp-modal-card modal-register-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
             <div className="modal-header">
               <div>
                 <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>
@@ -1288,8 +891,8 @@ export function LandingPage({ onLogin, onOpenDirectLogin, onNavigate }: LandingP
 
       {/* --- MODAL 2: INICIO DE SESIÓN DIRECTO --- */}
       {showLoginModal && (
-        <div className="modal-backdrop" onClick={() => setShowLoginModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="lp-modal-overlay" onClick={() => setShowLoginModal(false)}>
+          <div className="lp-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ background: '#2563eb', color: '#fff', padding: '3px 8px', borderRadius: 6, fontWeight: 800, fontSize: '13px' }}>FX</span>

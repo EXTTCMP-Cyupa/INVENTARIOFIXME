@@ -175,7 +175,7 @@ public class WorkOrder {
         }
       }
       this.quote = total;
-      if ("OPEN".equals(this.status) || "DIAGNOSIS".equals(this.status)) {
+      if (java.util.Set.of("OPEN", "DIAGNOSIS", "RECIBIDO", "EN_DIAGNOSTICO").contains(this.status)) {
         this.status = "QUOTED";
       }
     }

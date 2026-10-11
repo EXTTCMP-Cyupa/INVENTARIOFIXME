@@ -507,17 +507,20 @@ public class BusinessModulesController {
     UUID t = tenant(j);
     UUID u = user(t, j.getSubject());
     String querySearch = (q != null && !q.isBlank()) ? q : search;
+    String activeStatusFilter = (status != null && !status.isBlank())
+        ? status
+        : "OPEN,RECIBIDO,DIAGNOSIS,EN_DIAGNOSTICO,QUOTED,COTIZADO,PRESUPUESTADO,ESPERANDO_REPUESTOS,WAITING_PARTS,APPROVED,APROBADO,IN_PROGRESS,EN_REPARACION,TESTING,EN_PRUEBAS,PRUEBAS,LISTO_ENTREGA,COMPLETED,REJECTED,RECHAZADO";
 
     boolean isPagedRequest = cursor != null || limit != null || Boolean.TRUE.equals(paged);
 
     if (isPagedRequest) {
       WorkOrderPort.WorkOrderQueryParams query = new WorkOrderPort.WorkOrderQueryParams(
-          status, querySearch, u, false, sla, from, to, sort, limit, cursor
+          activeStatusFilter, querySearch, u, false, sla, from, to, sort, limit, cursor
       );
       return workOrderService.listOrdersPaged(t, query);
     }
 
-    return workOrderService.listOrders(t, status, querySearch, u);
+    return workOrderService.listOrders(t, activeStatusFilter, querySearch, u);
   }
 
   @GetMapping("/api/work-orders/my-work/stats")
@@ -528,13 +531,13 @@ public class BusinessModulesController {
     ctx(t);
     String sql = """
         SELECT
-          COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE status IN ('RECIBIDO','EN_DIAGNOSTICO','EN_REPARACION','ESPERANDO_REPUESTOS','OPEN','DIAGNOSIS','QUOTED','APPROVED','IN_PROGRESS','WAITING_PARTS')) AS active,
-          COUNT(*) FILTER (WHERE status IN ('EN_REPARACION','IN_PROGRESS')) AS in_repair,
+          COUNT(*) FILTER (WHERE status NOT IN ('DELIVERED','ENTREGADO','PAGADO','CANCELLED','CANCELADO')) AS total,
+          COUNT(*) FILTER (WHERE status NOT IN ('DELIVERED','ENTREGADO','PAGADO','CANCELLED','CANCELADO')) AS active,
+          COUNT(*) FILTER (WHERE status IN ('QUOTED','COTIZADO','PRESUPUESTADO')) AS quoted,
+          COUNT(*) FILTER (WHERE status IN ('EN_REPARACION','IN_PROGRESS','APPROVED','APROBADO','TESTING','EN_PRUEBAS','PRUEBAS')) AS in_repair,
           COUNT(*) FILTER (WHERE status IN ('ESPERANDO_REPUESTOS','WAITING_PARTS')) AS waiting_parts,
-          COUNT(*) FILTER (WHERE status IN ('LISTO_ENTREGA','COMPLETED')) AS ready,
-          COUNT(*) FILTER (WHERE status IN ('ENTREGADO','DELIVERED')) AS completed,
-          COUNT(*) FILTER (WHERE status IN ('RECIBIDO','EN_DIAGNOSTICO','EN_REPARACION','ESPERANDO_REPUESTOS','OPEN','DIAGNOSIS','QUOTED','APPROVED','IN_PROGRESS','WAITING_PARTS')
+          COUNT(*) FILTER (WHERE status IN ('LISTO_ENTREGA','COMPLETED','REJECTED','RECHAZADO')) AS ready,
+          COUNT(*) FILTER (WHERE status NOT IN ('DELIVERED','ENTREGADO','PAGADO','CANCELLED','CANCELADO')
                            AND estimated_delivery IS NOT NULL AND estimated_delivery <= now() + interval '12 hours') AS urgent_sla
         FROM work_orders
         WHERE tenant_id = ? AND assigned_technician_id = ?

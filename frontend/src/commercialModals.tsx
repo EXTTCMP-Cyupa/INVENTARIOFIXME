@@ -1126,7 +1126,8 @@ export function TechnicianWorkbenchModal({
   api,
   notify,
   tenantName,
-  branchId
+  branchId,
+  onCheckout
 }: {
   order: Any;
   onClose: () => void;
@@ -1135,6 +1136,7 @@ export function TechnicianWorkbenchModal({
   notify?: (s: string) => void;
   tenantName?: string;
   branchId?: string;
+  onCheckout?: (order: Any) => void;
 }) {
   const [tab, setTab] = React.useState<'DIAG' | 'PARTS' | 'ACTIONS'>('DIAG');
   const [diagnosis, setDiagnosis] = React.useState(order.diagnosis || '');
@@ -1775,9 +1777,18 @@ export function TechnicianWorkbenchModal({
                     className="tech-action-btn"
                     style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
                     disabled={statusUpdating}
-                    onClick={() => handleQuickStatus('COTIZADO', 'Cotización generada para el cliente')}
+                    onClick={() => handleQuickStatus('QUOTED', 'Cotización generada y enviada al cliente')}
                   >
-                    💰 2. Marcar Cotizado
+                    💰 2. Cotizado (Esperando Aprobación)
+                  </button>
+                  <button
+                    type="button"
+                    className="tech-action-btn"
+                    style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontWeight: 700 }}
+                    disabled={statusUpdating}
+                    onClick={() => handleQuickStatus('EN_REPARACION', 'Cliente autorizó presupuesto, iniciando reparación')}
+                  >
+                    👍 3. Cliente Aprobó
                   </button>
                   <button
                     type="button"
@@ -1785,7 +1796,7 @@ export function TechnicianWorkbenchModal({
                     disabled={statusUpdating}
                     onClick={() => handleQuickStatus('ESPERANDO_REPUESTOS', 'Esperando repuestos')}
                   >
-                    ⏳ 3. Esperar Repuestos
+                    ⏳ 4. Esperar Repuestos
                   </button>
                   <button
                     type="button"
@@ -1793,7 +1804,7 @@ export function TechnicianWorkbenchModal({
                     disabled={statusUpdating}
                     onClick={() => handleQuickStatus('EN_REPARACION', 'Técnico inició los trabajos de reparación')}
                   >
-                    ▶ 4. En Reparación
+                    ▶ 5. En Reparación
                   </button>
                   <button
                     type="button"
@@ -1802,7 +1813,7 @@ export function TechnicianWorkbenchModal({
                     disabled={statusUpdating}
                     onClick={() => handleQuickStatus('TESTING', 'Pruebas finales y control de calidad')}
                   >
-                    🧪 5. Pruebas Finales
+                    🧪 6. Pruebas Finales
                   </button>
                   <button
                     type="button"
@@ -1810,16 +1821,23 @@ export function TechnicianWorkbenchModal({
                     disabled={statusUpdating}
                     onClick={() => handleQuickStatus('LISTO_ENTREGA', 'Equipo listo para entrega en recepción')}
                   >
-                    ✅ 6. Listo para Entrega
+                    ✅ 7. Listo para Entrega
                   </button>
                   <button
                     type="button"
                     className="tech-action-btn"
-                    style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}
+                    style={{ background: '#059669', color: '#ffffff', border: '1px solid #047857', fontWeight: 800 }}
                     disabled={statusUpdating}
-                    onClick={() => handleQuickStatus('DELIVERED', 'Equipo entregado y pagado')}
+                    onClick={() => {
+                      if (onCheckout) {
+                        onClose();
+                        onCheckout(order);
+                      } else {
+                        handleQuickStatus('DELIVERED', 'Equipo entregado y cobrado');
+                      }
+                    }}
                   >
-                    🤝 7. Pagado / Retirado
+                    🤝 8. Cobrar y Entregar al Cliente
                   </button>
                 </div>
               </div>

@@ -107,7 +107,11 @@ public class CashController {
     summary.put("inflowsCash", inflowsCash);
     summary.put("outflowsCash", outflowsCash);
     summary.put("depositsCash", depositsCash);
+    summary.put("inflows", inflowsCash);
+    summary.put("outflows", outflowsCash);
+    summary.put("deposits", depositsCash);
     summary.put("cashInDrawer", currentDrawer);
+    summary.put("currentCashInDrawer", currentDrawer);
 
     // Fiscal and Comprobante Reconciliation
     List<Map<String, Object>> sessionSales = db.queryForList("""

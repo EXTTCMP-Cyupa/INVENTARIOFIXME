@@ -648,7 +648,8 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
     if (movementFilter === 'ALL') return true;
     if (movementFilter === 'DEPOSIT') return m.type === 'DEPOSIT';
     if (movementFilter === 'CASH_IN') return m.type === 'CASH_IN';
-    if (movementFilter === 'CASH_OUT') return m.type === 'CASH_OUT';
+    if (movementFilter === 'CASH_OUT') return m.type === 'CASH_OUT' || m.type === 'OUT';
+    if (movementFilter === 'SALE_CASH') return m.type === 'SALE_CASH';
     return true;
   });
 
@@ -910,12 +911,13 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                 <h3>Registro Detallado de Movimientos</h3>
                 <p className="catalog-toolbar-p">Entradas, salidas de efectivo y depósitos bancarios de este turno</p>
               </div>
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {[
                   ['ALL', `Todos (${history.length})`],
-                  ['DEPOSIT', 'Depósitos'],
+                  ['SALE_CASH', 'Ventas / Servicios'],
+                  ['CASH_OUT', 'Gastos / Salidas'],
                   ['CASH_IN', 'Entradas'],
-                  ['CASH_OUT', 'Salidas']
+                  ['DEPOSIT', 'Depósitos']
                 ].map(([k, label]) => (
                   <button
                     key={k}
@@ -934,43 +936,54 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                 <thead>
                   <tr>
                     <th>Fecha y hora</th>
-                    <th>Tipo</th>
+                    <th>Tipo de Movimiento</th>
                     <th>Método</th>
-                    <th>Destino / concepto</th>
+                    <th>Destino / Concepto</th>
                     <th>Referencia</th>
-                    <th className="num">Monto ($)</th>
+                    <th className="num">Efecto en Gaveta</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredHistory.map((m: Any) => (
-                    <tr key={m.id}>
-                      <td>{new Date(m.created_at).toLocaleDateString()} {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                      <td>
-                        <span className={`deliv-badge ${
-                          m.type === 'DEPOSIT' ? 'badge-movement-deposit' :
-                          m.type === 'CASH_IN' ? 'badge-movement-in' : 'badge-movement-out'
-                        }`}>
-                          {m.type === 'DEPOSIT' ? '🏦 Depósito Banco' :
-                           m.type === 'CASH_IN' ? '📥 Ingreso Extra' : '📤 Gasto / Salida'}
-                        </span>
-                      </td>
-                      <td><b>{m.payment_method || 'CASH'}</b></td>
-                      <td>
-                        <strong>{m.destination || m.reason || 'Sin detalle'}</strong>
-                        {m.notes && <div style={{ fontSize: '11px', color: '#64748b' }}>{m.notes}</div>}
-                      </td>
-                      <td>
-                        {m.reference ? (
-                          <span className="guide-pill">📄 {m.reference}</span>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ fontWeight: 800, color: m.type === 'CASH_IN' ? '#10b981' : '#ef4444' }}>
-                        {m.type === 'CASH_IN' ? '+' : '-'}${Number(m.amount).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredHistory.map((m: Any) => {
+                    const isPositive = m.type === 'CASH_IN' || m.type === 'SALE_CASH' || m.type === 'OPENING';
+                    return (
+                      <tr key={m.id}>
+                        <td>{new Date(m.created_at).toLocaleDateString()} {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>
+                          <span className={`deliv-badge ${
+                            m.type === 'SALE_CASH' ? 'badge-movement-in' :
+                            m.type === 'OPENING' ? 'badge-movement-in' :
+                            m.type === 'DEPOSIT' ? 'badge-movement-deposit' :
+                            m.type === 'CASH_IN' ? 'badge-movement-in' : 'badge-movement-out'
+                          }`} style={{
+                            background: m.type === 'SALE_CASH' ? '#eff6ff' : undefined,
+                            color: m.type === 'SALE_CASH' ? '#1d4ed8' : undefined,
+                            borderColor: m.type === 'SALE_CASH' ? '#bfdbfe' : undefined
+                          }}>
+                            {m.type === 'SALE_CASH' ? '🛒 Cobro Venta / Taller' :
+                             m.type === 'OPENING' ? '🟢 Fondo de Apertura' :
+                             m.type === 'DEPOSIT' ? '🏦 Depósito Banco' :
+                             m.type === 'CASH_IN' ? '📥 Ingreso Extra' : '📤 Gasto / Salida'}
+                          </span>
+                        </td>
+                        <td><b>{m.payment_method || 'CASH'}</b></td>
+                        <td>
+                          <strong>{m.reason || m.destination || 'Movimiento de caja'}</strong>
+                          {m.notes && <div style={{ fontSize: '11px', color: '#64748b' }}>{m.notes}</div>}
+                        </td>
+                        <td>
+                          {m.reference ? (
+                            <span className="guide-pill">📄 {m.reference}</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 800, color: isPositive ? '#10b981' : '#ef4444', textAlign: 'right' }}>
+                          {isPositive ? '+' : '-'}${Number(m.amount).toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {!filteredHistory.length && (
@@ -8629,6 +8642,7 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   const [loading, setLoading] = React.useState(true);
   const [workbenchOrder, setWorkbenchOrder] = React.useState<Any|null>(null);
   const [receiptOrder, setReceiptOrder] = React.useState<Any|null>(null);
+  const [checkoutOrder, setCheckoutOrder] = React.useState<Any|null>(null);
   const [updating, setUpdating] = React.useState(false);
   const [mobileKanbanCol, setMobileKanbanCol] = React.useState<string>('all');
   const [openMenuOrderId, setOpenMenuOrderId] = React.useState<string | null>(null);
@@ -8639,7 +8653,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       api('/api/work-orders/my-work').then(r => r.ok ? r.json() : []),
       api('/api/work-orders/my-work/stats').then(r => r.ok ? r.json() : {})
     ]).then(([ordersData, statsData]) => {
-      const list = Array.isArray(ordersData) ? ordersData : (ordersData && ordersData.data ? ordersData.data : []);
+      const raw = Array.isArray(ordersData) ? ordersData : (ordersData && ordersData.data ? ordersData.data : []);
+      const list = raw.filter((o: Any) => !['ENTREGADO', 'DELIVERED', 'PAGADO', 'CANCELLED', 'CANCELADO'].includes(o.status));
       setOrders(list);
       setStats(statsData || {});
       setLoading(false);
@@ -8694,13 +8709,15 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   }
 
   function getStatusBadge(st: string) {
-    const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(st);
+    const isQuoted = ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(st);
+    const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED', 'APROBADO'].includes(st);
     const isWaiting = ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(st);
     const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(st);
-    const isDelivered = ['ENTREGADO', 'DELIVERED'].includes(st);
+    const isDelivered = ['ENTREGADO', 'DELIVERED', 'PAGADO'].includes(st);
 
-    const tone = isRepair ? 'brand' : isWaiting ? 'warning' : isReady ? 'success' : isDelivered ? 'neutral' : 'neutral';
-    const label = st === 'EN_REPARACION' ? 'En reparación' :
+    const tone = isQuoted ? 'warning' : isRepair ? 'brand' : isWaiting ? 'warning' : isReady ? 'success' : isDelivered ? 'neutral' : 'neutral';
+    const label = isQuoted ? 'Cotizada al cliente' :
+                  st === 'EN_REPARACION' ? 'En reparación' :
                   st === 'ESPERANDO_REPUESTOS' ? 'Esperando repuestos' :
                   st === 'LISTO_ENTREGA' ? 'Listo para entrega' :
                   st === 'ENTREGADO' ? 'Entregado' :
@@ -8711,15 +8728,18 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
   }
 
   const filteredOrders = orders.filter(o => {
+    if (['ENTREGADO', 'DELIVERED', 'PAGADO', 'CANCELLED', 'CANCELADO'].includes(o.status)) return false;
     if (filter !== 'ALL') {
       if (filter === 'ACTIVE') {
-        if (!['RECIBIDO', 'EN_DIAGNOSTICO', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'OPEN', 'DIAGNOSIS', 'APPROVED', 'IN_PROGRESS'].includes(o.status)) return false;
+        if (!['RECIBIDO', 'EN_DIAGNOSTICO', 'EN_REPARACION', 'ESPERANDO_REPUESTOS', 'OPEN', 'DIAGNOSIS', 'QUOTED', 'COTIZADO', 'PRESUPUESTADO', 'APPROVED', 'IN_PROGRESS'].includes(o.status)) return false;
+      } else if (filter === 'QUOTED') {
+        if (!['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status)) return false;
       } else if (filter === 'IN_REPAIR') {
-        if (!['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(o.status)) return false;
+        if (!['EN_REPARACION', 'IN_PROGRESS', 'APPROVED', 'APROBADO'].includes(o.status)) return false;
       } else if (filter === 'WAITING_PARTS') {
         if (!['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status)) return false;
       } else if (filter === 'READY') {
-        if (!['LISTO_ENTREGA', 'COMPLETED'].includes(o.status)) return false;
+        if (!['LISTO_ENTREGA', 'COMPLETED', 'REJECTED', 'RECHAZADO'].includes(o.status)) return false;
       } else if (filter === 'URGENT') {
         const deadline = o.sla_deadline || o.estimated_delivery;
         if (!deadline) return false;
@@ -8745,14 +8765,14 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
     {
       id: 'COL_DIAG',
       title: 'Por diagnosticar',
-      statuses: ['OPEN', 'RECIBIDO', 'EN_DIAGNOSTICO', 'DIAGNOSIS', 'QUOTED'],
+      statuses: ['OPEN', 'RECIBIDO', 'EN_DIAGNOSTICO', 'DIAGNOSIS'],
       borderColor: '#94a3b8'
     },
     {
-      id: 'COL_REPAIR',
-      title: 'En reparación',
-      statuses: ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'],
-      borderColor: '#2563eb'
+      id: 'COL_QUOTED',
+      title: 'Cotizadas al cliente',
+      statuses: ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'],
+      borderColor: '#8b5cf6'
     },
     {
       id: 'COL_PARTS',
@@ -8761,16 +8781,16 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       borderColor: '#d97706'
     },
     {
-      id: 'COL_READY',
-      title: 'Listo para entrega',
-      statuses: ['LISTO_ENTREGA', 'COMPLETED'],
-      borderColor: '#059669'
+      id: 'COL_REPAIR',
+      title: 'En reparación y pruebas',
+      statuses: ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED', 'APROBADO', 'TESTING', 'EN_PRUEBAS', 'PRUEBAS'],
+      borderColor: '#2563eb'
     },
     {
-      id: 'COL_DELIVERED',
-      title: 'Entregado al cliente',
-      statuses: ['ENTREGADO', 'DELIVERED'],
-      borderColor: '#64748b'
+      id: 'COL_READY',
+      title: 'Listo para entrega',
+      statuses: ['LISTO_ENTREGA', 'COMPLETED', 'REJECTED', 'RECHAZADO'],
+      borderColor: '#059669'
     }
   ];
 
@@ -8799,15 +8819,23 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         }
       />
 
-      {/* 2. KPI Strip (5 celdas limpias) */}
+      {/* 2. KPI Strip (6 celdas limpias) */}
       <KpiStrip
         items={[
           {
-            label: 'Asignadas',
-            value: stats.total || orders.length,
-            hint: 'Órdenes activas',
+            label: 'Activas en taller',
+            value: orders.length,
+            hint: 'Órdenes en curso',
             active: filter === 'ALL',
             onClick: () => { setFilter('ALL'); setMobileKanbanCol('all'); }
+          },
+          {
+            label: 'Cotizadas al cliente',
+            value: stats.quoted != null ? stats.quoted : orders.filter(o => ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status)).length,
+            hint: 'Esperando aprobación',
+            tone: 'warning',
+            active: filter === 'QUOTED',
+            onClick: () => { setFilter('QUOTED'); setMobileKanbanCol('COL_QUOTED'); }
           },
           {
             label: 'En reparación',
@@ -8826,7 +8854,7 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
           {
             label: 'Listas para entrega',
             value: stats.ready || 0,
-            hint: 'Finalizadas',
+            hint: 'Por entregar/cobrar',
             active: filter === 'READY',
             onClick: () => { setFilter('READY'); setMobileKanbanCol('COL_READY'); }
           },
@@ -8845,16 +8873,19 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <FilterTabs
           tabs={[
-            { id: 'ALL', label: 'Todas', count: orders.length },
-            { id: 'ACTIVE', label: 'Activas', count: stats.active || 0 },
+            { id: 'ALL', label: 'Todas las activas', count: orders.length },
+            { id: 'QUOTED', label: 'Cotizadas', count: stats.quoted != null ? stats.quoted : orders.filter(o => ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status)).length },
             { id: 'WAITING_PARTS', label: 'Esperando repuestos', count: stats.waiting_parts || 0 },
-            { id: 'READY', label: 'Terminadas', count: stats.ready || 0 }
+            { id: 'IN_REPAIR', label: 'En reparación', count: stats.in_repair || 0 },
+            { id: 'READY', label: 'Listas para entrega', count: stats.ready || 0 }
           ]}
           activeTab={filter}
           onChange={id => {
             setFilter(id);
-            if (id === 'ALL' || id === 'ACTIVE') setMobileKanbanCol('all');
+            if (id === 'ALL') setMobileKanbanCol('all');
+            else if (id === 'QUOTED') setMobileKanbanCol('COL_QUOTED');
             else if (id === 'WAITING_PARTS') setMobileKanbanCol('COL_PARTS');
+            else if (id === 'IN_REPAIR') setMobileKanbanCol('COL_REPAIR');
             else if (id === 'READY') setMobileKanbanCol('COL_READY');
           }}
         />
@@ -9023,6 +9054,19 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                   </button>
                                 )}
 
+                                {col.id === 'COL_QUOTED' && (
+                                  <button
+                                    type="button"
+                                    className="primary-action"
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', background: '#059669', color: '#fff', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    disabled={updating}
+                                    onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Cliente autorizó presupuesto, iniciando reparación')}
+                                    title="Cliente aceptó el presupuesto"
+                                  >
+                                    <Check size={13} /> Cliente Aprobó
+                                  </button>
+                                )}
+
                                 {col.id === 'COL_REPAIR' && (
                                   <button
                                     type="button"
@@ -9050,12 +9094,12 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                 {col.id === 'COL_READY' && (
                                   <button
                                     type="button"
-                                    className="secondary-action"
-                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}
+                                    className="primary-action"
+                                    style={{ flex: 1, height: 30, fontSize: '11.5px', borderRadius: '6px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, background: '#059669', color: '#fff' }}
                                     disabled={updating}
-                                    onClick={() => updateStatus(o.id, 'DELIVERED', 'Equipo entregado al cliente')}
+                                    onClick={() => setCheckoutOrder(o)}
                                   >
-                                    Entregar al cliente
+                                    🤝 Cobrar y Entregar
                                   </button>
                                 )}
 
@@ -9105,6 +9149,40 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                                       >
                                         🔧 Ficha & Taller
                                       </button>
+                                      {['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status) && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => { setOpenMenuOrderId(null); updateStatus(o.id, 'EN_REPARACION', 'Cliente autorizó presupuesto'); }}
+                                            style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#059669', fontWeight: 700 }}
+                                          >
+                                            👍 Cliente Aprobó
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => { setOpenMenuOrderId(null); updateStatus(o.id, 'ESPERANDO_REPUESTOS', 'Cliente aprobó, esperando repuestos'); }}
+                                            style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#d97706' }}
+                                          >
+                                            ⏳ Pedir Repuestos
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => { setOpenMenuOrderId(null); updateStatus(o.id, 'REJECTED', 'Cliente rechazó el presupuesto'); }}
+                                            style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#dc2626' }}
+                                          >
+                                            ❌ Cliente Rechazó
+                                          </button>
+                                        </>
+                                      )}
+                                      {['LISTO_ENTREGA', 'COMPLETED'].includes(o.status) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenMenuOrderId(null); setCheckoutOrder(o); }}
+                                          style={{ padding: '7px 8px', borderRadius: '6px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: '11.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#059669', fontWeight: 700 }}
+                                        >
+                                          🤝 Cobrar y Entregar
+                                        </button>
+                                      )}
                                       {col.id === 'COL_REPAIR' && (
                                         <button
                                           type="button"
@@ -9229,6 +9307,28 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                           >
                             🔧 Taller
                           </button>
+                          {['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status) && (
+                            <button
+                              type="button"
+                              className="btn-primary-sm"
+                              style={{ padding: '4px 10px', fontSize: '11px', background: '#059669', borderColor: '#059669' }}
+                              onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Cliente autorizó presupuesto')}
+                              title="Cliente autorizó cotización"
+                            >
+                              👍 Aprobó
+                            </button>
+                          )}
+                          {['LISTO_ENTREGA', 'COMPLETED', 'REJECTED', 'RECHAZADO'].includes(o.status) && (
+                            <button
+                              type="button"
+                              className="btn-primary-sm"
+                              style={{ padding: '4px 10px', fontSize: '11px', background: '#059669', borderColor: '#059669' }}
+                              onClick={() => setCheckoutOrder(o)}
+                              title="Cobrar y entregar orden al cliente"
+                            >
+                              🤝 Cobrar
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -9246,7 +9346,8 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
             const waMsg = encodeURIComponent(`Hola ${o.customer_name || 'estimado cliente'}, te escribe tu técnico de Fixme sobre tu equipo ${o.device_brand || ''} ${o.device_model || ''} (Orden ${o.order_number || ''}).`);
             const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : '';
 
-            const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED'].includes(o.status);
+            const isQuoted = ['QUOTED', 'COTIZADO', 'PRESUPUESTADO'].includes(o.status);
+            const isRepair = ['EN_REPARACION', 'IN_PROGRESS', 'APPROVED', 'APROBADO'].includes(o.status);
             const isWaiting = ['ESPERANDO_REPUESTOS', 'WAITING_PARTS'].includes(o.status);
             const isReady = ['LISTO_ENTREGA', 'COMPLETED'].includes(o.status);
             const itemsCount = (o.items || []).length;
@@ -9334,7 +9435,18 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                   >
                     🔧 Abrir Ficha Técnica & Taller
                   </button>
-                  {!isRepair && !isReady && (
+                  {isQuoted && (
+                    <button
+                      type="button"
+                      className="tech-action-btn"
+                      style={{ background: '#059669', color: '#ffffff', borderColor: '#059669', fontWeight: 700 }}
+                      disabled={updating}
+                      onClick={() => updateStatus(o.id, 'EN_REPARACION', 'Cliente autorizó presupuesto')}
+                    >
+                      👍 Cliente Aprobó
+                    </button>
+                  )}
+                  {!isRepair && !isReady && !isQuoted && (
                     <button
                       className="tech-action-btn tech-action-repair"
                       disabled={updating}
@@ -9361,6 +9473,16 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
                       ✓ Marcar Listo
                     </button>
                   )}
+                  {isReady && (
+                    <button
+                      type="button"
+                      className="tech-action-btn"
+                      style={{ background: '#059669', color: '#ffffff', borderColor: '#059669', fontWeight: 700 }}
+                      onClick={() => setCheckoutOrder(o)}
+                    >
+                      🤝 Cobrar y Entregar
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -9378,6 +9500,28 @@ function MyWork({api, notify, go}:{api:(u:string,o?:RequestInit)=>Promise<Respon
           notify={notify}
           branchId={branchId}
           tenantName={localStorage.tenantName || 'Fixme Tiendas'}
+          onCheckout={(o: Any) => setCheckoutOrder(o)}
+        />
+      )}
+
+      {/* Modal Cobro y Entrega (Caja + Garantía) */}
+      {checkoutOrder && (
+        <WorkOrderCheckoutModal
+          order={checkoutOrder}
+          onClose={() => setCheckoutOrder(null)}
+          onSuccess={(data: Any) => {
+            setCheckoutOrder(null);
+            notify?.(`¡Trabajo finalizado! Cobro registrado y Garantía #${data.warrantyCode} emitida.`);
+            load();
+            setReceiptOrder({
+              ...checkoutOrder,
+              status: data.status,
+              warranty_code: data.warrantyCode,
+              warranty_days: data.warrantyDays,
+              payment_method: data.paymentMethod,
+              payment_amount: data.paymentAmount
+            });
+          }}
         />
       )}
 
