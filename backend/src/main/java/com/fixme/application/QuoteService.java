@@ -235,7 +235,7 @@ public class QuoteService {
     Sale sale = saleService.create(
         tenantId, branchId, userId, saleItems, payments,
         quote.getCustomerId(), warranty, "STORE", "PICKUP",
-        BigDecimal.ZERO, null, quote.getDiscount()
+        BigDecimal.ZERO, null, quote.getDiscount(), quote.getTax()
     );
 
     quote.markConverted(sale.id());

@@ -276,21 +276,42 @@ public class SriInvoiceController {
         WHERE si.sale_id = ?
         """, saleId);
 
+    // Determine IVA rate (15% vs 0%) based on tax regime and parameters
+    boolean isSubjectToIva = true;
+
+    // 1. If emitter is RIMPE Negocio Popular, all sales are 0% IVA by Ecuadorian law
+    if (regimen != null && regimen.toUpperCase().contains("POPULAR")) {
+      isSubjectToIva = false;
+    }
+
+    // 2. If customer overrides or input explicitly specifies taxRate or isSubjectToIva or regime
+    if (customerOverrides != null) {
+      if (customerOverrides.get("isSubjectToIva") != null) {
+        isSubjectToIva = Boolean.parseBoolean(customerOverrides.get("isSubjectToIva").toString());
+      } else if (customerOverrides.get("taxRate") != null) {
+        BigDecimal rate = new BigDecimal(customerOverrides.get("taxRate").toString());
+        isSubjectToIva = rate.compareTo(BigDecimal.ZERO) > 0;
+      } else if (customerOverrides.get("regimen") != null && customerOverrides.get("regimen").toString().toUpperCase().contains("POPULAR")) {
+        isSubjectToIva = false;
+      }
+    } else {
+      // 3. Fallback: if sale was explicitly saved with 0.00 tax
+      if (sale.get("tax") != null) {
+        BigDecimal saleTax = new BigDecimal(sale.get("tax").toString());
+        if (saleTax.compareTo(BigDecimal.ZERO) == 0 && sale.get("subtotal") != null && new BigDecimal(sale.get("subtotal").toString()).compareTo(BigDecimal.ZERO) > 0) {
+          isSubjectToIva = false;
+        }
+      }
+    }
+
     List<SriXmlBuilder.ItemDetail> items = new ArrayList<>();
     BigDecimal subtotalSinImpuestos = BigDecimal.ZERO;
-    BigDecimal subtotal15 = BigDecimal.ZERO;
-    BigDecimal iva15Total = BigDecimal.ZERO;
 
     for (Map<String, Object> si : saleItems) {
       BigDecimal qty = new BigDecimal(si.get("quantity").toString());
       BigDecimal unitPrice = new BigDecimal(si.get("unit_price").toString());
       BigDecimal lineTotal = qty.multiply(unitPrice).setScale(2, RoundingMode.HALF_UP);
-      
-      // In Ecuador current standard rate is 15% IVA
-      BigDecimal itemIva = lineTotal.multiply(BigDecimal.valueOf(0.15)).setScale(2, RoundingMode.HALF_UP);
       subtotalSinImpuestos = subtotalSinImpuestos.add(lineTotal);
-      subtotal15 = subtotal15.add(lineTotal);
-      iva15Total = iva15Total.add(itemIva);
 
       items.add(new SriXmlBuilder.ItemDetail(
           si.get("sku") != null ? si.get("sku").toString() : "PROD-" + items.size(),
@@ -299,14 +320,27 @@ public class SriInvoiceController {
           unitPrice,
           BigDecimal.ZERO,
           lineTotal,
-          true
+          isSubjectToIva
       ));
     }
 
     BigDecimal totalDiscount = sale.get("discount") != null ? new BigDecimal(sale.get("discount").toString()) : BigDecimal.ZERO;
     BigDecimal subtotalSinImpuestosNeto = subtotalSinImpuestos.subtract(totalDiscount).max(BigDecimal.ZERO);
-    BigDecimal subtotal15Neto = subtotal15.subtract(totalDiscount).max(BigDecimal.ZERO);
-    BigDecimal iva15TotalNeto = subtotal15Neto.multiply(BigDecimal.valueOf(0.15)).setScale(2, RoundingMode.HALF_UP);
+
+    BigDecimal subtotal15Neto;
+    BigDecimal subtotal0Neto;
+    BigDecimal iva15TotalNeto;
+
+    if (isSubjectToIva) {
+      subtotal15Neto = subtotalSinImpuestosNeto;
+      subtotal0Neto = BigDecimal.ZERO;
+      iva15TotalNeto = subtotal15Neto.multiply(BigDecimal.valueOf(0.15)).setScale(2, RoundingMode.HALF_UP);
+    } else {
+      subtotal15Neto = BigDecimal.ZERO;
+      subtotal0Neto = subtotalSinImpuestosNeto;
+      iva15TotalNeto = BigDecimal.ZERO;
+    }
+
     BigDecimal grandTotal = subtotalSinImpuestosNeto.add(iva15TotalNeto);
 
     // 5. Generate 49-digit Access Key
@@ -347,7 +381,7 @@ public class SriInvoiceController {
         buyerEmail,
         subtotalSinImpuestosNeto,
         subtotal15Neto,
-        BigDecimal.ZERO,
+        subtotal0Neto,
         iva15TotalNeto,
         totalDiscount,
         grandTotal,
@@ -385,14 +419,14 @@ public class SriInvoiceController {
             ?, ?, ?, '01', ?, ?, ?, ?,
             ?, now(), ?,
             ?, ?, ?, ?, ?, ?,
-            ?, ?, 0.00, ?, ?, ?, '01',
+            ?, ?, ?, ?, ?, ?, '01',
             ?, ?, ?, ?::jsonb, ?, ?
         )
         """,
         invoiceId, t, saleId, estab, ptoEmi, seqFormatted, numCompleto,
         accessKey, ambiente,
         buyerType, buyerId, buyerName, buyerAddress, buyerPhone, buyerEmail,
-        subtotalSinImpuestosNeto, subtotal15Neto, iva15TotalNeto, totalDiscount, grandTotal,
+        subtotalSinImpuestosNeto, subtotal15Neto, subtotal0Neto, iva15TotalNeto, totalDiscount, grandTotal,
         sriResp.status(), sriResp.authorizationNumber(), sriResp.authorizationDate(),
         mensajesJson, rawXml, signedXml
     );

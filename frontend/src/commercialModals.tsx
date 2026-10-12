@@ -37,7 +37,10 @@ export function ThermalTicketModal({
     (acc: number, it: Any) => acc + (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 1)),
     0
   );
-  const tax = Number(sale.taxTotal || (sale.invoiceType === 'SRI_INVOICE' ? subtotal * 0.15 : 0));
+  const isTicketInterno = sale.invoiceType === 'INTERNAL_TICKET' || sale.invoice_type === 'INTERNAL_TICKET' || (!sale.invoiceType && !sale.invoice_type);
+  const rawTax = Number(sale.tax != null ? sale.tax : (sale.taxTotal || 0));
+  // If internal ticket, tax is strictly 0. If SRI invoice, use recorded tax
+  const tax = isTicketInterno ? 0 : rawTax;
   const shipping = Number(sale.shippingCost || 0);
   const discount = Number(sale.discount != null ? sale.discount : (sale.discountAmount || 0));
   const total = Number(sale.total || (subtotal + tax + shipping - discount));
@@ -71,7 +74,9 @@ export function ThermalTicketModal({
             <div className="receipt-company-line">Tlf: {comp.phone}</div>
             <div className="receipt-company-line">Email: {comp.email}</div>
             <div className="receipt-company-line" style={{ fontWeight: 800, marginTop: '2px' }}>
-              CONTRIBUYENTE RÉGIMEN {comp.taxRegime}
+              {isTicketInterno
+                ? 'DOCUMENTO INTERNO (IVA 0% - NO FISCAL)'
+                : `CONTRIBUYENTE RÉGIMEN ${comp.taxRegime}`}
             </div>
             <div className="receipt-company-line" style={{ fontWeight: 800 }}>
               NÚMERO: {sale.invoiceNumber || sale.invoice_number || `001-001-${(sale.orderNumber || sale.id || '00000000').slice(0, 8).toUpperCase()}`}
@@ -179,28 +184,35 @@ export function ThermalTicketModal({
 
           {/* TOTALES FISCALES ALINEADOS A LA DERECHA */}
           {(() => {
-            const subtotal15 = sale.invoiceType === 'SRI_INVOICE' || tax > 0 ? (total - shipping - tax) : subtotal;
-            const subtotal0 = 0.00;
-            const subtotalSinImp = subtotal15 + subtotal0;
+            const isSri = !isTicketInterno;
+            const isTax15 = isSri && tax > 0;
+            const subtotalSinImp = Math.max(0, subtotal - discount);
+            const subtotal15 = isTax15 ? subtotalSinImp : 0.00;
+            const subtotal0 = !isTax15 ? subtotalSinImp : 0.00;
 
             return (
               <div className="receipt-fiscal-totals">
-                <div className="receipt-fiscal-row">
-                  <span>Subtotal 15%</span>
-                  <span>${subtotal15.toFixed(2)}</span>
-                </div>
-                <div className="receipt-fiscal-row">
-                  <span>Subtotal 0%</span>
-                  <span>${subtotal0.toFixed(2)}</span>
-                </div>
+                {isTax15 ? (
+                  <div className="receipt-fiscal-row">
+                    <span>Subtotal 15%</span>
+                    <span>${subtotal15.toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <div className="receipt-fiscal-row">
+                    <span>Subtotal 0% (Tarifa 0)</span>
+                    <span>${subtotal0.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="receipt-fiscal-row">
                   <span>Subtotal sin Impuesto</span>
                   <span>${subtotalSinImp.toFixed(2)}</span>
                 </div>
-                <div className="receipt-fiscal-row">
-                  <span>Descuento %</span>
-                  <span>{discount > 0 ? `-$${discount.toFixed(2)}` : '$0.00'}</span>
-                </div>
+                {discount > 0 && (
+                  <div className="receipt-fiscal-row">
+                    <span>Descuento %</span>
+                    <span>-${discount.toFixed(2)}</span>
+                  </div>
+                )}
                 {shipping > 0 && (
                   <div className="receipt-fiscal-row">
                     <span>Flete a Domicilio</span>
@@ -208,7 +220,7 @@ export function ThermalTicketModal({
                   </div>
                 )}
                 <div className="receipt-fiscal-row">
-                  <span>IVA 15%</span>
+                  <span>{isTax15 ? 'IVA 15%' : 'IVA (0%)'}</span>
                   <span>${tax.toFixed(2)}</span>
                 </div>
                 <div className="receipt-fiscal-row highlight">
@@ -441,15 +453,20 @@ export function CorteZModal({
 }) {
   const storeName = tenantName || localStorage.tenantName || 'Fixme Tienda';
   const openCash = Number(summary.openingCash || 0);
-  const salesCash = Number(summary.salesCash || 0);
-  const inCash = Number(summary.inflowsCash || 0);
-  const outCash = Number(summary.outflowsCash || 0);
-  const depCash = Number(summary.depositsCash || 0);
+  const posCash = Number(summary.posSalesCash != null ? summary.posSalesCash : summary.salesCash || 0);
+  const woCash = Number(summary.workOrdersCash || 0);
+  const inCash = Number(summary.inflowsCash || summary.inflows || 0);
+  const outCash = Number(summary.outflowsCash || summary.outflows || 0);
+  const depCash = Number(summary.depositsCash || summary.deposits || 0);
   const expected = Number(
-    summary.cashInDrawer || summary.expected || openCash + salesCash + inCash - outCash - depCash
+    summary.cashInDrawer || summary.currentCashInDrawer || summary.expected || (openCash + posCash + woCash + inCash - outCash - depCash)
   );
-  const counted = Number(summary.counted || 0);
-  const diff = Number(summary.difference || counted - expected);
+  const counted = Number(summary.counted != null ? summary.counted : expected);
+  const diff = Number(summary.difference != null ? summary.difference : (counted - expected));
+
+  const salesBreakdown = summary.salesBreakdown;
+  const woBreakdown = summary.workOrdersBreakdown;
+  const payments = summary.paymentsSummary;
 
   const [paperWidth, setPaperWidth] = React.useState<TicketPaperWidth>(getStoredPaperWidth());
   const handleWidthChange = (w: TicketPaperWidth) => {
@@ -459,11 +476,11 @@ export function CorteZModal({
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card" style={{ maxWidth: paperWidth === '58mm' ? '330px' : '410px', transition: 'max-width 0.2s' }}>
+      <div className="modal-card" style={{ maxWidth: paperWidth === '58mm' ? '330px' : '420px', transition: 'max-width 0.2s' }}>
         <div className="modal-head no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '16px' }}>📊 Reporte de Cierre Z</h3>
-            <small style={{ color: '#64748b' }}>Arqueo de Turno ({paperWidth})</small>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>📊 Reporte Integral de Cierre Z</h3>
+            <small style={{ color: '#64748b' }}>Arqueo Total de Turno ({paperWidth})</small>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TicketFormatSelector value={paperWidth} onChange={handleWidthChange} />
@@ -480,19 +497,30 @@ export function CorteZModal({
             <div className="thermal-divider" />
           </div>
 
-          <div className="thermal-row"><span>Fondo Inicial:</span><span>${openCash.toFixed(2)}</span></div>
-          <div className="thermal-row"><span>(+) Ventas Efectivo:</span><span>${salesCash.toFixed(2)}</span></div>
-          <div className="thermal-row"><span>(+) Entradas de Caja:</span><span>${inCash.toFixed(2)}</span></div>
-          <div className="thermal-row"><span>(-) Salidas de Caja:</span><span>${outCash.toFixed(2)}</span></div>
-          <div className="thermal-row"><span>(-) Depósitos al Banco:</span><span>${depCash.toFixed(2)}</span></div>
+          {/* ARQUEO FÍSICO DE EFECTIVO EN GAVETA */}
+          <div className="thermal-sub" style={{ fontWeight: 800, textAlign: 'left', marginBottom: '4px' }}>💵 ARQUEO DE GAVETA (EFECTIVO)</div>
+          <div className="thermal-row"><span>Fondo Inicial Apertura:</span><span>${openCash.toFixed(2)}</span></div>
+          <div className="thermal-row"><span>(+) Ventas Mostrador (Efectivo):</span><span>${posCash.toFixed(2)}</span></div>
+          {woCash > 0 && (
+            <div className="thermal-row"><span>(+) Taller / Reparaciones (Efectivo):</span><span>${woCash.toFixed(2)}</span></div>
+          )}
+          {inCash > 0 && (
+            <div className="thermal-row"><span>(+) Entradas Manuales Caja:</span><span>${inCash.toFixed(2)}</span></div>
+          )}
+          {outCash > 0 && (
+            <div className="thermal-row"><span>(-) Gastos Operativos / Turno:</span><span>${outCash.toFixed(2)}</span></div>
+          )}
+          {depCash > 0 && (
+            <div className="thermal-row"><span>(-) Depósitos Banco / Bóveda:</span><span>${depCash.toFixed(2)}</span></div>
+          )}
           <div className="thermal-divider" />
 
           <div className="thermal-row" style={{ fontWeight: 700 }}>
-            <span>Efectivo Teórico:</span>
+            <span>Efectivo Teórico en Gaveta:</span>
             <span>${expected.toFixed(2)}</span>
           </div>
           <div className="thermal-row" style={{ fontWeight: 700 }}>
-            <span>Efectivo Contado:</span>
+            <span>Efectivo Físico Contado:</span>
             <span>${counted.toFixed(2)}</span>
           </div>
           <div className="thermal-divider" />
@@ -501,9 +529,9 @@ export function CorteZModal({
             className="thermal-row total-highlight"
             style={{ color: '#000000', fontWeight: 900 }}
           >
-            <span>DIFERENCIA:</span>
+            <span>DIFERENCIA ARQUEO:</span>
             <span>
-              {diff === 0
+              {Math.abs(diff) < 0.01
                 ? '$0.00 (Cuadrada)'
                 : diff > 0
                 ? `+$${diff.toFixed(2)} (Sobrante)`
@@ -535,32 +563,80 @@ export function CorteZModal({
           )}
 
           {/* DÓNDE ESTÁ EL DINERO - CONCILIACIÓN MULTICANAL */}
-          {summary.paymentsSummary && (
+          {payments && (
             <div>
               <div className="thermal-divider" />
-              <div className="thermal-sub" style={{ fontWeight: 800 }}>¿DÓNDE ESTÁ EL DINERO? (CONCILIACIÓN)</div>
+              <div className="thermal-sub" style={{ fontWeight: 800, textAlign: 'left', marginBottom: '4px' }}>📍 ¿DÓNDE ESTÁ EL DINERO? (CANALES)</div>
               <div className="thermal-row">
                 <span>💵 En Gaveta (Efectivo Contado):</span>
                 <strong>${counted.toFixed(2)}</strong>
               </div>
               <div className="thermal-row">
-                <span>🏦 En Banco (Transferencias):</span>
-                <strong>${Number(summary.paymentsSummary.transfer || 0).toFixed(2)}</strong>
+                <span>🏦 En Banco (Transferencias/DeUna):</span>
+                <strong>${Number(payments.transfer || 0).toFixed(2)}</strong>
               </div>
               <div className="thermal-row">
                 <span>💳 En POS/Datafast (Tarjetas):</span>
-                <strong>${Number(summary.paymentsSummary.card || 0).toFixed(2)}</strong>
+                <strong>${Number(payments.card || 0).toFixed(2)}</strong>
               </div>
-              {Number(summary.paymentsSummary.other || 0) > 0 && (
+              {Number(payments.other || 0) > 0 && (
                 <div className="thermal-row">
                   <span>📱 Otros Canales / Mixto:</span>
-                  <span>${Number(summary.paymentsSummary.other).toFixed(2)}</span>
+                  <span>${Number(payments.other).toFixed(2)}</span>
                 </div>
               )}
               <div className="thermal-row" style={{ fontWeight: 800, borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '4px' }}>
-                <span>TOTAL RECAUDADO EN EL DÍA:</span>
-                <span>${(counted + Number(summary.paymentsSummary.transfer || 0) + Number(summary.paymentsSummary.card || 0) + Number(summary.paymentsSummary.other || 0)).toFixed(2)}</span>
+                <span>TOTAL RECAUDADO EMPRESA:</span>
+                <span>${(counted + Number(payments.transfer || 0) + Number(payments.card || 0) + Number(payments.other || 0)).toFixed(2)}</span>
               </div>
+            </div>
+          )}
+
+          {/* DESGLOSE POR ACTIVIDADES DE LA EMPRESA */}
+          {(salesBreakdown || woBreakdown) && (
+            <div>
+              <div className="thermal-divider" />
+              <div className="thermal-sub" style={{ fontWeight: 800, textAlign: 'left', marginBottom: '4px' }}>💼 ACTIVIDADES DEL NEGOCIO EN EL TURNO</div>
+              {salesBreakdown && Number(salesBreakdown.total || 0) > 0 && (
+                <div style={{ marginBottom: '6px' }}>
+                  <div className="thermal-row" style={{ fontWeight: 700 }}>
+                    <span>🛒 Ventas Mostrador ({salesBreakdown.count || 0}):</span>
+                    <span>${Number(salesBreakdown.total).toFixed(2)}</span>
+                  </div>
+                  <div style={{ paddingLeft: '8px', fontSize: '10px' }}>
+                    <div className="thermal-row" style={{ margin: '1px 0' }}>
+                      <span>• Efectivo: ${Number(salesBreakdown.cash || 0).toFixed(2)} | Tarjeta: ${Number(salesBreakdown.card || 0).toFixed(2)}</span>
+                      <span>Transf: ${Number(salesBreakdown.transfer || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {woBreakdown && Number(woBreakdown.total || 0) > 0 && (
+                <div style={{ marginBottom: '6px' }}>
+                  <div className="thermal-row" style={{ fontWeight: 700 }}>
+                    <span>🔧 Taller y Reparaciones ({woBreakdown.count || 0}):</span>
+                    <span>${Number(woBreakdown.total).toFixed(2)}</span>
+                  </div>
+                  <div style={{ paddingLeft: '8px', fontSize: '10px' }}>
+                    <div className="thermal-row" style={{ margin: '1px 0' }}>
+                      <span>• Efectivo: ${Number(woBreakdown.cash || 0).toFixed(2)} | Tarjeta: ${Number(woBreakdown.card || 0).toFixed(2)}</span>
+                      <span>Transf: ${Number(woBreakdown.transfer || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {(outCash > 0 || depCash > 0) && (
+                <div style={{ marginBottom: '4px' }}>
+                  <div className="thermal-row" style={{ fontWeight: 700, color: '#dc2626' }}>
+                    <span>📤 Egresos / Gastos de Turno:</span>
+                    <span>-${(outCash + depCash).toFixed(2)}</span>
+                  </div>
+                  <div style={{ paddingLeft: '8px', fontSize: '10px' }}>
+                    {outCash > 0 && <div>• Gastos operativos/almuerzos: -${outCash.toFixed(2)}</div>}
+                    {depCash > 0 && <div>• Depósitos bancarios: -${depCash.toFixed(2)}</div>}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

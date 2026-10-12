@@ -38,7 +38,7 @@ public class ProductController {
   public record MovementInput(String type, Integer quantity, String reason) {}
 
   @GetMapping
-  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_SUPER_ADMIN')")
+  @PreAuthorize("hasAnyAuthority('SCOPE_TENANT_ADMIN','SCOPE_MANAGER','SCOPE_SELLER','SCOPE_TECHNICIAN','SCOPE_SUPER_ADMIN','SCOPE_ACCOUNTANT')")
   public List<Product> list(@RequestParam(required = false) UUID branchId, @AuthenticationPrincipal Jwt jwt) {
     UUID tenant = tenant(jwt);
     if (branchId == null) {
@@ -46,7 +46,16 @@ public class ProductController {
         branchId = jdbc.queryForObject("SELECT id FROM branches WHERE tenant_id = ? AND active = true ORDER BY created_at ASC LIMIT 1", UUID.class, tenant);
       } catch (Exception ignored) {}
     }
-    return service.list(tenant, branchId);
+    List<Product> products = service.list(tenant, branchId);
+    if (com.fixme.infrastructure.security.SecurityConfig.canViewCosts(jwt)) {
+      return products;
+    }
+    // Redact purchasePrice, extraCost and marginPercent for non-privileged roles (SELLER, TECHNICIAN, etc.)
+    return products.stream().map(p -> new Product(
+        p.id(), p.tenantId(), p.sku(), p.name(), p.stock(), p.price(),
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        p.categoryId(), p.minStock(), p.barcode(), p.imageUrl()
+    )).toList();
   }
 
   @PostMapping

@@ -80,38 +80,86 @@ public class CashController {
     summary.put("nextDayFund", s.nextDayFund());
 
     List<Map<String, Object>> movs = db.queryForList(
-        "select type, payment_method, amount, reason, destination, reference, created_at from cash_movements where tenant_id=? and session_id=? order by created_at desc",
+        "select id, session_id, sale_id, type, payment_method, amount, reason, destination, reference, created_at from cash_movements where tenant_id=? and session_id=? order by created_at desc",
         t, s.id()
     );
     summary.put("recentMovements", movs);
 
-    BigDecimal salesCash = BigDecimal.ZERO;
-    BigDecimal inflowsCash = BigDecimal.ZERO;
+    BigDecimal movPosCash = BigDecimal.ZERO;
+    BigDecimal movPosCard = BigDecimal.ZERO;
+    BigDecimal movPosTransfer = BigDecimal.ZERO;
+    BigDecimal movPosOther = BigDecimal.ZERO;
+
+    BigDecimal movWoCash = BigDecimal.ZERO;
+    BigDecimal movWoCard = BigDecimal.ZERO;
+    BigDecimal movWoTransfer = BigDecimal.ZERO;
+    BigDecimal movWoOther = BigDecimal.ZERO;
+
+    BigDecimal manualInCash = BigDecimal.ZERO;
     BigDecimal outflowsCash = BigDecimal.ZERO;
     BigDecimal depositsCash = BigDecimal.ZERO;
+    BigDecimal refundsCash = BigDecimal.ZERO;
 
     for (Map<String, Object> m : movs) {
       String type = (String) m.get("type");
-      String method = (String) m.get("payment_method");
-      BigDecimal amount = (BigDecimal) m.get("amount");
-      if ("CASH".equalsIgnoreCase(method) && amount != null) {
-        if ("SALE_CASH".equalsIgnoreCase(type)) salesCash = salesCash.add(amount);
-        else if ("CASH_IN".equalsIgnoreCase(type)) inflowsCash = inflowsCash.add(amount);
-        else if ("CASH_OUT".equalsIgnoreCase(type)) outflowsCash = outflowsCash.add(amount);
-        else if ("DEPOSIT".equalsIgnoreCase(type)) depositsCash = depositsCash.add(amount);
+      String method = m.get("payment_method") != null ? ((String) m.get("payment_method")).toUpperCase(Locale.ROOT) : "CASH";
+      BigDecimal amt = m.get("amount") != null ? new BigDecimal(m.get("amount").toString()) : BigDecimal.ZERO;
+      String ref = (String) m.get("reference");
+      String reason = (String) m.get("reason");
+      Object saleId = m.get("sale_id");
+
+      boolean isWo = (ref != null && ref.toUpperCase(Locale.ROOT).startsWith("OT-"))
+          || (saleId == null && reason != null && (reason.toLowerCase().contains("orden de servicio") || reason.toLowerCase().contains("reparac")));
+
+      if ("SALE_CASH".equalsIgnoreCase(type)) {
+        if (isWo) {
+          if ("CASH".equals(method)) movWoCash = movWoCash.add(amt);
+          else if ("CARD".equals(method)) movWoCard = movWoCard.add(amt);
+          else if ("TRANSFER".equals(method)) movWoTransfer = movWoTransfer.add(amt);
+          else movWoOther = movWoOther.add(amt);
+        } else {
+          if ("CASH".equals(method)) movPosCash = movPosCash.add(amt);
+          else if ("CARD".equals(method)) movPosCard = movPosCard.add(amt);
+          else if ("TRANSFER".equals(method)) movPosTransfer = movPosTransfer.add(amt);
+          else movPosOther = movPosOther.add(amt);
+        }
+      } else if ("CASH_IN".equalsIgnoreCase(type)) {
+        manualInCash = manualInCash.add(amt);
+      } else if ("CASH_OUT".equalsIgnoreCase(type)) {
+        outflowsCash = outflowsCash.add(amt);
+      } else if ("DEPOSIT".equalsIgnoreCase(type)) {
+        depositsCash = depositsCash.add(amt);
+      } else if ("REFUND".equalsIgnoreCase(type)) {
+        refundsCash = refundsCash.add(amt);
       }
     }
 
-    BigDecimal currentDrawer = s.openingCash().add(salesCash).add(inflowsCash).subtract(outflowsCash).subtract(depositsCash);
-    summary.put("salesCash", salesCash);
-    summary.put("inflowsCash", inflowsCash);
-    summary.put("outflowsCash", outflowsCash);
-    summary.put("depositsCash", depositsCash);
-    summary.put("inflows", inflowsCash);
-    summary.put("outflows", outflowsCash);
-    summary.put("deposits", depositsCash);
-    summary.put("cashInDrawer", currentDrawer);
-    summary.put("currentCashInDrawer", currentDrawer);
+    // Direct query for Work Orders delivered or collected during this session
+    List<Map<String, Object>> sessionWorkOrders = db.queryForList("""
+        SELECT w.id, w.order_number, w.description, w.payment_method, COALESCE(w.payment_amount, 0.00) AS payment_amount, w.paid_at, w.status
+        FROM work_orders w
+        WHERE w.tenant_id = ? AND (w.cash_session_id = ? OR (w.branch_id = ? AND w.paid_at >= ?))
+          AND w.paid_at IS NOT NULL
+        """, t, s.id(), s.branchId(), java.sql.Timestamp.from(s.openedAt()));
+
+    BigDecimal directWoCash = BigDecimal.ZERO;
+    BigDecimal directWoCard = BigDecimal.ZERO;
+    BigDecimal directWoTransfer = BigDecimal.ZERO;
+    BigDecimal directWoOther = BigDecimal.ZERO;
+
+    for (Map<String, Object> wo : sessionWorkOrders) {
+      String pm = wo.get("payment_method") != null ? wo.get("payment_method").toString().toUpperCase(Locale.ROOT) : "CASH";
+      BigDecimal amt = wo.get("payment_amount") != null ? new BigDecimal(wo.get("payment_amount").toString()) : BigDecimal.ZERO;
+      if ("CASH".equals(pm)) directWoCash = directWoCash.add(amt);
+      else if ("CARD".equals(pm)) directWoCard = directWoCard.add(amt);
+      else if ("TRANSFER".equals(pm)) directWoTransfer = directWoTransfer.add(amt);
+      else directWoOther = directWoOther.add(amt);
+    }
+
+    BigDecimal woCash = directWoCash.max(movWoCash);
+    BigDecimal woCard = directWoCard.max(movWoCard);
+    BigDecimal woTransfer = directWoTransfer.max(movWoTransfer);
+    BigDecimal woOther = directWoOther.max(movWoOther);
 
     // Fiscal and Comprobante Reconciliation
     List<Map<String, Object>> sessionSales = db.queryForList("""
@@ -181,7 +229,7 @@ public class CashController {
     fiscalSummary.put("sriIva15", sriIva15);
     summary.put("fiscalSummary", fiscalSummary);
 
-    // Payments by Method Summary
+    // Payments by Method Summary from POS sales
     List<Map<String, Object>> payRows = db.queryForList("""
         SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total_amount, COUNT(p.id) AS payment_count
         FROM payments p
@@ -191,27 +239,100 @@ public class CashController {
         GROUP BY p.payment_method
         """, t, s.id(), s.branchId(), java.sql.Timestamp.from(s.openedAt()));
 
-    BigDecimal totalPaidCash = BigDecimal.ZERO;
-    BigDecimal totalPaidCard = BigDecimal.ZERO;
-    BigDecimal totalPaidTransfer = BigDecimal.ZERO;
-    BigDecimal totalPaidOther = BigDecimal.ZERO;
+    BigDecimal posPaidCash = BigDecimal.ZERO;
+    BigDecimal posPaidCard = BigDecimal.ZERO;
+    BigDecimal posPaidTransfer = BigDecimal.ZERO;
+    BigDecimal posPaidOther = BigDecimal.ZERO;
 
     for (Map<String, Object> pr : payRows) {
       String pm = (String) pr.get("payment_method");
       BigDecimal amt = pr.get("total_amount") != null ? new BigDecimal(pr.get("total_amount").toString()) : BigDecimal.ZERO;
-      if ("CASH".equalsIgnoreCase(pm)) totalPaidCash = totalPaidCash.add(amt);
-      else if ("CARD".equalsIgnoreCase(pm)) totalPaidCard = totalPaidCard.add(amt);
-      else if ("TRANSFER".equalsIgnoreCase(pm)) totalPaidTransfer = totalPaidTransfer.add(amt);
-      else totalPaidOther = totalPaidOther.add(amt);
+      if ("CASH".equalsIgnoreCase(pm)) posPaidCash = posPaidCash.add(amt);
+      else if ("CARD".equalsIgnoreCase(pm)) posPaidCard = posPaidCard.add(amt);
+      else if ("TRANSFER".equalsIgnoreCase(pm)) posPaidTransfer = posPaidTransfer.add(amt);
+      else posPaidOther = posPaidOther.add(amt);
     }
 
+    BigDecimal posCash = posPaidCash.max(movPosCash);
+    BigDecimal posCard = posPaidCard.max(movPosCard);
+    BigDecimal posTransfer = posPaidTransfer.max(movPosTransfer);
+    BigDecimal posOther = posPaidOther.max(movPosOther);
+
+    // Breakdowns
+    Map<String, Object> salesBreakdown = new LinkedHashMap<>();
+    salesBreakdown.put("cash", posCash);
+    salesBreakdown.put("card", posCard);
+    salesBreakdown.put("transfer", posTransfer);
+    salesBreakdown.put("other", posOther);
+    salesBreakdown.put("total", posCash.add(posCard).add(posTransfer).add(posOther));
+    salesBreakdown.put("count", totalSalesCount);
+    summary.put("salesBreakdown", salesBreakdown);
+
+    Map<String, Object> workOrdersBreakdown = new LinkedHashMap<>();
+    workOrdersBreakdown.put("cash", woCash);
+    workOrdersBreakdown.put("card", woCard);
+    workOrdersBreakdown.put("transfer", woTransfer);
+    workOrdersBreakdown.put("other", woOther);
+    workOrdersBreakdown.put("total", woCash.add(woCard).add(woTransfer).add(woOther));
+    workOrdersBreakdown.put("count", sessionWorkOrders.size());
+    summary.put("workOrdersBreakdown", workOrdersBreakdown);
+
+    Map<String, Object> manualMovements = new LinkedHashMap<>();
+    manualMovements.put("inflowsCash", manualInCash);
+    manualMovements.put("outflowsCash", outflowsCash);
+    manualMovements.put("depositsCash", depositsCash);
+    manualMovements.put("refundsCash", refundsCash);
+    manualMovements.put("totalOutflows", outflowsCash.add(depositsCash).add(refundsCash));
+    summary.put("manualMovements", manualMovements);
+
+    // Consolidated payments across ALL activities (POS + Taller + Entradas)
+    BigDecimal totalCashInflows = posCash.add(woCash).add(manualInCash);
+    BigDecimal totalCardInflows = posCard.add(woCard);
+    BigDecimal totalTransferInflows = posTransfer.add(woTransfer);
+    BigDecimal totalOtherInflows = posOther.add(woOther);
+    BigDecimal grandTotalRevenue = posCash.add(posCard).add(posTransfer).add(posOther).add(woCash).add(woCard).add(woTransfer).add(woOther);
+    BigDecimal grandTotalExpenses = outflowsCash.add(depositsCash).add(refundsCash);
+
     Map<String, Object> paymentsSummary = new LinkedHashMap<>();
-    paymentsSummary.put("cash", totalPaidCash);
-    paymentsSummary.put("card", totalPaidCard);
-    paymentsSummary.put("transfer", totalPaidTransfer);
-    paymentsSummary.put("other", totalPaidOther);
-    paymentsSummary.put("total", totalPaidCash.add(totalPaidCard).add(totalPaidTransfer).add(totalPaidOther));
+    paymentsSummary.put("cash", posCash.add(woCash));
+    paymentsSummary.put("card", totalCardInflows);
+    paymentsSummary.put("transfer", totalTransferInflows);
+    paymentsSummary.put("other", totalOtherInflows);
+    paymentsSummary.put("posTotal", salesBreakdown.get("total"));
+    paymentsSummary.put("workOrdersTotal", workOrdersBreakdown.get("total"));
+    paymentsSummary.put("total", grandTotalRevenue);
+    paymentsSummary.put("grandTotalIncome", grandTotalRevenue.add(manualInCash));
+    paymentsSummary.put("grandTotalExpenses", grandTotalExpenses);
+    paymentsSummary.put("netBalance", grandTotalRevenue.add(manualInCash).subtract(grandTotalExpenses));
     summary.put("paymentsSummary", paymentsSummary);
+
+    // Cash drawer physical reconciliation
+    BigDecimal currentDrawer = s.openingCash().add(totalCashInflows).subtract(grandTotalExpenses);
+    summary.put("salesCash", posCash.add(woCash)); // Total sales + workshop cash collected
+    summary.put("posSalesCash", posCash);
+    summary.put("workOrdersCash", woCash);
+    summary.put("inflowsCash", manualInCash);
+    summary.put("outflowsCash", outflowsCash);
+    summary.put("depositsCash", depositsCash);
+    summary.put("refundsCash", refundsCash);
+    summary.put("inflows", manualInCash);
+    summary.put("outflows", outflowsCash);
+    summary.put("deposits", depositsCash);
+    summary.put("cashInDrawer", currentDrawer);
+    summary.put("currentCashInDrawer", currentDrawer);
+
+    Map<String, Object> drawerReconciliation = new LinkedHashMap<>();
+    drawerReconciliation.put("openingCash", s.openingCash());
+    drawerReconciliation.put("posSalesCash", posCash);
+    drawerReconciliation.put("workOrdersCash", woCash);
+    drawerReconciliation.put("manualInCash", manualInCash);
+    drawerReconciliation.put("totalCashIn", totalCashInflows);
+    drawerReconciliation.put("outflowsCash", outflowsCash);
+    drawerReconciliation.put("depositsCash", depositsCash);
+    drawerReconciliation.put("refundsCash", refundsCash);
+    drawerReconciliation.put("totalCashOut", grandTotalExpenses);
+    drawerReconciliation.put("expectedCashInDrawer", currentDrawer);
+    summary.put("drawerReconciliation", drawerReconciliation);
 
     // Stored Physical and Multibank Breakdown (if session closed or previously saved)
     try {

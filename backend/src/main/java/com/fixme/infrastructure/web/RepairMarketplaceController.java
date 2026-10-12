@@ -686,8 +686,8 @@ public class RepairMarketplaceController {
         warrantyId, techNotes, orderId, t
     );
 
-    // 3. Si el pago fue en EFECTIVO (CASH) y hay monto cobrado, registrar en la caja abierta de la sucursal
-    if ("CASH".equalsIgnoreCase(paymentMethod) && paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+    // 3. Registrar el cobro en la caja abierta de la sucursal (para TODOS los medios de pago)
+    if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
       try {
         UUID branchId = (UUID) order.get("branch_id");
         if (branchId != null) {
@@ -698,10 +698,26 @@ public class RepairMarketplaceController {
           if (!openSessions.isEmpty()) {
             UUID sessionId = (UUID) openSessions.get(0).get("id");
             UUID userId = user(t, jwt.getSubject());
+
+            String normMethod = "CASH";
+            if (paymentMethod != null) {
+              String pm = paymentMethod.trim().toUpperCase(Locale.ROOT);
+              if (Set.of("CASH", "CARD", "TRANSFER", "OTHER").contains(pm)) {
+                normMethod = pm;
+              }
+            }
+
+            try {
+              db.update(
+                  "UPDATE work_orders SET cash_session_id = ? WHERE id = ? AND tenant_id = ?",
+                  sessionId, orderId, t
+              );
+            } catch (Exception ignored) {}
+
             db.update(
                 "INSERT INTO cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, created_by, reference) " +
-                "VALUES(?, ?, ?, 'SALE_CASH', 'CASH', ?, ?, ?, ?)",
-                t, sessionId, branchId, paymentAmount, "Cobro Orden de Servicio #" + orderNum + " (" + serviceDesc + ")", userId, "OT-" + orderNum
+                "VALUES(?, ?, ?, 'SALE_CASH', ?, ?, ?, ?, ?)",
+                t, sessionId, branchId, normMethod, paymentAmount, "Cobro Orden de Servicio #" + orderNum + " (" + serviceDesc + ")", userId, "OT-" + orderNum
             );
           }
         }

@@ -17,8 +17,26 @@ public interface SalePort {
       String fulfillmentType,
       BigDecimal shippingCost,
       DeliveryInfo delivery,
-      BigDecimal discount
+      BigDecimal discount,
+      BigDecimal tax
   );
+
+  default Sale create(
+      UUID tenant,
+      UUID branch,
+      UUID user,
+      List<Item> items,
+      List<Payment> payments,
+      UUID customerId,
+      Integer warrantyDays,
+      String channel,
+      String fulfillmentType,
+      BigDecimal shippingCost,
+      DeliveryInfo delivery,
+      BigDecimal discount
+  ) {
+    return create(tenant, branch, user, items, payments, customerId, warrantyDays, channel, fulfillmentType, shippingCost, delivery, discount, BigDecimal.ZERO);
+  }
 
   default Sale create(
       UUID tenant,

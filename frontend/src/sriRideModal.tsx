@@ -283,14 +283,23 @@ export function SriRideModal({ invoiceId, api, onClose, notify }: SriRideModalPr
 
             {/* TAX TOTALS TABLE */}
             <div className="ride-box ride-totals-box">
-              <div className="ride-total-row">
-                <span>SUBTOTAL 15% (Base Imponible):</span>
-                <span>${Number(data.subtotal_15 || data.subtotal_sin_impuestos || 0).toFixed(2)}</span>
-              </div>
-              <div className="ride-total-row">
-                <span>SUBTOTAL 0% (Tarifa 0):</span>
-                <span>${Number(data.subtotal_0 || 0).toFixed(2)}</span>
-              </div>
+              {(() => {
+                const hasIva15 = Number(data.iva_15 || 0) > 0 || Number(data.subtotal_15 || 0) > 0;
+                const sub15 = hasIva15 ? Number(data.subtotal_15 || data.subtotal_sin_impuestos || 0) : 0;
+                const sub0 = !hasIva15 ? Number(data.subtotal_0 || data.subtotal_sin_impuestos || 0) : Number(data.subtotal_0 || 0);
+                return (
+                  <>
+                    <div className="ride-total-row">
+                      <span>SUBTOTAL 15% (Base Imponible):</span>
+                      <span>${sub15.toFixed(2)}</span>
+                    </div>
+                    <div className="ride-total-row">
+                      <span>SUBTOTAL 0% (Tarifa 0):</span>
+                      <span>${sub0.toFixed(2)}</span>
+                    </div>
+                  </>
+                );
+              })()}
               <div className="ride-total-row">
                 <span>SUBTOTAL NO OBJETO DE IVA:</span>
                 <span>$0.00</span>

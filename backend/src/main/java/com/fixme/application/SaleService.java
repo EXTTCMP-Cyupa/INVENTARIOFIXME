@@ -47,6 +47,24 @@ public class SaleService {
       SalePort.DeliveryInfo delivery,
       BigDecimal discount
   ) {
+    return create(tenant, branch, user, items, payments, customerId, warrantyDays, channel, fulfillmentType, shippingCost, delivery, discount, BigDecimal.ZERO);
+  }
+
+  public Sale create(
+      UUID tenant,
+      UUID branch,
+      UUID user,
+      List<SalePort.Item> items,
+      List<SalePort.Payment> payments,
+      UUID customerId,
+      Integer warrantyDays,
+      String channel,
+      String fulfillmentType,
+      BigDecimal shippingCost,
+      SalePort.DeliveryInfo delivery,
+      BigDecimal discount,
+      BigDecimal tax
+  ) {
     modules.require(tenant, "POS");
     if (branch == null || items == null || items.isEmpty() || payments == null || payments.isEmpty()) {
       throw new IllegalArgumentException("sucursal, items y pagos son obligatorios");
@@ -62,6 +80,7 @@ public class SaleService {
     }
 
     BigDecimal finalDiscount = (discount != null && discount.signum() > 0) ? discount : BigDecimal.ZERO;
+    BigDecimal finalTax = (tax != null && tax.signum() > 0) ? tax : BigDecimal.ZERO;
     String finalChannel = (channel != null && "ONLINE".equalsIgnoreCase(channel.trim())) ? "ONLINE" : "STORE";
     String finalFulfillment = (fulfillmentType != null && "DELIVERY".equalsIgnoreCase(fulfillmentType.trim())) ? "DELIVERY" : "PICKUP";
     BigDecimal finalShipping = shippingCost != null && shippingCost.signum() > 0 ? shippingCost : BigDecimal.ZERO;
@@ -72,7 +91,7 @@ public class SaleService {
       }
     }
 
-    return port.create(tenant, branch, user, items, payments, customerId, warrantyDays, finalChannel, finalFulfillment, finalShipping, delivery, finalDiscount);
+    return port.create(tenant, branch, user, items, payments, customerId, warrantyDays, finalChannel, finalFulfillment, finalShipping, delivery, finalDiscount, finalTax);
   }
 
   public List<Sale> list(UUID tenant, UUID branch) {

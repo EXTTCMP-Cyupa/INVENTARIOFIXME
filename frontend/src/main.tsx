@@ -228,7 +228,7 @@ if(viewMode==='POCKET'&&!isSaasOwner){
     </div>
   </div>
 </header>
-{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo} onModulesUpdate={()=>api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods).catch(()=>{})}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='purchases'&&visible.includes('purchases')?<PurchasesModule api={api}/>:page==='imports'&&visible.includes('imports')?<ImportsModule api={api}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
+{toast&&<div className="toast toast-success" onClick={()=>setToast('')}><b>✓</b>{toast}</div>}{isSaasOwner?<ErrorBoundary><PlatformAdministration api={api} notify={setToast} activeTab={page} setTab={setPage}/></ErrorBoundary>:(page==='home'&&visible.includes('home')?<Dashboard api={api} go={go} role={role}/>:page==='my-work'&&visible.includes('my-work')?<MyWork api={api} notify={setToast} go={go}/>:page==='cash'&&visible.includes('cash')?<Cash api={api} notify={setToast}/>:page==='pos'&&visible.includes('pos')?<POS api={api} notify={setToast} companyInfo={companyInfo}/>:page==='sales'&&visible.includes('sales')?<Sales api={api} companyInfo={companyInfo} role={role}/>:page==='quotes'&&visible.includes('quotes')?<QuotesPage api={api} notify={setToast} go={go}/>:page==='administration'&&visible.includes('administration')?<Administration api={api} notify={setToast} onCompanyUpdate={setCompanyInfo} onModulesUpdate={()=>api('/api/modules').then(r=>r.ok?r.json():[]).then(setMods).catch(()=>{})}/>:page==='products'&&visible.includes('products')?<Products api={api} role={role}/>:page==='purchases'&&visible.includes('purchases')?<PurchasesModule api={api}/>:page==='imports'&&visible.includes('imports')?<ImportsModule api={api}/>:page==='customers'&&visible.includes('customers')?<Customers api={api} notify={setToast} go={go}/>:page==='deliveries'&&visible.includes('deliveries')?<Deliveries api={api}/>:page==='work-orders'&&visible.includes('work-orders')?<Orders api={api} companyInfo={companyInfo}/>:page==='marketplace'&&visible.includes('marketplace')?<MarketplaceView api={api} notify={setToast} go={go}/>:page==='reports'&&visible.includes('reports')?<ErrorBoundary><Reports api={api}/></ErrorBoundary>:page==='warranties'&&visible.includes('warranties')?<Warranties api={api} notify={setToast} go={go}/>:<section className="panel"><h3>Acceso restringido</h3><p>Este módulo pertenece a la gestión interna de cada tienda o no tienes permisos suficientes.</p></section>)}<nav className="mobile-nav">{(isSaasOwner?saasNav:nav.filter(n=>visible.includes(n[0])).slice(0,5)).map(n=><button className={page===n[0]?'active':''} onClick={()=>go(n[0])} key={n[0]}><i>{n[2]}</i><small>{n[1]}</small></button>)}</nav></main>{showCatalogModal&&<CatalogShareModal tenantId={userTenantId} storeName={isSaasOwner?'Fixme SaaS Multi-Empresas':(localStorage.tenantName||'Mi Tienda')} onClose={()=>setShowCatalogModal(false)} notify={setToast}/>}
 {showTrialModal&&<StoreTrialUpgradeModal tenantName={localStorage.tenantName||'Mi Tienda'} daysRemaining={trialInfo?.daysRemaining} trialEndsAt={trialInfo?.trialEndsAt} onClose={()=>setShowTrialModal(false)}/>}
 </div>}
 
@@ -623,6 +623,8 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
       setCorteZSummary({
         openingCash: s?.openingCash || s?.expected?.OPENING || 0,
         salesCash: s?.salesCash || (s?.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
+        posSalesCash: s?.posSalesCash || 0,
+        workOrdersCash: s?.workOrdersCash || 0,
         inflowsCash: s?.inflowsCash || 0,
         outflowsCash: s?.outflowsCash || 0,
         depositsCash: s?.depositsCash || 0,
@@ -634,7 +636,10 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
         depositReference: closeForm.depositReference,
         nextDayFund: Number(closeForm.nextDayFund || 0),
         paymentsSummary: s?.paymentsSummary,
-        fiscalSummary: s?.fiscalSummary
+        fiscalSummary: s?.fiscalSummary,
+        salesBreakdown: s?.salesBreakdown,
+        workOrdersBreakdown: s?.workOrdersBreakdown,
+        drawerReconciliation: s?.drawerReconciliation
       });
       load();
     }
@@ -669,6 +674,8 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                     setCorteZSummary({
                       openingCash: s.openingCash || s.expected?.OPENING || 0,
                       salesCash: s.salesCash || (s.expected?.CASH ? Math.max(0, s.expected.CASH - (s.openingCash || 0)) : 0),
+                      posSalesCash: s.posSalesCash || 0,
+                      workOrdersCash: s.workOrdersCash || 0,
                       inflowsCash: s.inflowsCash || 0,
                       outflowsCash: s.outflowsCash || 0,
                       depositsCash: s.depositsCash || 0,
@@ -680,7 +687,10 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                       depositReference: 'ARQUEO-PREVIO',
                       nextDayFund: 50,
                       paymentsSummary: s.paymentsSummary,
-                      fiscalSummary: s.fiscalSummary
+                      fiscalSummary: s.fiscalSummary,
+                      salesBreakdown: s.salesBreakdown,
+                      workOrdersBreakdown: s.workOrdersBreakdown,
+                      drawerReconciliation: s.drawerReconciliation
                     });
                   }}
                   title="Imprimir arqueo Corte Z"
@@ -725,15 +735,21 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
             hint: 'Efectivo inicial'
           },
           {
-            label: 'Ventas en efectivo',
+            label: 'Cobros Efectivo (Ventas+Taller)',
             value: `+$${Number(s?.salesCash || 0).toFixed(2)}`,
-            hint: 'Ingresos del turno',
+            hint: `Ventas: $${Number(s?.posSalesCash || 0).toFixed(2)} | Taller: $${Number(s?.workOrdersCash || 0).toFixed(2)}`,
             tone: Number(s?.salesCash || 0) > 0 ? 'success' : 'default'
           },
           {
-            label: 'Saldo en gaveta',
+            label: 'Efectivo en gaveta',
             value: `$${inDrawer.toFixed(2)}`,
-            hint: 'Efectivo físico esperado'
+            hint: 'Físico esperado hoy'
+          },
+          {
+            label: 'Total Negocio Turno',
+            value: `$${Number(s?.paymentsSummary?.total || 0).toFixed(2)}`,
+            hint: 'Efectivo + Tarjetas + Bancos',
+            tone: 'success'
           }
         ]}
       />
@@ -816,24 +832,34 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                 <strong>+${Number(s.openingCash || 0).toFixed(2)}</strong>
               </div>
               <div className="cash-sub-item">
-                <small>Ventas Efectivo</small>
-                <strong style={{ color: '#38bdf8' }}>+${Number(s.salesCash || 0).toFixed(2)}</strong>
+                <small>Ventas Mostrador</small>
+                <strong style={{ color: '#38bdf8' }}>+${Number(s.posSalesCash != null ? s.posSalesCash : s.salesCash || 0).toFixed(2)}</strong>
               </div>
+              {Number(s.workOrdersCash || 0) > 0 && (
+                <div className="cash-sub-item">
+                  <small>Taller / OT</small>
+                  <strong style={{ color: '#06b6d4' }}>+${Number(s.workOrdersCash).toFixed(2)}</strong>
+                </div>
+              )}
               <div className="cash-sub-item">
                 <small>Ingresos Extra</small>
-                <strong style={{ color: '#4ade80' }}>+${Number(s.inflows || 0).toFixed(2)}</strong>
+                <strong style={{ color: '#4ade80' }}>+${Number(s.inflows || s.inflowsCash || 0).toFixed(2)}</strong>
               </div>
               <div className="cash-sub-item">
-                <small>Gastos / Retiros</small>
-                <strong style={{ color: '#f87171' }}>-${Number(s.outflows || 0).toFixed(2)}</strong>
+                <small>Gastos / Salidas</small>
+                <strong style={{ color: '#f87171' }}>-${Number(s.outflows || s.outflowsCash || 0).toFixed(2)}</strong>
               </div>
               <div className="cash-sub-item">
                 <small>Depósitos Banco</small>
-                <strong style={{ color: '#fbbf24' }}>-${Number(s.deposits || 0).toFixed(2)}</strong>
+                <strong style={{ color: '#fbbf24' }}>-${Number(s.deposits || s.depositsCash || 0).toFixed(2)}</strong>
               </div>
               <div className="cash-sub-item">
-                <small>Tarjeta / Transf</small>
-                <strong style={{ color: '#c084fc' }}>${(Number(s.expected?.CARD || 0) + Number(s.expected?.TRANSFER || 0)).toFixed(2)}</strong>
+                <small>Tarjetas POS</small>
+                <strong style={{ color: '#c084fc' }}>${Number(s.paymentsSummary?.card || s.expected?.CARD || 0).toFixed(2)}</strong>
+              </div>
+              <div className="cash-sub-item">
+                <small>Bancos / Transf</small>
+                <strong style={{ color: '#818cf8' }}>${Number(s.paymentsSummary?.transfer || s.expected?.TRANSFER || 0).toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -846,7 +872,7 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                 <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Identificación de fondos en gaveta física, cuentas bancarias y datáfonos de tarjetas</p>
               </div>
               <span className="cash-status-tag" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
-                Total Recaudado Ventas: ${Number(s.paymentsSummary?.total || 0).toFixed(2)}
+                Total Recaudado Empresa: ${Number(s.paymentsSummary?.total || 0).toFixed(2)}
               </span>
             </div>
 
@@ -858,7 +884,7 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a' }}>${inDrawer.toFixed(2)}</div>
                 <small style={{ color: '#64748b', fontSize: '11px', display: 'block', marginTop: '4px' }}>
-                  Apertura (${Number(s.openingCash || 0).toFixed(2)}) + Ventas (${Number(s.salesCash || 0).toFixed(2)})
+                  Apertura (${Number(s.openingCash || 0).toFixed(2)}) + Cobros (${Number(s.salesCash || 0).toFixed(2)})
                 </small>
               </div>
 
@@ -886,20 +912,18 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
 
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#854d0e' }}>🏛️ Desglose SRI / Tickets</span>
-                  <span style={{ fontSize: '10px', background: '#fef9c3', color: '#a16207', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Fiscal</span>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f766e' }}>💼 Actividades del Negocio</span>
+                  <span style={{ fontSize: '10px', background: '#ccfbf1', color: '#0f766e', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>Origen</span>
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginTop: '2px' }}>
-                  Facturas SRI: <strong>{s.fiscalSummary?.sriSalesCount || 0}</strong> (${Number(s.fiscalSummary?.sriSalesAmount || 0).toFixed(2)})
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
+                  🛒 Mostrador POS: <strong>${Number(s.salesBreakdown?.total || 0).toFixed(2)}</strong> ({s.salesBreakdown?.count || 0})
                 </div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                  Tickets Internos: <strong>{s.fiscalSummary?.ticketSalesCount || 0}</strong> (${Number(s.fiscalSummary?.ticketSalesAmount || 0).toFixed(2)})
+                <div style={{ fontSize: '12px', color: '#0284c7', marginTop: '2px', fontWeight: 600 }}>
+                  🔧 Taller / OT: <strong>${Number(s.workOrdersBreakdown?.total || 0).toFixed(2)}</strong> ({s.workOrdersBreakdown?.count || 0})
                 </div>
-                {Number(s.fiscalSummary?.sriIva15 || 0) > 0 && (
-                  <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '2px' }}>
-                    IVA 15% SRI: ${Number(s.fiscalSummary?.sriIva15 || 0).toFixed(2)}
-                  </div>
-                )}
+                <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '2px' }}>
+                  📤 Gastos Turno: -${Number((s.outflowsCash || 0) + (s.depositsCash || 0)).toFixed(2)}
+                </div>
               </div>
             </div>
           </div>
@@ -1145,21 +1169,25 @@ function Cash({api,notify}:{api:(u:string,o?:RequestInit)=>Promise<Response>,not
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
                 📍 ¿DÓNDE ESTÁ EL DINERO DEL TURNO? (CANALES DE RECAUDACIÓN)
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '8px' }}>
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
                   <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>💵 Gaveta (Efectivo)</small>
                   <strong style={{ fontSize: '15px', color: '#0f172a' }}>${inDrawer.toFixed(2)}</strong>
                 </div>
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
-                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>🏦 Banco (Transferencias)</small>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>🏦 Banco (Transf.)</small>
                   <strong style={{ fontSize: '15px', color: '#2563eb' }}>${Number(s?.paymentsSummary?.transfer || s?.expected?.TRANSFER || 0).toFixed(2)}</strong>
                 </div>
                 <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
-                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>💳 POS (Datáfonos)</small>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>💳 POS (Tarjetas)</small>
                   <strong style={{ fontSize: '15px', color: '#7c3aed' }}>${Number(s?.paymentsSummary?.card || s?.expected?.CARD || 0).toFixed(2)}</strong>
                 </div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>🔧 Taller / OT</small>
+                  <strong style={{ fontSize: '15px', color: '#0284c7' }}>${Number(s?.workOrdersBreakdown?.total || 0).toFixed(2)}</strong>
+                </div>
                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px' }}>
-                  <small style={{ display: 'block', color: '#1e40af', fontSize: '11px' }}>💰 Total Recaudado</small>
+                  <small style={{ display: 'block', color: '#1e40af', fontSize: '11px' }}>💰 Total Empresa</small>
                   <strong style={{ fontSize: '15px', color: '#1d4ed8' }}>${Number(s?.paymentsSummary?.total || 0).toFixed(2)}</strong>
                 </div>
               </div>
@@ -1432,6 +1460,7 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
 
   // Dual Invoice & Offline POS states
   const [invoiceType, setInvoiceType] = React.useState<'INTERNAL_TICKET' | 'SRI_INVOICE'>('INTERNAL_TICKET');
+  const [sriTaxRate, setSriTaxRate] = React.useState<15 | 0>(15);
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
   const [pendingOffline, setPendingOffline] = React.useState<OfflineSale[]>([]);
   const [syncingOffline, setSyncingOffline] = React.useState(false);
@@ -1558,7 +1587,10 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
   const subtotal = cart.reduce((n, i) => n + Number(i.price) * i.quantity, 0);
   const shippingFee = fulfillment === 'DELIVERY' ? Number(delivery.shippingCost || 0) : 0;
   const discountVal = Math.max(0, Number(discount || 0));
-  const grandTotal = Math.max(0, subtotal - discountVal + shippingFee);
+  const taxableSubtotal = Math.max(0, subtotal - discountVal);
+  const effectiveTaxRate = invoiceType === 'INTERNAL_TICKET' ? 0 : sriTaxRate;
+  const taxVal = effectiveTaxRate === 15 ? Number((taxableSubtotal * 0.15).toFixed(2)) : 0;
+  const grandTotal = Math.max(0, taxableSubtotal + taxVal + shippingFee);
 
   const tenderedVal = Number(cashTendered || 0);
   const changeVal = tenderedVal >= grandTotal ? tenderedVal - grandTotal : 0;
@@ -1573,6 +1605,9 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
         recipientPhone: c.phone || '',
         address: c.address || ''
       }));
+      if (c.tag && String(c.tag).toUpperCase().includes('POPULAR')) {
+        setSriTaxRate(0);
+      }
     }
   };
 
@@ -1602,7 +1637,9 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
       payments: paymentsPayload,
       invoiceType,
       offlineFolio: null,
-      discount: discountVal
+      discount: discountVal,
+      tax: taxVal,
+      taxRate: effectiveTaxRate
     };
 
     try {
@@ -1621,6 +1658,8 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
           items: [...cart],
           subtotal,
           discount: discountVal,
+          tax: taxVal,
+          taxRate: effectiveTaxRate,
           shippingFee,
           grandTotal,
           channel,
@@ -1675,7 +1714,9 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
       payments: paymentsPayload,
       invoiceType,
       offlineFolio: null,
-      discount: discountVal
+      discount: discountVal,
+      tax: taxVal,
+      taxRate: effectiveTaxRate
     };
 
     try {
@@ -1694,6 +1735,8 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
           items: [...cart],
           subtotal,
           discount: discountVal,
+          tax: taxVal,
+          taxRate: effectiveTaxRate,
           shippingFee,
           grandTotal,
           channel,
@@ -1838,7 +1881,9 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
       payments: paymentsPayload,
       invoiceType,
       offlineFolio: null,
-      discount: discountVal
+      discount: discountVal,
+      tax: taxVal,
+      taxRate: effectiveTaxRate
     };
 
     try {
@@ -1859,6 +1904,8 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
           items: [...cart],
           subtotal,
           discount: discountVal,
+          tax: taxVal,
+          taxRate: effectiveTaxRate,
           shippingFee,
           grandTotal,
           channel,
@@ -2135,22 +2182,68 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
                 type="button"
                 className={`invoice-mode-pill ${invoiceType === 'INTERNAL_TICKET' ? 'active ticket' : ''}`}
                 onClick={() => setInvoiceType('INTERNAL_TICKET')}
-                title="Comprobante interno de tienda (No fiscal / Sin declarar IVA)"
+                title="Comprobante interno de tienda (Tarifa 0% IVA / No fiscal)"
               >
-                <i>🧾</i> Ticket Interno
+                <i>🧾</i> Ticket Interno (0% IVA)
               </button>
               <button
                 type="button"
                 className={`invoice-mode-pill ${invoiceType === 'SRI_INVOICE' ? 'active sri' : ''}`}
                 onClick={() => setInvoiceType('SRI_INVOICE')}
-                title="Factura electrónica autorizada por el SRI (Con 15% IVA y Clave de Acceso)"
+                title="Factura electrónica autorizada por el SRI (15% o 0% según régimen)"
               >
                 <i>🏛️</i> Factura SRI
               </button>
             </div>
             {invoiceType === 'SRI_INVOICE' && (
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '6px 8px', fontSize: '10.5px', color: '#1e3a8a', marginBottom: '8px' }}>
-                🏛️ <b>Facturación SRI Activa:</b> Se generará Clave de Acceso de 49 dígitos, XML firmado y RIDE oficial.
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 10px', marginTop: '6px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#334155' }}>
+                    Tarifa según Régimen:
+                  </span>
+                  <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: sriTaxRate === 15 ? '#dbeafe' : '#fef3c7', color: sriTaxRate === 15 ? '#1e40af' : '#92400e', fontWeight: 700 }}>
+                    {sriTaxRate === 15 ? 'IVA 15% (General / Emprendedor)' : 'IVA 0% (RIMPE Popular / Exento)'}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      fontWeight: sriTaxRate === 15 ? 700 : 500,
+                      background: sriTaxRate === 15 ? '#3157d5' : '#fff',
+                      color: sriTaxRate === 15 ? '#fff' : '#475569',
+                      border: sriTaxRate === 15 ? '1px solid #3157d5' : '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setSriTaxRate(15)}
+                  >
+                    Tarifa 15% IVA
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      fontWeight: sriTaxRate === 0 ? 700 : 500,
+                      background: sriTaxRate === 0 ? '#059669' : '#fff',
+                      color: sriTaxRate === 0 ? '#fff' : '#475569',
+                      border: sriTaxRate === 0 ? '1px solid #059669' : '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setSriTaxRate(0)}
+                  >
+                    Tarifa 0% (RIMPE Popular)
+                  </button>
+                </div>
+              </div>
+            )}
+            {invoiceType === 'INTERNAL_TICKET' && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 8px', fontSize: '10.5px', color: '#64748b', marginTop: '6px', marginBottom: '8px' }}>
+                🧾 <b>Ticket Interno (IVA 0%):</b> Comprobante de venta para control de tienda y taller. No genera impuestos tributarios.
               </div>
             )}
           </div>
@@ -2354,6 +2447,18 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
                 style={{ width: '80px', padding: '3px 6px', fontSize: '12px', textAlign: 'right', borderRadius: '6px', border: '1px solid #cbd5e1' }}
               />
             </div>
+            {invoiceType === 'SRI_INVOICE' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#1e3a8a', marginTop: '4px', fontWeight: 600 }}>
+                <span>IVA ({effectiveTaxRate}%):</span>
+                <span>${taxVal.toFixed(2)}</span>
+              </div>
+            )}
+            {invoiceType === 'INTERNAL_TICKET' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                <span>IVA (0% Ticket):</span>
+                <span>$0.00</span>
+              </div>
+            )}
             {shippingFee > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
                 <span>Envío a domicilio:</span>
@@ -2703,21 +2808,26 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
                 const total = Number(receiptModal.grandTotal || 0);
                 const discount = Number(receiptModal.discount || 0);
                 const shipping = Number(receiptModal.shippingFee || 0);
-                const tax = Number(receiptModal.tax || ((total - shipping) * 15 / 115));
-                const subtotal15 = Number(receiptModal.subtotal || ((total - shipping) - tax));
-                const subtotal0 = 0.00;
-                const subtotalSinImp = subtotal15 + subtotal0;
+                const isTicket = receiptModal.invoiceType === 'INTERNAL_TICKET' || receiptModal.invoice_type === 'INTERNAL_TICKET';
+                const tax = isTicket ? 0 : Number(receiptModal.tax || 0);
+                const isTax15 = !isTicket && tax > 0;
+                const subtotalSinImp = Math.max(0, Number(receiptModal.subtotal || 0) - discount);
+                const subtotal15 = isTax15 ? subtotalSinImp : 0.00;
+                const subtotal0 = !isTax15 ? subtotalSinImp : 0.00;
 
                 return (
                   <div className="receipt-fiscal-totals">
-                    <div className="receipt-fiscal-row">
-                      <span>Subtotal 15%</span>
-                      <span>${subtotal15.toFixed(2)}</span>
-                    </div>
-                    <div className="receipt-fiscal-row">
-                      <span>Subtotal 0%</span>
-                      <span>${subtotal0.toFixed(2)}</span>
-                    </div>
+                    {isTax15 ? (
+                      <div className="receipt-fiscal-row">
+                        <span>Subtotal 15%</span>
+                        <span>${subtotal15.toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <div className="receipt-fiscal-row">
+                        <span>Subtotal 0% (Tarifa 0)</span>
+                        <span>${subtotal0.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="receipt-fiscal-row">
                       <span>Subtotal sin Impuesto</span>
                       <span>${subtotalSinImp.toFixed(2)}</span>
@@ -2733,7 +2843,7 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
                       </div>
                     )}
                     <div className="receipt-fiscal-row">
-                      <span>IVA 15%</span>
+                      <span>{isTax15 ? 'IVA 15%' : 'IVA (0%)'}</span>
                       <span>${tax.toFixed(2)}</span>
                     </div>
                     <div className="receipt-fiscal-row highlight">
@@ -2943,7 +3053,8 @@ function POS({api, notify, companyInfo}: {api: (u:string,o?:RequestInit)=>Promis
   );
 }
 
-function Sales({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Response>, companyInfo?: Any}){
+function Sales({api, companyInfo, role = 'SELLER'}:{api:(u:string,o?:RequestInit)=>Promise<Response>, companyInfo?: Any, role?: string}){
+  const canViewCosts = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER', 'ACCOUNTANT'].includes(role);
   const [rows, setRows] = React.useState<Any[]>([]);
   const [filterChannel, setFilterChannel] = React.useState('ALL');
   const [filterFulfillment, setFilterFulfillment] = React.useState('ALL');
@@ -3083,9 +3194,7 @@ function Sales({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respon
       'Subtotal',
       'Envio',
       'Total Venta',
-      'Costo Inversion',
-      'Utilidad Bruta',
-      'Margen %',
+      ...(canViewCosts ? ['Costo Inversion', 'Utilidad Bruta', 'Margen %'] : []),
       'Metodos Pago',
       'Garantia Dias',
       'Codigo Garantia'
@@ -3118,9 +3227,7 @@ function Sales({api, companyInfo}:{api:(u:string,o?:RequestInit)=>Promise<Respon
         Number(r.subtotal || 0).toFixed(2),
         Number(r.shipping_cost || 0).toFixed(2),
         rev.toFixed(2),
-        cost.toFixed(2),
-        prof.toFixed(2),
-        marg,
+        ...(canViewCosts ? [cost.toFixed(2), prof.toFixed(2), marg] : []),
         `"${r.payment_methods || 'CASH'}"`,
         r.warranty_days || 0,
         `"${r.warranty_code || ''}"`
@@ -3220,21 +3327,25 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
           <strong className="text-revenue">${totalSales.toFixed(2)}</strong>
           <span>{filtered.length} tickets facturados ({rows.length} en total)</span>
         </div>
-        <div className="finance-card">
-          <small>Costo de Mercadería (COGS)</small>
-          <strong style={{ color: '#f43f5e' }}>${totalCost.toFixed(2)}</strong>
-          <span>Capital invertido en productos vendidos</span>
-        </div>
-        <div className="finance-card">
-          <small>Ganancia Bruta Real (Utilidad)</small>
-          <strong className="text-profit">+${totalProfit.toFixed(2)}</strong>
-          <span>Beneficio comercial neto generado</span>
-        </div>
-        <div className="finance-card">
-          <small>Margen de Rentabilidad</small>
-          <strong style={{ color: '#3b82f6' }}>{avgMargin}%</strong>
-          <span>Margen bruto promedio sobre ventas</span>
-        </div>
+        {canViewCosts && (
+          <>
+            <div className="finance-card">
+              <small>Costo de Mercadería (COGS)</small>
+              <strong style={{ color: '#f43f5e' }}>${totalCost.toFixed(2)}</strong>
+              <span>Capital invertido en productos vendidos</span>
+            </div>
+            <div className="finance-card">
+              <small>Ganancia Bruta Real (Utilidad)</small>
+              <strong className="text-profit">+${totalProfit.toFixed(2)}</strong>
+              <span>Beneficio comercial neto generado</span>
+            </div>
+            <div className="finance-card">
+              <small>Margen de Rentabilidad</small>
+              <strong style={{ color: '#3b82f6' }}>{avgMargin}%</strong>
+              <span>Margen bruto promedio sobre ventas</span>
+            </div>
+          </>
+        )}
         <div className="finance-card">
           <small>Ticket Promedio</small>
           <strong style={{ color: '#8b5cf6' }}>${avgTicket}</strong>
@@ -3353,9 +3464,9 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 <th>Entrega / Courier</th>
                 <th>Método Pago</th>
                 <th>Garantía</th>
-                <th>Costo (COGS)</th>
+                {canViewCosts && <th>Costo (COGS)</th>}
                 <th>Total Venta</th>
-                <th>Ganancia Bruta</th>
+                {canViewCosts && <th>Ganancia Bruta</th>}
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
@@ -3535,9 +3646,11 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                     </td>
 
                     {/* Costo Mercadería */}
-                    <td style={{ color: '#f43f5e', fontSize: '12px', fontWeight: 600 }}>
-                      ${costVal.toFixed(2)}
-                    </td>
+                    {canViewCosts && (
+                      <td style={{ color: '#f43f5e', fontSize: '12px', fontWeight: 600 }}>
+                        ${costVal.toFixed(2)}
+                      </td>
+                    )}
 
                     {/* Total Venta */}
                     <td>
@@ -3547,14 +3660,16 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                     </td>
 
                     {/* Ganancia Bruta */}
-                    <td>
-                      <div style={{ fontWeight: 800, color: '#10b981', fontSize: '13px' }}>
-                        +${profitVal.toFixed(2)}
-                      </div>
-                      <span className="margin-pill">
-                        +{marginVal}%
-                      </span>
-                    </td>
+                    {canViewCosts && (
+                      <td>
+                        <div style={{ fontWeight: 800, color: '#10b981', fontSize: '13px' }}>
+                          +${profitVal.toFixed(2)}
+                        </div>
+                        <span className="margin-pill">
+                          +{marginVal}%
+                        </span>
+                      </td>
+                    )}
 
                     {/* Acciones */}
                     <td style={{ textAlign: 'center' }}>
@@ -3783,21 +3898,27 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                 const total = Number(detailModal.total || 0);
                 const shipping = Number(detailModal.shipping_cost || 0);
                 const discount = Number(detailModal.discount || 0);
-                const tax = Number(detailModal.tax || ((total - shipping) * 15 / 115));
-                const subtotal15 = Number(detailModal.subtotal || ((total - shipping) - tax));
-                const subtotal0 = 0.00;
-                const subtotalSinImp = subtotal15 + subtotal0;
+                const isTicket = detailModal.invoice_type === 'INTERNAL_TICKET' || detailModal.invoiceType === 'INTERNAL_TICKET' || (!detailModal.invoice_type && !detailModal.invoiceType);
+                const rawTax = Number(detailModal.tax != null ? detailModal.tax : 0);
+                const tax = isTicket ? 0 : rawTax;
+                const isTax15 = !isTicket && tax > 0;
+                const subtotalSinImp = Math.max(0, Number(detailModal.subtotal || 0) - discount);
+                const subtotal15 = isTax15 ? subtotalSinImp : 0.00;
+                const subtotal0 = !isTax15 ? subtotalSinImp : 0.00;
 
                 return (
                   <div className="receipt-fiscal-totals">
-                    <div className="receipt-fiscal-row">
-                      <span>Subtotal 15%</span>
-                      <span>${subtotal15.toFixed(2)}</span>
-                    </div>
-                    <div className="receipt-fiscal-row">
-                      <span>Subtotal 0%</span>
-                      <span>${subtotal0.toFixed(2)}</span>
-                    </div>
+                    {isTax15 ? (
+                      <div className="receipt-fiscal-row">
+                        <span>Subtotal 15%</span>
+                        <span>${subtotal15.toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <div className="receipt-fiscal-row">
+                        <span>Subtotal 0% (Tarifa 0)</span>
+                        <span>${subtotal0.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="receipt-fiscal-row">
                       <span>Subtotal sin Impuesto</span>
                       <span>${subtotalSinImp.toFixed(2)}</span>
@@ -3813,7 +3934,7 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
                       </div>
                     )}
                     <div className="receipt-fiscal-row">
-                      <span>IVA 15%</span>
+                      <span>{isTax15 ? 'IVA 15%' : 'IVA (0%)'}</span>
                       <span>${tax.toFixed(2)}</span>
                     </div>
                     <div className="receipt-fiscal-row highlight">
@@ -3880,19 +4001,21 @@ Cualquier consulta o servicio técnico estamos a la orden.`;
             </div>
 
             {/* AUDITORÍA INTERNA DE RENTABILIDAD (SÓLO PANTALLA - NUNCA SE IMPRIME AL CLIENTE) */}
-            <div className="no-print" style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', margin: '12px 0 4px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                🔒 Auditoría Interna del Negocio (Solo visible en pantalla)
+            {canViewCosts && (
+              <div className="no-print" style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', margin: '12px 0 4px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  🔒 Auditoría Interna del Negocio (Solo visible en pantalla)
+                </div>
+                <div className="receipt-meta-row" style={{ color: '#dc2626', fontSize: '11px' }}>
+                  <span>Inversión Mercadería (Costo):</span>
+                  <strong>-${Number(detailModal.total_cost || 0).toFixed(2)}</strong>
+                </div>
+                <div className="receipt-meta-row" style={{ color: '#059669', fontWeight: 800, fontSize: '12px' }}>
+                  <span>Ganancia Bruta Negocio:</span>
+                  <strong>+${Number(detailModal.gross_profit || 0).toFixed(2)}</strong>
+                </div>
               </div>
-              <div className="receipt-meta-row" style={{ color: '#dc2626', fontSize: '11px' }}>
-                <span>Inversión Mercadería (Costo):</span>
-                <strong>-${Number(detailModal.total_cost || 0).toFixed(2)}</strong>
-              </div>
-              <div className="receipt-meta-row" style={{ color: '#059669', fontWeight: 800, fontSize: '12px' }}>
-                <span>Ganancia Bruta Negocio:</span>
-                <strong>+${Number(detailModal.gross_profit || 0).toFixed(2)}</strong>
-              </div>
-            </div>
+            )}
 
             {/* ACTION BUTTONS (NO-PRINT) */}
             <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
@@ -10211,6 +10334,7 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
   });
 
   const canManage = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'].includes(role);
+  const canViewCosts = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER', 'ACCOUNTANT'].includes(role);
 
   const load = React.useCallback(() => {
     api(`/api/products?branchId=${branchId}`).then(r => r.ok ? r.json() : []).then(setRows);
@@ -10322,14 +10446,23 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
       alert('No hay productos para exportar');
       return;
     }
-    const headers = ['SKU', 'Nombre', 'CodigoBarras', 'Stock', 'StockMinimo', 'CostoCompra', 'PrecioPVP', 'Categoria'];
+    const headers = [
+      'SKU',
+      'Nombre',
+      'CodigoBarras',
+      'Stock',
+      'StockMinimo',
+      ...(canViewCosts ? ['CostoCompra'] : []),
+      'PrecioPVP',
+      'Categoria'
+    ];
     const lines = rows.map(p => [
       `"${p.sku || ''}"`,
       `"${(p.name || '').replace(/"/g, '""')}"`,
       `"${p.barcode || ''}"`,
       p.stock || 0,
       p.min_stock ?? p.minStock ?? 5,
-      p.purchase_price ?? p.purchasePrice ?? 0,
+      ...(canViewCosts ? [p.purchase_price ?? p.purchasePrice ?? 0] : []),
       p.price || 0,
       `"${(cats.find(c => c.id === p.category_id || c.id === p.categoryId)?.name || '').replace(/"/g, '""')}"`
     ].join(','));
@@ -10394,7 +10527,7 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
 
       {/* FINANCIAL INVENTORY VALUATION KPIS */}
       <KpiStrip
-        items={[
+        items={canViewCosts ? [
           {
             label: 'Total productos',
             value: rows.length,
@@ -10417,6 +10550,37 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
             value: `${projectedMargin.toFixed(1)}%`,
             hint: `+$${potentialProfit.toFixed(2)} ganancia`,
             tone: projectedMargin > 20 ? 'success' : 'default'
+          }
+        ] : [
+          {
+            label: 'Total productos',
+            value: rows.length,
+            hint: `${totalUnits} unidades en stock`,
+            active: stockFilter === 'ALL',
+            onClick: () => setStockFilter('ALL')
+          },
+          {
+            label: 'Disponibles',
+            value: rows.filter(r => Number(r.stock) > Number(r.min_stock ?? r.minStock ?? 5)).length,
+            hint: 'En nivel óptimo',
+            active: stockFilter === 'IN_STOCK',
+            onClick: () => setStockFilter('IN_STOCK')
+          },
+          {
+            label: 'Stock bajo',
+            value: lowStockCount,
+            hint: 'Requiere reposición',
+            tone: lowStockCount > 0 ? 'warning' : 'default',
+            active: stockFilter === 'LOW_STOCK',
+            onClick: () => setStockFilter('LOW_STOCK')
+          },
+          {
+            label: 'Agotados',
+            value: outOfStockCount,
+            hint: 'Sin existencias',
+            tone: outOfStockCount > 0 ? 'danger' : 'default',
+            active: stockFilter === 'OUT_OF_STOCK',
+            onClick: () => setStockFilter('OUT_OF_STOCK')
           }
         ]}
       />
@@ -10800,21 +10964,23 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
 
                 {/* EDIT PRICE & COST CALCULATOR */}
                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <label>Costo de Compra ($)
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editItem.purchase_price ?? editItem.purchasePrice ?? 0}
-                        onChange={e => {
-                          const cost = parseFloat(e.target.value) || 0;
-                          const currentPvp = parseFloat(editItem.price) || 0;
-                          const margin = cost > 0 ? (((currentPvp - cost) / cost) * 100).toFixed(1) : '0';
-                          setEditItem({ ...editItem, purchase_price: e.target.value, purchasePrice: e.target.value, margin_percent: margin });
-                        }}
-                      />
-                    </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: canViewCosts ? '1fr 1fr' : '1fr', gap: '10px' }}>
+                    {canViewCosts && (
+                      <label>Costo de Compra ($)
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editItem.purchase_price ?? editItem.purchasePrice ?? 0}
+                          onChange={e => {
+                            const cost = parseFloat(e.target.value) || 0;
+                            const currentPvp = parseFloat(editItem.price) || 0;
+                            const margin = cost > 0 ? (((currentPvp - cost) / cost) * 100).toFixed(1) : '0';
+                            setEditItem({ ...editItem, purchase_price: e.target.value, purchasePrice: e.target.value, margin_percent: margin });
+                          }}
+                        />
+                      </label>
+                    )}
 
                     <label>Precio Venta (PVP $)
                       <input
@@ -10834,10 +11000,12 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                     </label>
                   </div>
 
-                  <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#047857', fontWeight: 700 }}>
-                    <span>Ganancia unitaria: +${Math.max(0, (parseFloat(editItem.price) || 0) - (parseFloat(editItem.purchase_price ?? editItem.purchasePrice ?? 0) || 0)).toFixed(2)}</span>
-                    <span>Margen: {editItem.margin_percent || '0'}%</span>
-                  </div>
+                  {canViewCosts && (
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#047857', fontWeight: 700 }}>
+                      <span>Ganancia unitaria: +${Math.max(0, (parseFloat(editItem.price) || 0) - (parseFloat(editItem.purchase_price ?? editItem.purchasePrice ?? 0) || 0)).toFixed(2)}</span>
+                      <span>Margen: {editItem.margin_percent || '0'}%</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -10964,16 +11132,20 @@ function Products({api,role}:{api:(u:string,o?:RequestInit)=>Promise<Response>,r
                         <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>PVP venta</small>
                         <strong style={{ fontSize: '18px', color: 'var(--primary)' }}>${pvp.toFixed(2)}</strong>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Costo</small>
-                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>${cost.toFixed(2)}</span>
-                      </div>
+                      {canViewCosts && (
+                        <div style={{ textAlign: 'right' }}>
+                          <small style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Costo</small>
+                          <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>${cost.toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                      <small style={{ color: 'var(--success-dark)', fontWeight: 600 }}>
-                        +${unitProfit.toFixed(2)} ({margin.toFixed(0)}% mgn)
-                      </small>
+                      {canViewCosts ? (
+                        <small style={{ color: 'var(--success-dark)', fontWeight: 600 }}>
+                          +${unitProfit.toFixed(2)} ({margin.toFixed(0)}% mgn)
+                        </small>
+                      ) : <span />}
                       {canManage && (
                         <button
                           type="button"

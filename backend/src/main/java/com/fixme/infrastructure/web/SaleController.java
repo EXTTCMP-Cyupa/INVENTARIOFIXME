@@ -51,7 +51,9 @@ public class SaleController {
       List<Payment> payments,
       String invoiceType, // "INTERNAL_TICKET" or "SRI_INVOICE"
       String offlineFolio,
-      BigDecimal discount
+      BigDecimal discount,
+      BigDecimal tax,
+      BigDecimal taxRate
   ) {}
 
   @PostMapping
@@ -69,6 +71,14 @@ public class SaleController {
         in.delivery().shippingCost()
     );
 
+    String invType = (in.invoiceType() != null && "SRI_INVOICE".equalsIgnoreCase(in.invoiceType()))
+        ? "SRI_INVOICE" : "INTERNAL_TICKET";
+
+    // If INTERNAL_TICKET, tax is explicitly 0.00
+    BigDecimal effectiveTax = "INTERNAL_TICKET".equals(invType)
+        ? BigDecimal.ZERO
+        : (in.tax() != null ? in.tax() : BigDecimal.ZERO);
+
     Sale sale = service.create(
         t,
         in.branchId(),
@@ -81,11 +91,9 @@ public class SaleController {
         in.fulfillmentType(),
         in.shippingCost(),
         deliveryInfo,
-        in.discount()
+        in.discount(),
+        effectiveTax
     );
-
-    String invType = (in.invoiceType() != null && "SRI_INVOICE".equalsIgnoreCase(in.invoiceType()))
-        ? "SRI_INVOICE" : "INTERNAL_TICKET";
 
     jdbc.update("UPDATE sales SET invoice_type = ?, offline_folio = ? WHERE id = ? AND tenant_id = ?",
         invType, in.offlineFolio(), sale.id(), t);
@@ -134,7 +142,10 @@ public class SaleController {
     // Auto-issue SRI electronic invoice if requested
     if ("SRI_INVOICE".equals(invType)) {
       try {
-        var sriInv = sriInvoiceController.issueInvoiceFromSale(jwt, sale.id(), null);
+        Map<String, Object> sriOverrides = new HashMap<>();
+        if (in.taxRate() != null) sriOverrides.put("taxRate", in.taxRate());
+        if (in.tax() != null) sriOverrides.put("tax", in.tax());
+        var sriInv = sriInvoiceController.issueInvoiceFromSale(jwt, sale.id(), sriOverrides);
         resp.put("electronicInvoice", sriInv);
         resp.put("electronicInvoiceId", sriInv.get("id"));
         resp.put("electronic_invoice_id", sriInv.get("id"));
@@ -204,11 +215,16 @@ public class SaleController {
         WHERE s.tenant_id = ?
         """;
 
-    if (branchId != null) {
-      return jdbc.queryForMap(sql + " AND s.branch_id = ?", t, branchId);
-    } else {
-      return jdbc.queryForMap(sql, t);
+    Map<String, Object> res = branchId != null
+        ? jdbc.queryForMap(sql + " AND s.branch_id = ?", t, branchId)
+        : jdbc.queryForMap(sql, t);
+    if (!com.fixme.infrastructure.security.SecurityConfig.canViewCosts(jwt)) {
+      Map<String, Object> sanitized = new HashMap<>(res);
+      sanitized.remove("total_cogs");
+      sanitized.remove("gross_profit");
+      return sanitized;
     }
+    return res;
   }
 
   @GetMapping
@@ -248,11 +264,17 @@ public class SaleController {
         WHERE s.tenant_id = ?
         """;
 
-    if (branchId != null) {
-      return jdbc.queryForList(sql + " AND s.branch_id = ? ORDER BY s.created_at DESC", t, branchId);
-    } else {
-      return jdbc.queryForList(sql + " ORDER BY s.created_at DESC", t);
+    List<Map<String, Object>> rows = branchId != null
+        ? jdbc.queryForList(sql + " AND s.branch_id = ? ORDER BY s.created_at DESC", t, branchId)
+        : jdbc.queryForList(sql + " ORDER BY s.created_at DESC", t);
+
+    if (!com.fixme.infrastructure.security.SecurityConfig.canViewCosts(jwt)) {
+      for (Map<String, Object> r : rows) {
+        r.remove("total_cost");
+        r.remove("gross_profit");
+      }
     }
+    return rows;
   }
 
   @GetMapping("/{id}")
@@ -323,6 +345,16 @@ public class SaleController {
         """, t, id);
 
     Map<String, Object> out = new HashMap<>(sale);
+    if (!com.fixme.infrastructure.security.SecurityConfig.canViewCosts(jwt)) {
+      out.remove("total_cost");
+      out.remove("gross_profit");
+      for (Map<String, Object> it : items) {
+        it.remove("cost_price");
+        it.remove("unit_cost");
+        it.remove("total_cost");
+        it.remove("gross_profit");
+      }
+    }
     out.put("items", items);
     out.put("payments", payments);
     return out;

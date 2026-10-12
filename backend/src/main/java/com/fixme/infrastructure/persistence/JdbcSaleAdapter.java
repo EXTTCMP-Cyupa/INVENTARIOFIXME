@@ -33,7 +33,8 @@ public class JdbcSaleAdapter implements SalePort {
       String fulfillmentType,
       BigDecimal shippingCost,
       DeliveryInfo delivery,
-      BigDecimal discount
+      BigDecimal discount,
+      BigDecimal tax
   ) {
     tenant(t);
     jdbc.queryForObject("select id from branches where id=? and tenant_id=? and active", UUID.class, b, t);
@@ -69,8 +70,9 @@ public class JdbcSaleAdapter implements SalePort {
 
     BigDecimal finalDiscount = (discount != null && discount.signum() > 0) ? discount : BigDecimal.ZERO;
     BigDecimal taxableSubtotal = subtotal.subtract(finalDiscount).max(BigDecimal.ZERO);
+    BigDecimal finalTax = (tax != null && tax.signum() > 0) ? tax.setScale(2, java.math.RoundingMode.HALF_UP) : BigDecimal.ZERO;
     BigDecimal finalShipping = shippingCost != null && shippingCost.signum() > 0 ? shippingCost : BigDecimal.ZERO;
-    BigDecimal total = taxableSubtotal.add(finalShipping);
+    BigDecimal total = taxableSubtotal.add(finalTax).add(finalShipping);
     BigDecimal paid = payments.stream().map(Payment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     if (paid.compareTo(total) < 0) {
       throw new IllegalArgumentException("Pagos insuficientes. Total requerido: $" + total + ", total recibido: $" + paid);
@@ -86,9 +88,9 @@ public class JdbcSaleAdapter implements SalePort {
     String deliveryNotes = delivery != null ? delivery.notes() : null;
 
     jdbc.update(
-        "insert into sales(id, tenant_id, branch_id, user_id, customer_id, warranty_days, subtotal, discount, total, cash_session_id, channel, fulfillment_type, shipping_cost, delivery_notes) " +
-        "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        id, t, b, u, customerId, warranty, subtotal, finalDiscount, total, session, finalChannel, finalFulfillment, finalShipping, deliveryNotes
+        "insert into sales(id, tenant_id, branch_id, user_id, customer_id, warranty_days, subtotal, discount, tax, total, cash_session_id, channel, fulfillment_type, shipping_cost, delivery_notes) " +
+        "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        id, t, b, u, customerId, warranty, subtotal, finalDiscount, finalTax, total, session, finalChannel, finalFulfillment, finalShipping, deliveryNotes
     );
 
     for (Object[] row : rows) {
@@ -123,10 +125,10 @@ public class JdbcSaleAdapter implements SalePort {
           "insert into payments(sale_id, tenant_id, payment_method, amount) values(?,?,?,?)",
           id, t, m, p.amount()
       );
-      if (session != null && "CASH".equals(m)) {
+      if (session != null) {
         jdbc.update(
             "insert into cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, sale_id, created_by) values(?,?,?,'SALE_CASH',?,?,?,?,?)",
-            t, session, b, m, p.amount(), "Venta " + id, id, u
+            t, session, b, m, p.amount(), "Venta POS #" + id.toString().substring(0, 8).toUpperCase(Locale.ROOT), id, u
         );
       }
     }
