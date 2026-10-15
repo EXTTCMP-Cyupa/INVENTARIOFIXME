@@ -45,10 +45,10 @@ public class JdbcSaleAdapter implements SalePort {
 
     UUID session = null;
     var sessions = jdbc.query("select id from cash_sessions where tenant_id=? and branch_id=? and status='OPEN'", (r, n) -> r.getObject(1, UUID.class), t, b);
-    if (payments.stream().anyMatch(p -> "CASH".equals(p.method())) && sessions.isEmpty()) {
-      throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Debe abrir la caja antes de vender en efectivo");
+    if (sessions.isEmpty()) {
+      throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Debe abrir la caja en esta sucursal antes de registrar ventas o cobros");
     }
-    if (!sessions.isEmpty()) session = sessions.get(0);
+    session = sessions.get(0);
 
     for (Item i : items) {
       var p = jdbc.queryForMap(
@@ -118,20 +118,37 @@ public class JdbcSaleAdapter implements SalePort {
 
     for (Payment p : payments) {
       String m = p.method().toUpperCase(Locale.ROOT);
-      if (!Set.of("CASH", "CARD", "TRANSFER", "OTHER").contains(m)) {
+      if (!Set.of("CASH", "CARD", "TRANSFER", "CREDIT", "OTHER").contains(m)) {
         throw new IllegalArgumentException("método de pago inválido: " + m);
       }
       jdbc.update(
           "insert into payments(sale_id, tenant_id, payment_method, amount) values(?,?,?,?)",
           id, t, m, p.amount()
       );
-      if (session != null) {
+      if ("CREDIT".equals(m)) {
+        if (customerId == null) {
+          throw new IllegalArgumentException("Para vender a crédito debe seleccionar un cliente registrado");
+        }
+        String crFolio = "CR-" + (int) (100000 + (Math.random() * 900000));
+        jdbc.update(
+            "insert into customer_receivables(tenant_id, branch_id, customer_id, sale_id, folio, description, total_amount, paid_amount, balance_due, status, due_date, created_by) " +
+            "values(?,?,?,?,?,?,?,?,?,'PENDING',CURRENT_DATE + interval '30 days',?)",
+            t, b, customerId, id, crFolio, "Venta a crédito #" + id.toString().substring(0, 8).toUpperCase(Locale.ROOT), p.amount(), BigDecimal.ZERO, p.amount(), u
+        );
+      } else if (session != null) {
         jdbc.update(
             "insert into cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, sale_id, created_by) values(?,?,?,'SALE_CASH',?,?,?,?,?)",
             t, session, b, m, p.amount(), "Venta POS #" + id.toString().substring(0, 8).toUpperCase(Locale.ROOT), id, u
         );
       }
     }
+
+    try {
+      jdbc.update(
+          "insert into activity_logs(tenant_id, branch_id, user_id, action, entity_type, entity_id, details) values(?,?,?,'SALE_CREATE','SALE',?,?)",
+          t, b, u, id.toString(), "Venta creada por $" + total + " en sucursal"
+      );
+    } catch (Exception ignored) {}
 
     if ("DELIVERY".equals(finalFulfillment) && delivery != null) {
       UUID deliveryId = UUID.randomUUID();

@@ -674,55 +674,61 @@ public class RepairMarketplaceController {
         warrantyDays, order.get("serial_number")
     );
 
-    // 2. Actualizar la orden de trabajo con el cobro y la garantía
+    // 2. Verificar caja abierta si hay cobro de dinero
+    UUID sessionId = null;
+    UUID branchId = (UUID) order.get("branch_id");
+    if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0 && branchId != null) {
+      List<Map<String, Object>> openSessions = db.queryForList(
+          "SELECT id FROM cash_sessions WHERE tenant_id = ? AND branch_id = ? AND status = 'OPEN' ORDER BY opened_at DESC LIMIT 1",
+          t, branchId
+      );
+      if (openSessions.isEmpty()) {
+        throw new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT,
+            "Debe abrir la caja en esta sucursal antes de registrar el cobro de la orden de servicio."
+        );
+      }
+      sessionId = (UUID) openSessions.get(0).get("id");
+    }
+
+    // 3. Actualizar la orden de trabajo con el cobro, sesión de caja y la garantía
     db.update("""
         UPDATE work_orders
         SET status = ?, payment_method = ?, payment_amount = ?, paid_at = now(),
             delivered_at = now(), warranty_days = ?, warranty_terms = ?,
-            warranty_id = ?, technician_notes = ?, updated_at = now()
+            warranty_id = ?, technician_notes = ?, cash_session_id = ?, updated_at = now()
         WHERE id = ? AND tenant_id = ?
         """,
         nextStatus, paymentMethod, paymentAmount, warrantyDays, warrantyTerms,
-        warrantyId, techNotes, orderId, t
+        warrantyId, techNotes, sessionId, orderId, t
     );
 
-    // 3. Registrar el cobro en la caja abierta de la sucursal (para TODOS los medios de pago)
-    if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+    // 4. Registrar el cobro en la caja abierta de la sucursal (para TODOS los medios de pago)
+    if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0 && sessionId != null) {
       try {
-        UUID branchId = (UUID) order.get("branch_id");
-        if (branchId != null) {
-          List<Map<String, Object>> openSessions = db.queryForList(
-              "SELECT id FROM cash_sessions WHERE tenant_id = ? AND branch_id = ? AND status = 'OPEN' ORDER BY opened_at DESC LIMIT 1",
-              t, branchId
-          );
-          if (!openSessions.isEmpty()) {
-            UUID sessionId = (UUID) openSessions.get(0).get("id");
-            UUID userId = user(t, jwt.getSubject());
-
-            String normMethod = "CASH";
-            if (paymentMethod != null) {
-              String pm = paymentMethod.trim().toUpperCase(Locale.ROOT);
-              if (Set.of("CASH", "CARD", "TRANSFER", "OTHER").contains(pm)) {
-                normMethod = pm;
-              }
-            }
-
-            try {
-              db.update(
-                  "UPDATE work_orders SET cash_session_id = ? WHERE id = ? AND tenant_id = ?",
-                  sessionId, orderId, t
-              );
-            } catch (Exception ignored) {}
-
-            db.update(
-                "INSERT INTO cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, created_by, reference) " +
-                "VALUES(?, ?, ?, 'SALE_CASH', ?, ?, ?, ?, ?)",
-                t, sessionId, branchId, normMethod, paymentAmount, "Cobro Orden de Servicio #" + orderNum + " (" + serviceDesc + ")", userId, "OT-" + orderNum
-            );
+        UUID userId = user(t, jwt.getSubject());
+        String normMethod = "CASH";
+        if (paymentMethod != null) {
+          String pm = paymentMethod.trim().toUpperCase(Locale.ROOT);
+          if (Set.of("CASH", "CARD", "TRANSFER", "OTHER").contains(pm)) {
+            normMethod = pm;
           }
         }
+
+        db.update(
+            "INSERT INTO cash_movements(tenant_id, session_id, branch_id, type, payment_method, amount, reason, created_by, reference) " +
+            "VALUES(?, ?, ?, 'SALE_CASH', ?, ?, ?, ?, ?)",
+            t, sessionId, branchId, normMethod, paymentAmount, "Cobro Orden de Servicio #" + orderNum + " (" + serviceDesc + ")", userId, "OT-" + orderNum
+        );
+
+        try {
+          db.update(
+              "INSERT INTO activity_logs(tenant_id, branch_id, user_id, action, entity_type, entity_id, details) VALUES(?, ?, ?, 'WORK_ORDER_PAY', 'WORK_ORDER', ?, ?)",
+              t, branchId, userId, orderId.toString(), "Cobro de orden #" + orderNum + " por $" + paymentAmount + " (" + normMethod + ")"
+          );
+        } catch (Exception ignored) {}
       } catch (Exception ex) {
-        // Log or silent fallback to not block checkout delivery
+        // Log fallback
       }
     }
 

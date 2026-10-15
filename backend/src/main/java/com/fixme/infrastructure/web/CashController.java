@@ -50,7 +50,14 @@ public class CashController {
   @PostMapping("/open")
   @PreAuthorize("hasAnyAuthority('SCOPE_SELLER','SCOPE_MANAGER','SCOPE_TENANT_ADMIN','SCOPE_SUPER_ADMIN')")
   public CashPort.Session open(@AuthenticationPrincipal Jwt j, @RequestParam UUID branchId, @RequestBody Open x) {
-    return service.open(tenant(j), branchId, uid(j), x.openingCash(), x.amounts());
+    CashPort.Session s = service.open(tenant(j), branchId, uid(j), x.openingCash(), x.amounts());
+    try {
+      db.update(
+          "INSERT INTO activity_logs(tenant_id, branch_id, user_id, action, entity_type, entity_id, details) VALUES(?, ?, ?, 'CASH_OPEN', 'CASH_SESSION', ?, ?)",
+          tenant(j), branchId, uid(j), s.id().toString(), "Apertura de turno con fondo inicial de $" + x.openingCash()
+      );
+    } catch (Exception ignored) {}
+    return s;
   }
 
   @GetMapping("/current")
@@ -360,7 +367,7 @@ public class CashController {
   }
 
   @PostMapping("/close")
-  @PreAuthorize("hasAnyAuthority('SCOPE_MANAGER','SCOPE_TENANT_ADMIN','SCOPE_SUPER_ADMIN')")
+  @PreAuthorize("hasAnyAuthority('SCOPE_SELLER','SCOPE_MANAGER','SCOPE_TENANT_ADMIN','SCOPE_SUPER_ADMIN')")
   public CashPort.Session close(@AuthenticationPrincipal Jwt j, @RequestParam UUID branchId, @RequestBody Close x) {
     CashPort.Session closed = service.close(
         tenant(j), branchId, uid(j), x.counted(),
@@ -375,6 +382,13 @@ public class CashController {
             countJson, bankJson, closed.id());
       } catch (Exception ignored) {}
     }
+
+    try {
+      db.update(
+          "INSERT INTO activity_logs(tenant_id, branch_id, user_id, action, entity_type, entity_id, details) VALUES(?, ?, ?, 'CASH_CLOSE', 'CASH_SESSION', ?, ?)",
+          tenant(j), branchId, uid(j), closed.id().toString(), "Cierre de turno. Estado: " + closed.closeState() + ", Diferencia: $" + closed.difference()
+      );
+    } catch (Exception ignored) {}
 
     return closed;
   }
